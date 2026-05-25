@@ -20,8 +20,6 @@ namespace KrasCore.Mosaic.Editor
         public static readonly VisualTreeAsset WeightedListElementAsset;
         public static readonly VisualTreeAsset RuleGroupElementAsset;
         
-        private const string ValidationRoot = "KrasCore.Mosaic.Editor";
-        
         static EditorResources()
         {
             NotTexture = Load<Texture>("not.png");
@@ -39,7 +37,7 @@ namespace KrasCore.Mosaic.Editor
 
         private static T Load<T>(string path) where T : Object
         {
-            return AssetDatabaseUtils.LoadEditorResource<T>(path, ValidationRoot);
+            return AssetDatabaseUtils.LoadEditorResource<T>(path, "com.firealt.mosaic");
         }
     }
 }
