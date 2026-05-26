@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace KrasCore.Mosaic
+namespace FireAlt.Mosaic
 {
     [Serializable]
     public class PrefabResult

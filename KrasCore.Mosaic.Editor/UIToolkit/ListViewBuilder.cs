@@ -5,7 +5,7 @@ using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine.UIElements;
 
-namespace KrasCore.Mosaic.Editor
+namespace FireAlt.Mosaic.Editor
 {
     public class ListViewBuilder<T> where T : new()
     {

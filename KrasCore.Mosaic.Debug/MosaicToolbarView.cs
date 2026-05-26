@@ -3,7 +3,7 @@ using System.ComponentModel;
 using BovineLabs.Anchor;
 using Unity.AppUI.UI;
 
-namespace KrasCore.Mosaic.Debug
+namespace FireAlt.Mosaic.Debug
 {
     [Transient]
     public class MosaicToolbarView : View<MosaicToolbarViewModel>, IDisposable

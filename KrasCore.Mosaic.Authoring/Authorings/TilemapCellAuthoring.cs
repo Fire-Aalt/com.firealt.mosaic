@@ -1,8 +1,8 @@
-using KrasCore.Mosaic.Data;
+using FireAlt.Mosaic.Data;
 using Unity.Entities;
 using UnityEngine;
 
-namespace KrasCore.Mosaic.Authoring
+namespace FireAlt.Mosaic.Authoring
 {
     /// <summary>
     /// Adds a TilemapCell component that is initialized when the entity is placed by Mosaic.

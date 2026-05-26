@@ -1,6 +1,6 @@
 using BovineLabs.Anchor.Debug.Toolbar;
-using KrasCore.Mosaic.Data;
-using KrasCore.Quill;
+using FireAlt.Mosaic.Data;
+using FireAlt.Core.Quill;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -9,13 +9,13 @@ using Unity.Mathematics;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 using Random = Unity.Mathematics.Random;
-using TerrainLayer = KrasCore.Mosaic.Data.TerrainLayer;
+using TerrainLayer = FireAlt.Mosaic.Data.TerrainLayer;
 
 #if BL_QUILL
 using BovineLabs.Quill;
 #endif
 
-namespace KrasCore.Mosaic.Debug
+namespace FireAlt.Mosaic.Debug
 {
     [UpdateInGroup(typeof(ToolbarSystemGroup))]
     public partial struct MosaicToolbarSystem : ISystem, ISystemStartStop

@@ -1,6 +1,6 @@
 using System;
 
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     [Serializable]
     public struct IntGridValue : IEquatable<IntGridValue>

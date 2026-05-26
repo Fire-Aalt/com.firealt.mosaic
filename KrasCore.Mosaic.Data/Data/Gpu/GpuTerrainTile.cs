@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Unity.Mathematics;
 
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     [StructLayout(LayoutKind.Sequential)]
     public struct GpuTerrainTile

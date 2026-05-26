@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using KrasCore.Mosaic.Data;
+using FireAlt.Mosaic.Data;
 using Unity.Mathematics;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Serialization;
 
-namespace KrasCore.Mosaic.Authoring
+namespace FireAlt.Mosaic.Authoring
 {
     [CreateAssetMenu(menuName = "Mosaic/RuleGroup")]
     public class RuleGroup : ScriptableObject

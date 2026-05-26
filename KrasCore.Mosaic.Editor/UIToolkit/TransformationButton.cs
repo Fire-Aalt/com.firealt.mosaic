@@ -1,8 +1,8 @@
-using KrasCore.Mosaic.Data;
+using FireAlt.Mosaic.Data;
 using UnityEditor;
 using UnityEngine.UIElements;
 
-namespace KrasCore.Mosaic.Editor
+namespace FireAlt.Mosaic.Editor
 {
     public class TransformationButton : Image
     {

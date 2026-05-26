@@ -1,11 +1,12 @@
-using KrasCore.Mosaic.Data;
+using FireAlt.Core;
+using FireAlt.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Rendering;
 using UnityEngine;
 
-namespace KrasCore.Mosaic
+namespace FireAlt.Mosaic
 {
     [UpdateInGroup(typeof(RuntimeBakingSystemGroup), OrderLast = true)]
     public partial class MosaicInitializationSystem : SystemBase

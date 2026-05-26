@@ -1,8 +1,9 @@
+using FireAlt.Core;
 using Unity.Entities;
 using Unity.Mathematics;
 using Random = Unity.Mathematics.Random;
 
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     public struct RuleBlob
     {

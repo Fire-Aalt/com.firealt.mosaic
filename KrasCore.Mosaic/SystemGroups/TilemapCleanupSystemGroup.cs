@@ -1,6 +1,6 @@
 using Unity.Entities;
 
-namespace KrasCore.Mosaic
+namespace FireAlt.Mosaic
 {
     [UpdateInGroup(typeof(InitializationSystemGroup))]
     public partial class TilemapCleanupSystemGroup : ComponentSystemGroup

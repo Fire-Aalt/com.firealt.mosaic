@@ -2,7 +2,7 @@ using System.Runtime.CompilerServices;
 using Unity.Mathematics;
 using UnityEngine;
 
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     public static class MosaicUtils
     {

@@ -1,12 +1,12 @@
 using System;
-using KrasCore.Mosaic.Data;
+using FireAlt.Core;
+using FireAlt.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
-using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 
-namespace KrasCore.Mosaic.Authoring
+namespace FireAlt.Mosaic.Authoring
 {
     public static class BakerUtils
     {

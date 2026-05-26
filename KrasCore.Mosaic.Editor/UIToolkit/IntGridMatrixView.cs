@@ -1,13 +1,13 @@
 using System;
 using System.Reflection;
-using KrasCore.Mosaic.Authoring;
-using KrasCore.Mosaic.Data;
+using FireAlt.Mosaic.Authoring;
+using FireAlt.Mosaic.Data;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace KrasCore.Mosaic.Editor
+namespace FireAlt.Mosaic.Editor
 {
     public class IntGridMatrixView : VisualElement
     {

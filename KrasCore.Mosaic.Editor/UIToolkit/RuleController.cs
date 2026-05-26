@@ -1,12 +1,12 @@
-using KrasCore.Mosaic.Authoring;
-using KrasCore.Mosaic.Data;
+using FireAlt.Mosaic.Authoring;
+using FireAlt.Mosaic.Data;
 using Unity.AppUI.UI;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 using Toggle = Unity.AppUI.UI.Toggle;
 
-namespace KrasCore.Mosaic.Editor
+namespace FireAlt.Mosaic.Editor
 {
     public class RuleController
     {

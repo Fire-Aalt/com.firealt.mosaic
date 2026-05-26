@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
-using BovineLabs.Core;
-using KrasCore.Mosaic.Data;
+using FireAlt.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
@@ -10,7 +9,7 @@ using Unity.Rendering;
 using Hash128 = Unity.Entities.Hash128;
 using Mesh = UnityEngine.Mesh;
 
-namespace KrasCore.Mosaic
+namespace FireAlt.Mosaic
 {
 	[UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
 	public partial class MosaicPresentationSystem : SystemBase

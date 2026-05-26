@@ -1,12 +1,9 @@
 {
-    "name": "KrasCore.Mosaic.Authoring",
-    "rootNamespace": "KrasCore.Mosaic.Authoring",
+    "name": "FireAlt.Mosaic",
+    "rootNamespace": "FireAlt.Mosaic",
     "references": [
-        "KrasCore",
-        "KrasCore.Editor",
-        "KrasCore.Mosaic.Data",
-        "BovineLabs.Core",
-        "Unity.AppUI",
+        "FireAlt.Core",
+        "FireAlt.Mosaic.Data",
         "Unity.Burst",
         "Unity.Collections",
         "Unity.Entities",
@@ -16,18 +13,16 @@
         "Unity.Mathematics",
         "Unity.Mathematics.Extensions",
         "Unity.Physics",
-        "Unity.Transforms"
+        "Unity.Transforms",
+        "Unity.Scenes"
     ],
-    "optionalUnityReferences": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": true,
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": false,
-    "defineConstraints": [
-        "UNITY_EDITOR"
-    ],
+    "defineConstraints": [],
     "versionDefines": [],
     "noEngineReferences": false
 }

@@ -1,7 +1,7 @@
 using Unity.Entities;
 using Unity.Mathematics;
 
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     public struct TilemapCell : IComponentData
     {

@@ -1,10 +1,10 @@
 using System;
-using KrasCore.Mosaic.Data;
+using FireAlt.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 
-namespace KrasCore.Mosaic.Authoring
+namespace FireAlt.Mosaic.Authoring
 {
     public struct RuleBlobCreator
     {

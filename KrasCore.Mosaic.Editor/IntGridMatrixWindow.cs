@@ -1,10 +1,10 @@
 using System.Reflection;
-using KrasCore.Mosaic.Authoring;
+using FireAlt.Mosaic.Authoring;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace KrasCore.Mosaic.Editor
+namespace FireAlt.Mosaic.Editor
 {
     public class IntGridMatrixWindow : EditorWindow
     {

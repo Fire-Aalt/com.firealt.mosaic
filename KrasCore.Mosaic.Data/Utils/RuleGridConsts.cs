@@ -1,4 +1,4 @@
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     public static class RuleGridConsts
     {

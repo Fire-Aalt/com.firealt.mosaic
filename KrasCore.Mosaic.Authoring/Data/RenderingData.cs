@@ -1,8 +1,8 @@
-using KrasCore.Mosaic.Data;
+using FireAlt.Mosaic.Data;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace KrasCore.Mosaic.Authoring
+namespace FireAlt.Mosaic.Authoring
 {
     [System.Serializable]
     public class RenderingData

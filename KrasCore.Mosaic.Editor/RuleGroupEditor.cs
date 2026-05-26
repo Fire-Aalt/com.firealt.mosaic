@@ -1,10 +1,10 @@
 using System.Collections.Generic;
-using KrasCore.Mosaic.Authoring;
+using FireAlt.Mosaic.Authoring;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine.UIElements;
 
-namespace KrasCore.Mosaic.Editor
+namespace FireAlt.Mosaic.Editor
 {
     [CustomEditor(typeof(RuleGroup))]
     public class RuleGroupEditor : UnityEditor.Editor

@@ -1,7 +1,7 @@
 using System;
-using KrasCore.Mosaic.Data;
+using FireAlt.Mosaic.Data;
 
-namespace KrasCore.Mosaic.Authoring
+namespace FireAlt.Mosaic.Authoring
 {
     [Serializable]
     public class IntGridValueSelector

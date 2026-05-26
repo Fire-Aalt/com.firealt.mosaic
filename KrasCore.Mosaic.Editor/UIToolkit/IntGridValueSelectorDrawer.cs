@@ -1,14 +1,14 @@
 using System;
 using System.Reflection;
-using KrasCore.Editor;
-using KrasCore.Mosaic.Authoring;
-using KrasCore.Mosaic.Data;
+using FireAlt.Core.Editor;
+using FireAlt.Mosaic.Authoring;
+using FireAlt.Mosaic.Data;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
-namespace KrasCore.Mosaic.Editor
+namespace FireAlt.Mosaic.Editor
 {
     public static class IntGridValueSelectorDrawer
     {

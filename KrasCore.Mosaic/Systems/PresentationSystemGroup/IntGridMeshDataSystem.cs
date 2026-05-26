@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
-using KrasCore.Mosaic.Data;
+using FireAlt.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -10,7 +10,7 @@ using Unity.Mathematics;
 using UnityEngine.Rendering;
 using Mesh = UnityEngine.Mesh;
 
-namespace KrasCore.Mosaic
+namespace FireAlt.Mosaic
 {
 	[UpdateAfter(typeof(RuleEngineSystem))]
 	[UpdateInGroup(typeof(TilemapUpdateSystemGroup))]

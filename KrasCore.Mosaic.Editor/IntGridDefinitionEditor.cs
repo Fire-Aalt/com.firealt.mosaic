@@ -1,10 +1,10 @@
 using BovineLabs.Core.Editor.Inspectors;
-using KrasCore.Editor;
-using KrasCore.Mosaic.Authoring;
+using FireAlt.Core.Editor;
+using FireAlt.Mosaic.Authoring;
 using UnityEditor;
 using UnityEngine.UIElements;
 
-namespace KrasCore.Mosaic.Editor
+namespace FireAlt.Mosaic.Editor
 {
     [CustomEditor(typeof(IntGridDefinition))]
     public class IntGridDefinitionEditor : ElementEditor

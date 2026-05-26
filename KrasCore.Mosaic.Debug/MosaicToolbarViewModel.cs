@@ -6,7 +6,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Properties;
 
-namespace KrasCore.Mosaic.Debug
+namespace FireAlt.Mosaic.Debug
 {
     public partial class MosaicToolbarViewModel : SystemObservableObject<MosaicToolbarViewModel.Data>, ILoadable
     {

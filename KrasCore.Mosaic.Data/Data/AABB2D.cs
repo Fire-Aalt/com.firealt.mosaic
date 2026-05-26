@@ -1,7 +1,7 @@
 using System;
 using Unity.Mathematics;
 
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     ///<summary>
     /// An AABB, or axis-aligned bounding box, is a simple bounding shape, typically used for quick determination

@@ -1,11 +1,11 @@
-using KrasCore.Mosaic.Data;
+using FireAlt.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Transforms;
 
-namespace KrasCore.Mosaic
+namespace FireAlt.Mosaic
 {
     [UpdateInGroup(typeof(TilemapInitializationSystemGroup))]
     public partial struct EntityInitializationSystem : ISystem

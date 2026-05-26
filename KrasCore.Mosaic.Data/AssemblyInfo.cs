@@ -4,6 +4,6 @@
 
 using System.Runtime.CompilerServices;
 
-[assembly: InternalsVisibleTo("KrasCore.Mosaic")]
-[assembly: InternalsVisibleTo("KrasCore.Mosaic.Authoring")]
-[assembly: InternalsVisibleTo("KrasCore.Mosaic.Editor")]
+[assembly: InternalsVisibleTo("FireAlt.Mosaic")]
+[assembly: InternalsVisibleTo("FireAlt.Mosaic.Authoring")]
+[assembly: InternalsVisibleTo("FireAlt.Mosaic.Editor")]

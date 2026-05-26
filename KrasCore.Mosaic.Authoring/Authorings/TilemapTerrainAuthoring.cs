@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using KrasCore.Mosaic.Data;
+using FireAlt.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 
-namespace KrasCore.Mosaic.Authoring
+namespace FireAlt.Mosaic.Authoring
 {
     public class TilemapTerrainAuthoring : MonoBehaviour
     {

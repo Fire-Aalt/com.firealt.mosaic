@@ -2,8 +2,9 @@ using System;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
+using FireAlt.Core;
 
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     public class TilemapTerrainRenderingData : IDisposable
     {

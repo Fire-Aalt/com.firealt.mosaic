@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using Unity.Entities;
 using Unity.Mathematics;
 
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     public struct EntityCommand
     {

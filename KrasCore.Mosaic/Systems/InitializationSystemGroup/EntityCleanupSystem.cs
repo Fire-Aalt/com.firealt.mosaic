@@ -1,9 +1,9 @@
-using KrasCore.Mosaic.Data;
+using FireAlt.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
 
-namespace KrasCore.Mosaic
+namespace FireAlt.Mosaic
 {
     [UpdateInGroup(typeof(TilemapCleanupSystemGroup))]
     public partial struct EntityCleanupSystem : ISystem

@@ -1,6 +1,6 @@
 using Unity.Entities;
 
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     public struct TerrainLayer : IComponentData
     {

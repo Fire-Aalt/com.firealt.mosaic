@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
-using KrasCore.Editor;
+using FireAlt.Core.Editor;
 
-namespace KrasCore.Mosaic.Authoring
+namespace FireAlt.Mosaic.Authoring
 {
     [CreateAssetMenu(menuName = "Mosaic/IntGrid")]
     public class IntGridDefinition : ScriptableObject

@@ -1,10 +1,11 @@
 {
-    "name": "KrasCore.Mosaic.Debug",
-    "rootNamespace": "KrasCore.Mosaic.Debug",
+    "name": "FireAlt.Mosaic.Debug",
+    "rootNamespace": "FireAlt.Mosaic.Debug",
     "references": [
-        "KrasCore.Mosaic",
-        "KrasCore.Mosaic.Data",
-        "KrasCore",
+        "FireAlt.Mosaic",
+        "FireAlt.Mosaic.Data",
+        "FireAlt.Core.BovineLabs",
+        "FireAlt.Core",
         "BovineLabs.Core",
         "BovineLabs.Core.Extensions",
         "BovineLabs.Anchor",

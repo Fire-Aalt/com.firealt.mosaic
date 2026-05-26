@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using KrasCore.Mosaic.Authoring;
+using FireAlt.Mosaic.Authoring;
 using UnityEditor;
 using UnityEngine.UIElements;
 using Object = UnityEngine.Object;
 
-namespace KrasCore.Mosaic.Editor
+namespace FireAlt.Mosaic.Editor
 {
     public class WeightedListViewBuilder<TObject, TEntry> : ListViewBuilder<TEntry>
         where TObject : Object

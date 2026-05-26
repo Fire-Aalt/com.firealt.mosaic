@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     [StructLayout(LayoutKind.Sequential)]
     public struct GpuTerrainIndex

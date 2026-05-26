@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     [Flags]
     public enum Transformation

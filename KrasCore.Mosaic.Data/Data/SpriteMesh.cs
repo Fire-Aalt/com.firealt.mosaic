@@ -1,8 +1,9 @@
 using System;
+using FireAlt.Core;
 using Unity.Mathematics;
 using UnityEngine;
 
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     public struct SpriteMesh : IEquatable<SpriteMesh>
     {

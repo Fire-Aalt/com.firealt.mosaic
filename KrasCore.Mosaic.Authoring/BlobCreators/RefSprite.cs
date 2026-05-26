@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace KrasCore.Mosaic.Authoring
+namespace FireAlt.Mosaic.Authoring
 {
     public class RefSprite
     {

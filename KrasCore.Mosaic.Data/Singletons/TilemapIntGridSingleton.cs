@@ -1,11 +1,11 @@
 using System;
-using KrasCore.Mosaic.Data;
+using FireAlt.Core;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Mathematics;
 
-namespace KrasCore.Mosaic.Data
+namespace FireAlt.Mosaic.Data
 {
     public struct TilemapIntGridSingleton : IComponentData, IDisposable
     {

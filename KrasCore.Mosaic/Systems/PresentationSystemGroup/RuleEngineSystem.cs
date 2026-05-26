@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
-using KrasCore.Mosaic.Data;
+using FireAlt.Core;
+using FireAlt.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
@@ -8,7 +9,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 using Random = Unity.Mathematics.Random;
 
-namespace KrasCore.Mosaic
+namespace FireAlt.Mosaic
 {
     [UpdateInGroup(typeof(TilemapUpdateSystemGroup))]
     public partial struct RuleEngineSystem : ISystem
