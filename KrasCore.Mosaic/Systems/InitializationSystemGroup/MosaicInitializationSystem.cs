@@ -7,6 +7,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Rendering;
 using UnityEngine;
+using Hash128 = Unity.Entities.Hash128;
 
 namespace FireAlt.Mosaic
 {
@@ -74,7 +75,7 @@ namespace FireAlt.Mosaic
             Dependency = new RegisterJob
             {
                 TilemapTerrainLayerTagLookup = SystemAPI.GetComponentLookup<Data.TerrainLayer>(true),
-                Tcb = SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW,
+                IntGridLayers = SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW.IntGridLayers,
                 DataTilemapIntGridSingleton = SystemAPI.GetSingletonRW<TilemapIntGridSingleton>().ValueRW,
             }.Schedule(Dependency);
             
@@ -91,14 +92,14 @@ namespace FireAlt.Mosaic
             [ReadOnly]
             public ComponentLookup<Data.TerrainLayer> TilemapTerrainLayerTagLookup;
             
-            public TilemapCommandBufferSingleton Tcb;
+            public NativeHashMap<Hash128, TilemapCommandBufferSingleton.IntGridLayer> IntGridLayers;
             public TilemapIntGridSingleton DataTilemapIntGridSingleton;
             
             private void Execute(ref IntGridData intGridData, EnabledRefRW<IntGridData> enabled, Entity entity)
             {
                 var isTerrainLayer = TilemapTerrainLayerTagLookup.HasComponent(entity);
 
-                if (Tcb.TryRegisterIntGridLayer(intGridData.Hash) 
+                if (TryRegisterIntGridLayer(intGridData.Hash) 
                     && DataTilemapIntGridSingleton.TryRegisterIntGridLayer(intGridData, isTerrainLayer, entity))
                 {
                     enabled.ValueRW = true;
@@ -107,6 +108,15 @@ namespace FireAlt.Mosaic
                 {
                     Debug.LogError($"A duplicate registry attempt detected. This may happen if a TilemapTerrain and a Tilemap share the same IntGrid. Culprit: {intGridData.DebugName}");
                 }
+            }
+            
+            private bool TryRegisterIntGridLayer(Hash128 intGridHash)
+            {
+                if (IntGridLayers.ContainsKey(intGridHash)) return false;
+            
+                var layer = new TilemapCommandBufferSingleton.IntGridLayer(256, Allocator.Persistent);
+                IntGridLayers.Add(intGridHash, layer);
+                return true;
             }
         }
 
