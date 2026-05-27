@@ -1,5 +1,5 @@
 using System;
-using FireAlt.Core;
+using FireAlt.Core.Rendering;
 using Unity.Mathematics;
 using UnityEngine;
 

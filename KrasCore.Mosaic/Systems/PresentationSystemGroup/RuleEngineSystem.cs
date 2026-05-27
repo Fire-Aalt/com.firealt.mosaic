@@ -1,5 +1,5 @@
 using System.Runtime.CompilerServices;
-using FireAlt.Core;
+using FireAlt.Core.Collections;
 using FireAlt.Core.Extensions;
 using FireAlt.Mosaic.Data;
 using Unity.Burst;

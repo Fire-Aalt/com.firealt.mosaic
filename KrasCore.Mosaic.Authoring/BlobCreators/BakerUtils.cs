@@ -1,5 +1,5 @@
 using System;
-using FireAlt.Core;
+using FireAlt.Core.Rendering;
 using FireAlt.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
