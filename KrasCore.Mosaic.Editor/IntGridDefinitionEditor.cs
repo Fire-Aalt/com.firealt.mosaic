@@ -1,5 +1,5 @@
-using BovineLabs.Core.Editor.Inspectors;
 using FireAlt.Core.Editor;
+using FireAlt.Core.Editor.Inspectors;
 using FireAlt.Mosaic.Authoring;
 using UnityEditor;
 using UnityEngine.UIElements;

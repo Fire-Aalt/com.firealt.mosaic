@@ -2,7 +2,7 @@ using System;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
-using FireAlt.Core;
+using FireAlt.Core.Extensions;
 
 namespace FireAlt.Mosaic.Data
 {

@@ -1,7 +1,7 @@
+using FireAlt.Core.Extensions;
 using FireAlt.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
-using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
 using Unity.Transforms;
 

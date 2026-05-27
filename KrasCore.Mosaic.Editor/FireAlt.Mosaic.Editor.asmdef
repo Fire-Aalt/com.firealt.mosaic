@@ -5,8 +5,8 @@
         "FireAlt.Mosaic",
         "FireAlt.Mosaic.Authoring",
         "FireAlt.Mosaic.Data",
-        "BovineLabs.Core",
-        "BovineLabs.Core.Editor",
+        "FireAlt.Core",
+        "FireAlt.Core.Editor",
         "Unity.AppUI",
         "Unity.Burst",
         "Unity.Collections",
@@ -16,9 +16,7 @@
         "Unity.Mathematics",
         "Unity.Mathematics.Extensions",
         "Unity.Physics",
-        "Unity.Transforms",
-        "FireAlt.Core",
-        "FireAlt.Core.Editor"
+        "Unity.Transforms"
     ],
     "optionalUnityReferences": [],
     "includePlatforms": [

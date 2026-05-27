@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
-using BovineLabs.Core.Extensions;
+using FireAlt.Core.Extensions;
 using FireAlt.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;

@@ -3,6 +3,7 @@ using FireAlt.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using FireAlt.Core;
 
 namespace FireAlt.Mosaic.Authoring
 {

@@ -2,7 +2,6 @@
     "name": "FireAlt.Mosaic.Authoring",
     "rootNamespace": "FireAlt.Mosaic.Authoring",
     "references": [
-        "BovineLabs.Core",
         "FireAlt.Core",
         "FireAlt.Core.Editor",
         "FireAlt.Mosaic.Data",
