@@ -1,4 +1,4 @@
-using FireAlt.Core;
+using FireAlt.Core.Utility;
 using Unity.Entities;
 using Unity.Mathematics;
 using Random = Unity.Mathematics.Random;

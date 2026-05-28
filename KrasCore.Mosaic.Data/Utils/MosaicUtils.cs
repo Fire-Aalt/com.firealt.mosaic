@@ -1,6 +1,5 @@
 using System.Runtime.CompilerServices;
 using Unity.Mathematics;
-using UnityEngine;
 
 namespace FireAlt.Mosaic.Data
 {
