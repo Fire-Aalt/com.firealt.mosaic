@@ -6,7 +6,7 @@
   "unity": "6000.23",
   "documentationUrl": "https://github.com/Fire-Aalt/KrasCore-Mosaic/blob/main/README.md",
   "dependencies": {
-    "com.firealt.krascore": "1.0.0",
+    "com.firealt.core": "1.0.0",
     "com.unity.entities": "1.3.2"
   },
   "author": {
