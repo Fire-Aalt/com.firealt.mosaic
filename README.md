@@ -1,5 +1,5 @@
 # Mosaic
-Mosaic is a Next Gen Runtime Unity Tilemap solution, heavily inspired by LDtk, built using Entity Component System
+Mosaic is a Next Gen Runtime Unity Tilemap solution, heavily inspired by LDtk, built using Entity Component System.
 
 ![Mosaic](Documentation~/Images/Mosaic.png)
 
@@ -19,22 +19,17 @@ Mosaic is a Next Gen Runtime Unity Tilemap solution, heavily inspired by LDtk, b
 | 2D Rendering       | Supports both 3D and 2D rendering with SortingLayers                          | Because `SpriteRenderer` rendering path is internal, Mosaic only works with 3D based rendering                                                                                                           |
 
 ## Changelog
-[2.0.0] - 2025-09-12 is out! 
-
-### Removed
-* Dependency on OdinInspector
-
 Full changelog can be found [here](CHANGELOG.md)
 
 ## Installation
 Add these packages using git urls in a package manager:
-1. BovineLabs.Core: https://gitlab.com/tertle/com.bovinelabs.core.git (only utilities are used)
-2. KrasCore: https://github.com/Fire-Aalt/KrasCore.git
-3. KrasCore.Mosaic: https://github.com/Fire-Aalt/KrasCore-Mosaic.git
+1. FireAlt.Core: https://github.com/Fire-Aalt/com.firealt.core.git
+2. FireAlt.Mosaic: https://github.com/Fire-Aalt/com.firealt.mosaic.git
 
 Add these packages for optional support for runtime `IntGrid` debugging: 
-1. BovineLabs.Anchor: https://gitlab.com/tertle/com.bovinelabs.anchor.git
-2. BovineLabs.Quill: https://github.com/tertle/com.bovinelabs.quill
+1. BovineLabs.Core: https://gitlab.com/tertle/com.bovinelabs.core.git
+2. BovineLabs.Anchor: https://gitlab.com/tertle/com.bovinelabs.anchor.git
+3. BovineLabs.Quill: https://github.com/tertle/com.bovinelabs.quill
 
 ## Workflow
 ### Editor (Single Grid workflow)
@@ -109,10 +104,8 @@ Controls and what they do are as follows:
 A separate assembly is included with debug code. This assembly is conditionally compiled out if BovineLabs.Anchor and BovineLabs.Quill are not found in the project. Having BovineLabs.Anchor will add "Mosaic" toolbar to Anchor with a list of registered `IntGrid`s. Having BovineLabs.Quill will add runtime gizmo for selected `IntGrid`s in that list.
 
 ## Contribution
-If you are interested in using this solution, I will be greatly appreciated. Write any bugs, feature requests or enhancements to Issues tab
+If you are interested in using this solution, I will be greatly appreciated. Write any bugs, feature requests or enhancements to Issues tab.
 
 ### Special Thanks to:
 
 [LDtk](https://ldtk.io/) for the idea and GUI
-
-[NZCore](https://github.com/enzi/NZCore) for `ParallelList`

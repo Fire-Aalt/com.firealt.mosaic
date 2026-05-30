@@ -1,21 +1,18 @@
 {
-    "name": "FireAlt.Mosaic",
-    "rootNamespace": "FireAlt.Mosaic",
+    "name": "FireAlt.Mosaic.Data",
+    "rootNamespace": "FireAlt.Mosaic.Data",
     "references": [
         "FireAlt.Core",
-        "FireAlt.Mosaic.Data",
         "Unity.Burst",
         "Unity.Collections",
         "Unity.Entities",
         "Unity.Entities.Graphics",
         "Unity.Entities.Hybrid",
-        "Unity.InputSystem",
         "Unity.Mathematics",
         "Unity.Mathematics.Extensions",
-        "Unity.Physics",
-        "Unity.Transforms",
-        "Unity.Scenes"
+        "Unity.Transforms"
     ],
+    "optionalUnityReferences": [],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": true,

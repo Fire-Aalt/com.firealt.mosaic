@@ -1,13 +1,10 @@
 {
-    "name": "FireAlt.Mosaic.Editor",
-    "rootNamespace": "FireAlt.Mosaic.Editor",
+    "name": "FireAlt.Mosaic.Authoring",
+    "rootNamespace": "FireAlt.Mosaic.Authoring",
     "references": [
-        "FireAlt.Mosaic",
-        "FireAlt.Mosaic.Authoring",
-        "FireAlt.Mosaic.Data",
         "FireAlt.Core",
         "FireAlt.Core.Editor",
-        "Unity.AppUI",
+        "FireAlt.Mosaic.Data",
         "Unity.Burst",
         "Unity.Collections",
         "Unity.Entities",
@@ -15,19 +12,18 @@
         "Unity.Entities.Hybrid",
         "Unity.Mathematics",
         "Unity.Mathematics.Extensions",
-        "Unity.Physics",
         "Unity.Transforms"
     ],
     "optionalUnityReferences": [],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": true,
     "overrideReferences": false,
     "precompiledReferences": [],
     "autoReferenced": false,
-    "defineConstraints": [],
+    "defineConstraints": [
+        "UNITY_EDITOR"
+    ],
     "versionDefines": [],
     "noEngineReferences": false
 }

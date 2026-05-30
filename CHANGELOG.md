@@ -1,3 +1,14 @@
+## [3.0.0] - 2026-05-30
+
+### Breaking Changes
+* Renamed the package.
+* Renamed namespaces.
+* Users must update using directives and package references.
+
+### Changed
+* Removed hard dependency on BovineLabs.Core and BovineLabs as a whole.
+* Tightened up all depedencies.
+
 ## [2.1.0] - 2026-03-13
 
 ### Changed

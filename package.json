@@ -1,13 +1,19 @@
 {
   "name": "com.firealt.mosaic",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "displayName": "FireAlt Mosaic",
-  "description": "Mosaic is a Next Gen Runtime Unity ECS Tilemap solution, heavily inspired by LDtk, built using Entity Component System and Odin Inspector",
-  "unity": "6000.23",
-  "documentationUrl": "https://github.com/Fire-Aalt/KrasCore-Mosaic/blob/main/README.md",
+  "description": "Mosaic is a Next Gen Runtime Unity Tilemap solution, heavily inspired by LDtk, built using Entity Component System.",
+  "unity": "6000.3",
+  "documentationUrl": "https://github.com/Fire-Aalt/com.firealt.mosaic/blob/main/README.md",
+  "changelogUrl": "https://github.com/Fire-Aalt/com.firealt.mosaic/blob/main/CHANGELOG.md",
   "dependencies": {
     "com.firealt.core": "1.0.0",
-    "com.unity.entities": "1.3.2"
+    "com.unity.burst": "1.8.29",
+    "com.unity.mathematics": "1.3.3",
+    "com.unity.collections": "2.6.7",
+    "com.unity.entities": "1.4.7",
+    "com.unity.entities.graphics": "1.4.20",
+    "com.unity.dt.app-ui": "2.1.10"
   },
   "author": {
     "name": "FireAlt",
