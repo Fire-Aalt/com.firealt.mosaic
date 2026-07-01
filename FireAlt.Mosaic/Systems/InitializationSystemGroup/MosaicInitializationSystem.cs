@@ -19,7 +19,7 @@ namespace FireAlt.Mosaic
             var uninitializedQuery = SystemAPI.QueryBuilder().WithAll<TilemapRendererData, RuntimeMaterial>().WithNone<MaterialMeshInfo>().Build();
             if (!uninitializedQuery.IsEmpty)
             {
-                var presentationSingleton = SystemAPI.GetSingleton<MosaicPresentationSystem.Singleton>();
+                var presentationDataObject = SystemAPI.GetSingleton<PresentationDataSingleton>().Value.Value;
                 var tilemapSingleton = SystemAPI.GetSingleton<IntGridMeshDataSystem.Singleton>();
                 var terrainSingleton = SystemAPI.GetSingleton<TerrainMeshDataSystem.Singleton>();
                 var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
@@ -33,7 +33,7 @@ namespace FireAlt.Mosaic
                     var tilemapRenderingData = rendererData[i];
                     var entity = entities[i];
                     
-                    if (presentationSingleton.MeshMap.ContainsKey(tilemapRenderingData.MeshHash))
+                    if (presentationDataObject.MeshMap.ContainsKey(tilemapRenderingData.MeshHash))
                     {
                         Debug.LogError($"A duplicate registry attempt detected. This may happen if a TilemapTerrain and a Tilemap share the same IntGrid. Culprit: {tilemapRenderingData.MeshHash}");
                         continue;
@@ -41,7 +41,7 @@ namespace FireAlt.Mosaic
                     
                     var mesh = new Mesh { name = "Mosaic.TilemapMesh" };
                     mesh.MarkDynamic();
-                    presentationSingleton.MeshMap.Add(tilemapRenderingData.MeshHash, mesh);
+                    presentationDataObject.MeshMap.Add(tilemapRenderingData.MeshHash, mesh);
 
                     var material = runtimeMaterials[i].Value.Value;
                     if (EntityManager.HasComponent<Data.TerrainData>(entity))
@@ -51,7 +51,8 @@ namespace FireAlt.Mosaic
                         var renderingData = ScriptableObject.CreateInstance<TilemapTerrainRenderingData>();
                         renderingData.Init(material);
                         
-                        presentationSingleton.TerrainMap.Add(tilemapRenderingData.MeshHash, renderingData);
+                        Debug.Log(renderingData.Material);
+                        presentationDataObject.TerrainMap.Add(tilemapRenderingData.MeshHash, renderingData);
                         terrainSingleton.RenderingEntities.Add(entity);
                     }
                     else

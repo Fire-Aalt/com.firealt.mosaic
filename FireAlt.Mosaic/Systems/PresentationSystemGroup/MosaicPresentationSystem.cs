@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using FireAlt.Mosaic.Data;
 using Unity.Burst;
@@ -6,58 +5,34 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
-using UnityEngine.Rendering;
+using Hash128 = Unity.Entities.Hash128;
 using Mesh = UnityEngine.Mesh;
+using TerrainData = FireAlt.Mosaic.Data.TerrainData;
 
 namespace FireAlt.Mosaic
 {
 	[UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
 	public partial class MosaicPresentationSystem : SystemBase
 	{
-		public struct Singleton : IComponentData, IDisposable
-		{
-			public NativeHashMap<Hash128, UnityObjectRef<Mesh>> MeshMap;
-			public NativeHashMap<Hash128, UnityObjectRef<TilemapTerrainRenderingData>> TerrainMap;
-
-			public Singleton(Allocator allocator)
-			{
-				MeshMap = new NativeHashMap<Hash128, UnityObjectRef<Mesh>>(4, allocator);
-				TerrainMap = new NativeHashMap<Hash128, UnityObjectRef<TilemapTerrainRenderingData>>(1, allocator);
-			}
-			
-			[BurstDiscard]
-			public void Dispose()
-			{
-				foreach (var kvp in MeshMap)
-				{
-					CoreUtils.Destroy(kvp.Value.Value);
-				}
-				foreach (var kvp in TerrainMap)
-				{
-					kvp.Value.Value.Dispose();
-				}
-			}
-		}
-		
 		private readonly List<Mesh> _intGridMeshesToUpdate = new();
 		private readonly List<Mesh> _terrainMeshesToUpdate = new();
 		private readonly Mesh _dummyMesh = new();
 		
 		protected override void OnCreate()
 		{
-			EntityManager.CreateSingleton(new Singleton(Allocator.Persistent));
+			EntityManager.CreateSingleton(new PresentationDataSingleton(4));
 		}
 
 		protected override void OnDestroy()
 		{
-			SystemAPI.GetSingleton<Singleton>().Dispose();
+			SystemAPI.GetSingleton<PresentationDataSingleton>().Dispose();
 		}
  
 		protected override void OnUpdate()
 		{
 			EntityManager.CompleteDependencyBeforeRW<IntGridMeshDataSystem.Singleton>();
 			EntityManager.CompleteDependencyBeforeRW<TerrainMeshDataSystem.Singleton>();
-			var singleton = SystemAPI.GetSingleton<Singleton>();
+			var singleton = SystemAPI.GetSingleton<PresentationDataSingleton>().Value.Value;
 			ref var intGridSingleton = ref SystemAPI.GetSingletonRW<IntGridMeshDataSystem.Singleton>().ValueRW;
 			ref var terrainSingleton = ref SystemAPI.GetSingletonRW<TerrainMeshDataSystem.Singleton>().ValueRW;
 			
@@ -68,7 +43,7 @@ namespace FireAlt.Mosaic
 			
 			foreach (var terrainHash in terrainSingleton.HashesToUpdate)
 			{
-				var terrainRenderingData = singleton.TerrainMap[terrainHash].Value;
+				var terrainRenderingData = singleton.TerrainMap[terrainHash];
 				var terrainData = terrainSingleton.Terrains[terrainHash];
 				var tilemapTerrainData = EntityManager.GetComponentData<TerrainData>(terrainData.TerrainEntity);
 				
