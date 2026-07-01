@@ -51,7 +51,6 @@ namespace FireAlt.Mosaic
                         var renderingData = ScriptableObject.CreateInstance<TilemapTerrainRenderingData>();
                         renderingData.Init(material);
                         
-                        Debug.Log(renderingData.Material);
                         presentationDataObject.TerrainMap.Add(tilemapRenderingData.MeshHash, renderingData);
                         terrainSingleton.RenderingEntities.Add(entity);
                     }
