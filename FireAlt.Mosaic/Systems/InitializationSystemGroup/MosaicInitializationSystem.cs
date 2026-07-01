@@ -19,7 +19,7 @@ namespace FireAlt.Mosaic
             var uninitializedQuery = SystemAPI.QueryBuilder().WithAll<TilemapRendererData, RuntimeMaterial>().WithNone<MaterialMeshInfo>().Build();
             if (!uninitializedQuery.IsEmpty)
             {
-                var presentationSingleton = SystemAPI.ManagedAPI.GetSingleton<MosaicPresentationSystem.Singleton>();
+                var presentationSingleton = SystemAPI.GetSingleton<MosaicPresentationSystem.Singleton>();
                 var tilemapSingleton = SystemAPI.GetSingleton<IntGridMeshDataSystem.Singleton>();
                 var terrainSingleton = SystemAPI.GetSingleton<TerrainMeshDataSystem.Singleton>();
                 var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
@@ -47,8 +47,11 @@ namespace FireAlt.Mosaic
                     if (EntityManager.HasComponent<Data.TerrainData>(entity))
                     {
                         material = new Material(material); // Force unique for terrains
+
+                        var renderingData = ScriptableObject.CreateInstance<TilemapTerrainRenderingData>();
+                        renderingData.Init(material);
                         
-                        presentationSingleton.TerrainMap.Add(tilemapRenderingData.MeshHash, new TilemapTerrainRenderingData(material));
+                        presentationSingleton.TerrainMap.Add(tilemapRenderingData.MeshHash, renderingData);
                         terrainSingleton.RenderingEntities.Add(entity);
                     }
                     else

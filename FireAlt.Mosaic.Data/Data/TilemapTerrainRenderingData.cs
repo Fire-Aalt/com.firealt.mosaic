@@ -6,19 +6,18 @@ using FireAlt.Core.Extensions;
 
 namespace FireAlt.Mosaic.Data
 {
-    public class TilemapTerrainRenderingData : IDisposable
+    public class TilemapTerrainRenderingData : ScriptableObject, IDisposable
     {
         private static readonly int TileSizeId = Shader.PropertyToID("_TileSize");
         private static readonly int TileBufferId = Shader.PropertyToID("_TerrainTileBuffer");
         private static readonly int IndexBufferId = Shader.PropertyToID("_TerrainIndexBuffer");
         
-        public readonly Material Material;
+        public Material Material;
         
         private GraphicsBuffer _tileBuffer;
         private GraphicsBuffer _indexBuffer;
 
-
-        public TilemapTerrainRenderingData(Material material)
+        public void Init(Material material)
         {
             Material = material;
             ResizeTileBuffer(256);

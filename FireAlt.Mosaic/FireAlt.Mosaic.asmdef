@@ -12,7 +12,8 @@
         "Unity.Mathematics",
         "Unity.Mathematics.Extensions",
         "Unity.Transforms",
-        "Unity.Scenes"
+        "Unity.Scenes",
+        "Unity.RenderPipelines.Core.Runtime"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],
