@@ -268,33 +268,43 @@ namespace FireAlt.Mosaic
                 if (rule.RuleTransform == 0)
                     return false;
 
+                var patternOffset = 1;
                 if (rule.RuleTransform.IsMirroredX())
                 {
                     appliedMirror = new bool2(true, false);
-                    if (ExecuteRule(ref rule, posToRefresh, 1)) 
+                    if (ExecuteRule(ref rule, posToRefresh, patternOffset)) 
                         return true;
+
+                    patternOffset++;
                 }
 
                 if (rule.RuleTransform.IsMirroredY())
                 {
                     appliedMirror = new bool2(false, true);
-                    if (ExecuteRule(ref rule, posToRefresh, 2)) 
+                    if (ExecuteRule(ref rule, posToRefresh, patternOffset)) 
                         return true;
+
+                    patternOffset++;
                 }
 
                 if (rule.RuleTransform.IsMirroredX() && rule.RuleTransform.IsMirroredY())
                 {
                     appliedMirror = new bool2(true, true);
-                    if (ExecuteRule(ref rule, posToRefresh, 3)) 
+                    if (ExecuteRule(ref rule, posToRefresh, patternOffset)) 
                         return true;
+
+                    patternOffset++;
                 }
 
                 if (rule.RuleTransform.HasFlagBurst(Transformation.Rotated))
                 {
+                    appliedMirror = new bool2(false, false);
                     for (appliedRotation = 1; appliedRotation < 4; appliedRotation++)
                     {
-                        if (ExecuteRule(ref rule, posToRefresh, appliedRotation)) 
+                        if (ExecuteRule(ref rule, posToRefresh, patternOffset)) 
                             return true;
+
+                        patternOffset++;
                     }
                 }
                 return false;
