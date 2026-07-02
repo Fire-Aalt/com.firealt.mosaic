@@ -4,6 +4,7 @@ using FireAlt.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 
 namespace FireAlt.Mosaic.Authoring
@@ -19,7 +20,7 @@ namespace FireAlt.Mosaic.Authoring
             });
         }
         
-        public static void AddRenderingData(IBaker baker, Entity entity, Hash128 meshHash, RenderingData renderingData, RefSprite refSprite)
+        public static void AddRenderingData(IBaker baker, GameObject gameObject, Entity entity, Hash128 meshHash, RenderingData renderingData, RefSprite refSprite)
         {
             if (renderingData.material == null)
             {
@@ -29,6 +30,7 @@ namespace FireAlt.Mosaic.Authoring
             baker.AddComponent(entity, new TilemapRendererData
             {
                 MeshHash = meshHash,
+                LayerMask = gameObject.layer,
                 RenderingLayerMask = renderingData.renderingLayerMask,
                 ShadowCastingMode = renderingData.shadowCastingMode,
                 ReceiveShadows = renderingData.receiveShadows,

@@ -10,6 +10,7 @@ namespace FireAlt.Mosaic.Data
     {
         public Hash128 MeshHash;
         
+        public LayerMask LayerMask;
         public RenderingLayerMask RenderingLayerMask;
         public ShadowCastingMode ShadowCastingMode;
         public bool ReceiveShadows;

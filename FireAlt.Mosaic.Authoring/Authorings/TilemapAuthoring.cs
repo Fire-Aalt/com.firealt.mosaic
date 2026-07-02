@@ -28,7 +28,7 @@ namespace FireAlt.Mosaic.Authoring
                 
                 BakerUtils.AddTilemapTransform(this, entity, authoring.renderingData, gridAuthoring);
                 BakerUtils.AddIntGridLayerData(this, entity, authoring.intGrid, refSprite, false, ref tilePivot, ref tileSize);
-                BakerUtils.AddRenderingData(this, entity, authoring.intGrid.Hash, authoring.renderingData, refSprite);
+                BakerUtils.AddRenderingData(this, authoring.gameObject, entity, authoring.intGrid.Hash, authoring.renderingData, refSprite);
             }
         }
     }

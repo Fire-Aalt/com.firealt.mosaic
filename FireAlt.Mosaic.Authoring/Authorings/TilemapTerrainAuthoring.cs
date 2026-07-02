@@ -79,7 +79,7 @@ namespace FireAlt.Mosaic.Authoring
                 });
 
                 BakerUtils.AddTilemapTransform(this, entity, authoring.renderingData, gridAuthoring);
-                BakerUtils.AddRenderingData(this, entity, terrainHash, authoring.renderingData, refSprite);
+                BakerUtils.AddRenderingData(this, authoring.gameObject, entity, terrainHash, authoring.renderingData, refSprite);
             }
         }
     }

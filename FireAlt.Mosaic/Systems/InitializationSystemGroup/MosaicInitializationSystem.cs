@@ -65,6 +65,7 @@ namespace FireAlt.Mosaic
                     var desc = new RenderMeshDescription(
                         tilemapRenderingData.ShadowCastingMode,
                         tilemapRenderingData.ReceiveShadows,
+                        layer: tilemapRenderingData.LayerMask,
                         renderingLayerMask: tilemapRenderingData.RenderingLayerMask);
                     var materialMeshInfo = new MaterialMeshInfo(materialId, meshId);
 
