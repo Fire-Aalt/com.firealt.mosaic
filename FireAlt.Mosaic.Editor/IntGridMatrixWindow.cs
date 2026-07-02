@@ -151,6 +151,12 @@ namespace FireAlt.Mosaic.Editor
         
         private void Update()
         {
+            if (_ruleGroup == null || _ruleIndex < 0 || _ruleIndex >= _ruleGroup.rules.Count)
+            {
+                Close();
+                return;
+            }
+
             foreach (var spriteResult in TargetRule.TileSprites)
             {
                 spriteResult.Validate();
@@ -158,11 +164,6 @@ namespace FireAlt.Mosaic.Editor
             foreach (var entityResult in TargetRule.TileEntities)
             {
                 entityResult.Validate();
-            }
-
-            if (!RuleGroupEditor.InspectedTargets.Contains(_ruleGroup))
-            {
-                Close();
             }
         }
 

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using FireAlt.Mosaic.Authoring;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -9,7 +8,6 @@ namespace FireAlt.Mosaic.Editor
     [CustomEditor(typeof(RuleGroup))]
     public class RuleGroupEditor : UnityEditor.Editor
     {
-        public static HashSet<RuleGroup> InspectedTargets = new();
         private RuleGroup _target;
         
         public override VisualElement CreateInspectorGUI()
@@ -66,16 +64,6 @@ namespace FireAlt.Mosaic.Editor
             }
             
             return root;
-        }
-        
-        private void OnEnable()
-        {
-            InspectedTargets.Add((RuleGroup)target);
-        }
-
-        private void OnDisable()
-        {
-            InspectedTargets.Remove(_target);
         }
     }
 }
