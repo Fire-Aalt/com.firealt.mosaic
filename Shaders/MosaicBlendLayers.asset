@@ -12,17 +12,17 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 78b2425a2284af743826c689403a4924, type: 3}
   m_Name: MosaicBlendLayers
   m_EditorClassIdentifier: AmplifyShaderEditor::AmplifyShaderEditor.AmplifyShaderFunction
-  m_functionInfo: "// Made with Amplify Shader Editor v1.9.9.6\n// Available at the
-    Unity Asset Store - http://u3d.as/y3X \n/*ASEBEGIN\nVersion=19906\nNode;AmplifyShaderEditor.VertexIdVariableNode,
+  m_functionInfo: "// Made with Amplify Shader Editor v1.9.9.9\n// Available at the
+    Unity Asset Store - http://u3d.as/y3X \n/*ASEBEGIN\nVersion=19909\nNode;AmplifyShaderEditor.VertexIdVariableNode,
     AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;1;-528,-208;Inherit;False;0;1;INT;0\nNode;AmplifyShaderEditor.TexCoordVertexDataNode,
-    AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;2;-592,16;Inherit;False;0;2;0;5;FLOAT2;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4\nNode;AmplifyShaderEditor.Vector2Node,
-    AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;3;-528,-112;Inherit;False;Property;_TileSize;TileSize;0;0;Create;True;0;0;0;False;0;False;1,1;0,0;0;3;FLOAT2;0;FLOAT;1;FLOAT;2\nNode;AmplifyShaderEditor.FunctionInput,
+    AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;2;-592,16;Inherit;False;0;2;0;5;FLOAT2;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4\nNode;AmplifyShaderEditor.FunctionInput,
     AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;8;-560,256;Inherit;False;Texture;10;1;False;1;0;SAMPLER2D;0;False;1;SAMPLER2D;0\nNode;AmplifyShaderEditor.FunctionInput,
     AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;9;-560,336;Inherit;False;SamplerState;14;2;False;1;0;SAMPLERSTATE;0;False;1;SAMPLERSTATE;0\nNode;AmplifyShaderEditor.FunctionInput,
-    AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;10;-592,160;Inherit;False;DefaultBlendColor;4;0;False;1;0;FLOAT4;0,0,0,0;False;1;FLOAT4;0\nNode;AmplifyShaderEditor.CustomExpressionNode,
+    AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;10;-592,160;Inherit;False;DefaultBlendColor;4;0;False;1;0;FLOAT4;0,0,0,0;False;1;FLOAT4;0\nNode;AmplifyShaderEditor.Vector2Node,
+    AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;3;-528,-112;Inherit;False;Property;_TileSize;TileSize;0;0;Create;True;0;0;0;False;0;False;1,1;0,0;0;3;FLOAT2;0;FLOAT;1;FLOAT;2\nNode;AmplifyShaderEditor.CustomExpressionNode,
     AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;4;-320,-64;Inherit;False;BlendLayers(VertexID,
-    TileSize, BaseUV, DefaultBlendColor, Texture, Sampler, RGBA)@;8;Call;7;False;VertexID;INT;0;In;;Inherit;False;False;TileSize;FLOAT2;0,0;In;;Inherit;False;False;BaseUV;FLOAT2;0,0;In;;Inherit;False;False;DefaultBlendColor;FLOAT4;0,0,0,0;In;;Inherit;False;False;Texture;SAMPLER2D;;In;;Inherit;False;False;Sampler;SAMPLERSTATE;;In;;Inherit;False;True;RGBA;FLOAT4;0,0,0,0;Out;;Inherit;False;BlendLayers;False;False;0;f407207b82532924f9f8f903a9f29c32;False;8;0;FLOAT;0;False;1;INT;0;False;2;FLOAT2;0,0;False;3;FLOAT2;0,0;False;4;FLOAT4;0,0,0,0;False;5;SAMPLER2D;;False;6;SAMPLERSTATE;;False;7;FLOAT4;0,0,0,0;False;2;FLOAT;0;FLOAT4;8\nNode;AmplifyShaderEditor.FunctionOutput,
-    AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;7;-16,-48;Inherit;False;True;-1;RGBA;0;False;1;0;FLOAT4;0,0,0,0;False;1;FLOAT4;0\nWireConnection;4;1;1;0\nWireConnection;4;2;3;0\nWireConnection;4;3;2;0\nWireConnection;4;4;10;0\nWireConnection;4;5;8;0\nWireConnection;4;6;9;0\nWireConnection;7;0;4;8\nASEEND*/\n//CHKSM=D19664A6A93C6B3462C3BA815C1EA5BFD1377E1A"
+    TileSize, BaseUV, DefaultBlendColor, Texture, Sampler, RGBA)@;8;Call;7;False;VertexID;INT;0;In;;Inherit;False;False;TileSize;FLOAT2;0,0;In;;Inherit;False;False;BaseUV;FLOAT2;0,0;In;;Inherit;False;False;DefaultBlendColor;FLOAT4;0,0,0,0;In;;Inherit;False;True;Texture;SAMPLER2D;;In;;Inherit;False;False;Sampler;SAMPLERSTATE;;In;;Inherit;False;True;RGBA;FLOAT4;0,0,0,0;Out;;Inherit;False;BlendLayers;False;False;0;f407207b82532924f9f8f903a9f29c32;False;8;0;FLOAT;0;False;1;INT;0;False;2;FLOAT2;0,0;False;3;FLOAT2;0,0;False;4;FLOAT4;0,0,0,0;False;5;SAMPLER2D;;False;6;SAMPLERSTATE;;False;7;FLOAT4;0,0,0,0;False;2;FLOAT;0;FLOAT4;8\nNode;AmplifyShaderEditor.FunctionOutput,
+    AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;7;-16,-48;Inherit;False;True;-1;RGBA;0;False;1;0;FLOAT4;0,0,0,0;False;1;FLOAT4;0\nWireConnection;4;1;1;0\nWireConnection;4;2;3;0\nWireConnection;4;3;2;0\nWireConnection;4;4;10;0\nWireConnection;4;5;8;0\nWireConnection;4;6;9;0\nWireConnection;7;0;4;8\nASEEND*/\n//CHKSM=3AD7B193E1CFE4D9D60B3EDB01BC22C05F775F01"
   m_functionName: 
   m_description: 
   m_additionalIncludes:

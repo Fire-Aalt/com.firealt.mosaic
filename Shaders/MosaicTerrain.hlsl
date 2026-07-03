@@ -121,4 +121,17 @@ inline void BlendLayers(
   RGBA = float4(rgb, a_accumulated);
 }
 
+inline void BlendLayers_float(
+  uint VertexID,
+  float2 TileSize,
+  float2 BaseUV,
+  float4 DefaultBlendColor,
+  Texture2D Texture,
+  SamplerState Sampler,
+  out float4 RGBA
+)
+{
+  BlendLayers(VertexID, TileSize, BaseUV, DefaultBlendColor, Texture, Sampler, RGBA);
+}
+
 #endif // MOSAICTERRAIN_INCLUDED
