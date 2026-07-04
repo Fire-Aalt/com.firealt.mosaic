@@ -16,6 +16,7 @@ namespace FireAlt.Mosaic
         
         public PrefabResult(GameObject result)
         {
+            weight = 1;
             this.result = result;
         }
 
@@ -38,6 +39,7 @@ namespace FireAlt.Mosaic
         
         public SpriteResult(Sprite result)
         {
+            weight = 1;
             this.result = result;
         }
 

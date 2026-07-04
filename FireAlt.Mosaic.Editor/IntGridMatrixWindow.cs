@@ -1,5 +1,6 @@
 using System.Reflection;
 using FireAlt.Mosaic.Authoring;
+using FireAlt.Mosaic.Data;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -12,6 +13,7 @@ namespace FireAlt.Mosaic.Editor
         
         private SerializedObject _window;
         private SerializedObject _serializedObject;
+        private SerializedProperty _matrixProperty;
         
         private RuleGroup _ruleGroup;
         private int _ruleIndex;
@@ -29,25 +31,25 @@ namespace FireAlt.Mosaic.Editor
             AssemblyReloadEvents.beforeAssemblyReload -= Close;
         }
         
-        public static void OpenWindow(RuleGroup.Rule target, int ruleIndex)
+        public static void OpenWindow(RuleGroup ruleGroup, int ruleIndex)
         {
             var wnd = GetWindow<IntGridMatrixWindow>(
                 true,
                 "Rule Matrix Window",
                 true
             );
-            wnd.Init(target, ruleIndex);
+            wnd.Init(ruleGroup, ruleIndex);
             wnd.Show();
         }
         
-        private void Init(RuleGroup.Rule target, int ruleIndex)
+        private void Init(RuleGroup ruleGroup, int ruleIndex)
         {
             _selectedIntGridValue = new IntGridValueSelector
             {
-                intGrid = target.BoundIntGridDefinition
+                intGrid = ruleGroup.intGrid
             };
 
-            _ruleGroup = target.RuleGroup;
+            _ruleGroup = ruleGroup;
             _ruleIndex = ruleIndex;
             
             _window = new SerializedObject(this);
@@ -112,9 +114,9 @@ namespace FireAlt.Mosaic.Editor
             
             // Column 2: Matrix
             {
-                var matrixProperty = targetRuleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleMatrix));
+                _matrixProperty = targetRuleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleMatrix));
                 var matrixView = new IntGridMatrixView(false, _ruleGroup.intGrid);
-                matrixView.Bind(matrixProperty);
+                matrixView.Bind(_matrixProperty);
                 
                 colMatrix.Add(matrixView);
                 
@@ -185,22 +187,24 @@ namespace FireAlt.Mosaic.Editor
         
         private void LeftClick(int cellIndex)
         {
-            ref var slot = ref TargetRule.ruleMatrix.GetCurrentMatrix(_ruleGroup.intGrid)[cellIndex];
-
-            if (slot != _selectedIntGridValue.value)
-            {
-                if (slot < 0)
-                    slot = 0;
-                else
-                    slot = _selectedIntGridValue.value;
-            }
-
             _serializedObject.Update();
+            var slotProperty = GetCurrentMatrixSlotProperty(cellIndex);
+            var slot = slotProperty.intValue;
+            var selectedValue = _selectedIntGridValue.value;
+
+            if (slot != selectedValue)
+            {
+                Undo.RecordObject(_ruleGroup, "Edit Rule Matrix");
+                slotProperty.intValue = slot < 0 ? 0 : selectedValue;
+                ApplyMatrixChange();
+            }
         }
 
         private void RightClick(int cellIndex)
         {
-            ref var slot = ref TargetRule.ruleMatrix.GetCurrentMatrix(_ruleGroup.intGrid)[cellIndex];
+            _serializedObject.Update();
+            var slotProperty = GetCurrentMatrixSlotProperty(cellIndex);
+            var slot = slotProperty.intValue;
 
             if (_rightClickMode == DragMode.None)
             {
@@ -208,13 +212,37 @@ namespace FireAlt.Mosaic.Editor
                 else if (slot != 0) _rightClickMode = DragMode.Clear;
             }
 
-            slot = _rightClickMode switch
+            var value = _rightClickMode switch
             {
                 DragMode.Set => -_selectedIntGridValue.value,
                 DragMode.Clear => 0,
                 _ => slot
             };
 
+            if (slot != value)
+            {
+                Undo.RecordObject(_ruleGroup, "Edit Rule Matrix");
+                slotProperty.intValue = value;
+                ApplyMatrixChange();
+            }
+        }
+
+        private SerializedProperty GetCurrentMatrixSlotProperty(int cellIndex)
+        {
+            var matrixArrayProperty = _matrixProperty.FindPropertyRelative(
+                _ruleGroup.intGrid.useDualGrid
+                    ? nameof(IntGridMatrix.dualGridMatrix)
+                    : nameof(IntGridMatrix.singleGridMatrix));
+
+            return matrixArrayProperty
+                .GetArrayElementAtIndex(cellIndex)
+                .FindPropertyRelative(nameof(IntGridValue.value));
+        }
+
+        private void ApplyMatrixChange()
+        {
+            _serializedObject.ApplyModifiedProperties();
+            EditorUtility.SetDirty(_ruleGroup);
             _serializedObject.Update();
         }
         

@@ -4,6 +4,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine.UIElements;
+using Object = UnityEngine.Object;
 
 namespace FireAlt.Mosaic.Editor
 {
@@ -74,7 +75,7 @@ namespace FireAlt.Mosaic.Editor
                 ? CreateDataItem.Invoke() 
                 : new T();
             
-            List.Add(item);
+            AddSerializedItem(item);
             ListView.Rebuild();
             
             HighlightLastElement();
@@ -88,15 +89,62 @@ namespace FireAlt.Mosaic.Editor
 
             if (indices.Count == 0) return;
 
+            var serializedObject = SerializedListProperty.serializedObject;
+            serializedObject.Update();
+            RecordUndo(serializedObject);
+
             foreach (var i in indices)
             {
-                if (i >= 0 && i < List.Count)
+                if (i >= 0 && i < SerializedListProperty.arraySize)
                 {
-                    List.RemoveAt(i);
+                    SerializedListProperty.DeleteArrayElementAtIndex(i);
                 }
             }
 
+            ApplySerializedObject(serializedObject);
             ListView.Rebuild();
+        }
+
+        protected void AddSerializedItem(T item)
+        {
+            AddSerializedItems(new[] { item });
+        }
+
+        protected void AddSerializedItems(IReadOnlyList<T> items)
+        {
+            if (items.Count == 0) return;
+
+            var serializedObject = SerializedListProperty.serializedObject;
+            serializedObject.Update();
+            RecordUndo(serializedObject);
+
+            for (int i = 0; i < items.Count; i++)
+            {
+                var index = SerializedListProperty.arraySize;
+                SerializedListProperty.arraySize++;
+                SerializedListProperty.GetArrayElementAtIndex(index).boxedValue = items[i];
+            }
+
+            ApplySerializedObject(serializedObject);
+        }
+
+        protected void ApplySerializedObject(SerializedObject serializedObject)
+        {
+            serializedObject.ApplyModifiedProperties();
+            if (serializedObject.targetObject is Object target)
+            {
+                EditorUtility.SetDirty(target);
+            }
+
+            serializedObject.Update();
+        }
+
+        private void RecordUndo(SerializedObject serializedObject)
+        {
+            if (serializedObject.targetObject is Object target)
+            {
+                Undo.RecordObject(target, $"Edit {ListLabel}");
+            }
         }
         
         protected void HighlightLastElement()

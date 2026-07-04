@@ -23,12 +23,15 @@ namespace FireAlt.Mosaic.Editor
         private TransformationButton _verticalResultTransformation;
         private TransformationButton _rotationResultTransformation;
         
+        private RuleGroup _ruleGroup;
         private RuleGroup.Rule _rule;
         private int _ruleIndex;
         private SerializedProperty _ruleProperty;
         
         public void SetVisualElement(RuleGroup target, VisualElement visualElement)
         {
+            _ruleGroup = target;
+
             {
                 _enabledToggle = visualElement.Q<Toggle>("EnabledToggle");
             }
@@ -124,7 +127,7 @@ namespace FireAlt.Mosaic.Editor
         private void OnMatrixClicked(ClickEvent clickEvent)
         {
             if (clickEvent.button != 0) return;
-            IntGridMatrixWindow.OpenWindow(_rule, _ruleIndex);
+            IntGridMatrixWindow.OpenWindow(_ruleGroup, _ruleIndex);
         }
         
         private void OnChanceFieldChange(ChangeEvent<float> evt)

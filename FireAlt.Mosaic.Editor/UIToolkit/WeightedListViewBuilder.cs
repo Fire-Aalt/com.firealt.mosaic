@@ -78,7 +78,7 @@ namespace FireAlt.Mosaic.Editor
         {
             if (entries.Count == 0) return;
 
-            List.AddRange(entries);
+            AddSerializedItems(entries);
             ListView.Rebuild();
 
             HighlightLastElement();
