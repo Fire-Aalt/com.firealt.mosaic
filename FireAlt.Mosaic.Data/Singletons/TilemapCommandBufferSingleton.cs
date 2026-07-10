@@ -1,4 +1,5 @@
 using System;
+using FireAlt.Core;
 using FireAlt.Core.Collections;
 using FireAlt.Core.Extensions;
 using Unity.Collections;
