@@ -28,8 +28,8 @@ namespace FireAlt.Mosaic
     
     public class PresentationDataObject : ScriptableObject, IDisposable
     {
-        public Dictionary<Hash128, Mesh> MeshMap;
-        public Dictionary<Hash128, TilemapTerrainRenderingData> TerrainMap;
+        [NonSerialized] public Dictionary<Hash128, Mesh> MeshMap;
+        [NonSerialized] public Dictionary<Hash128, TilemapTerrainRenderingData> TerrainMap;
 
         public void Init(int capacity)
         {
