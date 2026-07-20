@@ -80,6 +80,18 @@ namespace FireAlt.Mosaic.Authoring
             
             var refreshPositionsBuffer = baker.AddBuffer<RefreshPositionElement>(entity);
             refreshPositionsBuffer.AddRange(refreshPositions.ToNativeArray(Allocator.Temp).Reinterpret<RefreshPositionElement>());
+
+            var intGridValues = baker.AddBuffer<IntGridValueElement>(entity);
+            foreach (var definition in intGrid.intGridValues)
+            {
+                intGridValues.Add(new IntGridValueElement
+                {
+                    Value = definition.value,
+                    Name = definition.name,
+                    Color = definition.color,
+                    Texture = definition.texture,
+                });
+            }
         }
         
         private static void AddResults(IBaker baker, RuleGroup.Rule rule,
