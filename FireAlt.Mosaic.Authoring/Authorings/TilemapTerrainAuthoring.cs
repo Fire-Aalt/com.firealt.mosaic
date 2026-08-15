@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using FireAlt.Core.EntityCommands;
 using FireAlt.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
@@ -15,12 +16,95 @@ namespace FireAlt.Mosaic.Authoring
         [Tooltip("True: to access the runtime IntGrid of this tilemap, the IntGridDefinition can be used directly.\n\n" +
                  "False: the hash of the runtime IntGrid is unique per each instance and the entity needs to be queried to get the runtime hash.")]
         public bool isGlobal = true;
-        public RenderingData renderingData;
+        public RenderingData renderingData = new();
         public int maxLayersBlend = 4;
+
+        [SerializeField, HideInInspector] private List<SerializedIntGridLayer> _paintedLayers = new();
+
+        public IReadOnlyList<SerializedIntGridLayer> PaintedLayers => _paintedLayers;
+
+        internal List<SerializedIntGridLayer> MutablePaintedLayers => _paintedLayers;
+
+        public void Bake<TCommands>(ref TCommands commands, Entity gridEntity,
+            Func<GameObject, Entity> entityResolver = null)
+            where TCommands : IEntityCommands
+        {
+            if (intGridLayers.Count == 0) return;
+
+            var uniqueDefinitions = new HashSet<IntGridDefinition>();
+            foreach (var definition in intGridLayers)
+            {
+                if (definition != null && !uniqueDefinitions.Add(definition))
+                {
+                    throw new Exception($"Duplicate IntGridDefinition '{definition.name}' in terrain layers");
+                }
+            }
+
+            var terrainEntity = commands.Entity;
+            var layerEntities = new NativeArray<Entity>(intGridLayers.Count, Allocator.Temp);
+            var runtimeHashes = new NativeArray<Hash128>(intGridLayers.Count, Allocator.Temp);
+            for (var i = 0; i < layerEntities.Length; i++)
+            {
+                layerEntities[i] = commands.CreateEntity();
+            }
+
+            commands.Entity = terrainEntity;
+            var refSprite = new RefSprite();
+            var terrainHash = default(Hash128);
+            var tilePivot = float2.zero;
+            var tileSize = float2.zero;
+
+            for (var i = 0; i < layerEntities.Length; i++)
+            {
+                var intGridDefinition = intGridLayers[i];
+                if (intGridDefinition == null)
+                {
+                    throw new Exception($"IntGridDefinition is null at terrain layer {i}");
+                }
+
+                var runtimeHash = BakerUtils.GetHash(this, intGridDefinition, isGlobal, i);
+                runtimeHashes[i] = runtimeHash;
+                if (i == 0) terrainHash = runtimeHash;
+
+                commands.Entity = layerEntities[i];
+                BakerUtils.AddTilemapTransform(ref commands, gridEntity, renderingData);
+                BakerUtils.AddIntGridLayerData(ref commands, intGridDefinition, runtimeHash, refSprite, true,
+                    ref tilePivot, ref tileSize, FindPaintedCells(intGridDefinition), entityResolver);
+                commands.AddComponent(new Data.TerrainLayer { TerrainEntity = terrainEntity });
+            }
+
+            commands.Entity = terrainEntity;
+            var layersBuffer = commands.AddBuffer<TilemapTerrainLayerElement>();
+            foreach (var runtimeHash in runtimeHashes)
+            {
+                layersBuffer.Add(new TilemapTerrainLayerElement { IntGridHash = runtimeHash });
+            }
+
+            commands.AddComponent(new Data.TerrainData
+            {
+                TerrainHash = terrainHash,
+                TileSize = tileSize,
+                MaxLayersBlend = maxLayersBlend,
+            });
+
+            BakerUtils.AddTilemapTransform(ref commands, gridEntity, renderingData);
+            BakerUtils.AddRenderingData(ref commands, gameObject, terrainHash, renderingData, refSprite);
+        }
+
+        private IReadOnlyList<SerializedIntGridCell> FindPaintedCells(IntGridDefinition definition)
+        {
+            foreach (var layer in _paintedLayers)
+            {
+                if (layer.IntGrid == definition) return layer.Cells;
+            }
+
+            return Array.Empty<SerializedIntGridCell>();
+        }
 
         private void OnValidate()
         {
             maxLayersBlend = math.max(1, maxLayersBlend);
+            SynchronizePaintedLayers();
 
 #if MOSAIC_BLEND_128
             var blendCapacity = new FixedList128Bytes<GpuTerrainTile>();
@@ -38,6 +122,35 @@ namespace FireAlt.Mosaic.Authoring
                 maxLayersBlend = blendCapacity.Capacity;
             }
         }
+
+        private void SynchronizePaintedLayers()
+        {
+            var existing = new Dictionary<IntGridDefinition, SerializedIntGridLayer>();
+            foreach (var layer in _paintedLayers)
+            {
+                if (layer != null && layer.IntGrid != null && !existing.ContainsKey(layer.IntGrid))
+                {
+                    existing.Add(layer.IntGrid, layer);
+                }
+            }
+
+            _paintedLayers.Clear();
+            foreach (var intGridLayer in intGridLayers)
+            {
+                if (intGridLayer == null) continue;
+
+                if (!existing.TryGetValue(intGridLayer, out var paintedLayer))
+                {
+                    paintedLayer = new SerializedIntGridLayer(intGridLayer);
+                }
+                else
+                {
+                    paintedLayer.SetIntGrid(intGridLayer);
+                }
+
+                _paintedLayers.Add(paintedLayer);
+            }
+        }
         
         private class Baker : Baker<TilemapTerrainAuthoring>
         {
@@ -52,44 +165,25 @@ namespace FireAlt.Mosaic.Authoring
                 }
                 
                 var entity = GetEntity(TransformUsageFlags.Dynamic);
-                var layersBuffer = AddBuffer<TilemapTerrainLayerElement>(entity);
-                var refSprite = new RefSprite();
-                
-                // Bake layers
-                var intGridLayersEntities = new NativeArray<Entity>(authoring.intGridLayers.Count, Allocator.Temp);
-                CreateAdditionalEntities(intGridLayersEntities, TransformUsageFlags.None);
+                RegisterDependencies(authoring);
 
-                // The system ensures that IntGrids are not shared, so we can just use the first one as hash
-                var terrainHash = authoring.isGlobal ? authoring.intGridLayers[0].Hash : default;
-                var tilePivot = float2.zero;
-                var tileSize = float2.zero;
-                for (int i = 0; i < intGridLayersEntities.Length; i++)
+                var commands = new BakerCommands(this, entity);
+                authoring.Bake(ref commands, GetEntity(gridAuthoring, TransformUsageFlags.None),
+                    go => GetEntity(go, TransformUsageFlags.None));
+            }
+
+            private void RegisterDependencies(TilemapTerrainAuthoring authoring)
+            {
+                foreach (var intGridDefinition in authoring.intGridLayers)
                 {
-                    var intGridLayerEntity = intGridLayersEntities[i];
-                    
-                    BakerUtils.AddTilemapTransform(this, intGridLayerEntity, authoring.renderingData, gridAuthoring);
-                    BakerUtils.AddIntGridLayerData(this, intGridLayerEntity, authoring.intGridLayers[i], authoring.isGlobal, refSprite, true, ref tilePivot, ref tileSize, out var runtimeHash);
+                    DependsOn(intGridDefinition);
+                    if (intGridDefinition == null) continue;
 
-                    if (i == 0 && !authoring.isGlobal)
+                    foreach (var group in intGridDefinition.ruleGroups)
                     {
-                        // First IntGrid has the same hash as the terrain.
-                        terrainHash = runtimeHash;
+                        DependsOn(group);
                     }
-                    
-                    layersBuffer.Add(new TilemapTerrainLayerElement { IntGridHash = authoring.intGridLayers[i].Hash });
-                    AddComponent(intGridLayerEntity, new Data.TerrainLayer { TerrainEntity = entity });
                 }
-                
-                // Bake terrain entity
-                AddComponent(entity, new Data.TerrainData
-                {
-                    TerrainHash = terrainHash,
-                    TileSize = tileSize,
-                    MaxLayersBlend = authoring.maxLayersBlend,
-                });
-
-                BakerUtils.AddTilemapTransform(this, entity, authoring.renderingData, gridAuthoring);
-                BakerUtils.AddRenderingData(this, authoring.gameObject, entity, terrainHash, authoring.renderingData, refSprite);
             }
         }
     }

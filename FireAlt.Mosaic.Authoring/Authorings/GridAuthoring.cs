@@ -1,3 +1,4 @@
+using FireAlt.Core.EntityCommands;
 using FireAlt.Mosaic.Data;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -10,6 +11,20 @@ namespace FireAlt.Mosaic.Authoring
         [SerializeField] private float3 _cellSize = 1f;
         [SerializeField] private Swizzle _cellSwizzle = Swizzle.XZY;
 
+        public float3 CellSize => _cellSize;
+
+        public Swizzle CellSwizzle => _cellSwizzle;
+
+        public void Bake<TCommands>(ref TCommands commands)
+            where TCommands : IEntityCommands
+        {
+            commands.AddComponent(new GridData
+            {
+                CellSize = _cellSize,
+                Swizzle = _cellSwizzle
+            });
+        }
+
         private void OnValidate()
         {
             _cellSize = math.max(0.005f, _cellSize);
@@ -20,11 +35,8 @@ namespace FireAlt.Mosaic.Authoring
             public override void Bake(GridAuthoring authoring)
             {
                 var entity = GetEntity(TransformUsageFlags.Dynamic);
-                AddComponent(entity, new GridData
-                {
-                    CellSize = authoring._cellSize,
-                    Swizzle = authoring._cellSwizzle
-                });
+                var commands = new BakerCommands(this, entity);
+                authoring.Bake(ref commands);
             }
         }
     }

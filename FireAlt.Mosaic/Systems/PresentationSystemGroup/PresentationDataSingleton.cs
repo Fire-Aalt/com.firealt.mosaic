@@ -30,22 +30,33 @@ namespace FireAlt.Mosaic
     {
         [NonSerialized] public Dictionary<Hash128, Mesh> MeshMap;
         [NonSerialized] public Dictionary<Hash128, TilemapTerrainRenderingData> TerrainMap;
+        [NonSerialized] public Dictionary<Hash128, Entity> RenderingEntityMap;
+
+        public bool IsCreated => MeshMap != null && TerrainMap != null && RenderingEntityMap != null;
 
         public void Init(int capacity)
         {
             MeshMap = new Dictionary<Hash128, Mesh>(capacity);
             TerrainMap = new Dictionary<Hash128, TilemapTerrainRenderingData>(1);
+            RenderingEntityMap = new Dictionary<Hash128, Entity>(capacity);
         }
 		
         public void Dispose()
         {
-            foreach (var kvp in MeshMap)
+            if (MeshMap != null)
             {
-                CoreUtils.Destroy(kvp.Value);
+                foreach (var kvp in MeshMap)
+                {
+                    CoreUtils.Destroy(kvp.Value);
+                }
             }
-            foreach (var kvp in TerrainMap)
+
+            if (TerrainMap != null)
             {
-                kvp.Value.Dispose();
+                foreach (var kvp in TerrainMap)
+                {
+                    kvp.Value.Dispose();
+                }
             }
         }
     }

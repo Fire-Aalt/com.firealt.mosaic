@@ -17,6 +17,7 @@ namespace FireAlt.Mosaic.Editor
         public static readonly Texture RotatedSprite;
         
         public static readonly StyleSheet StyleSheet;
+        public static readonly StyleSheet PaintingStyleSheet;
         public static readonly VisualTreeAsset WeightedListElementAsset;
         public static readonly VisualTreeAsset RuleGroupElementAsset;
         
@@ -31,6 +32,7 @@ namespace FireAlt.Mosaic.Editor
             RotatedSprite = Load<Texture>("Rotated.png");
             
             StyleSheet = Load<StyleSheet>("IntGridMatrix.uss");
+            PaintingStyleSheet = Load<StyleSheet>("MosaicPainting.uss");
             WeightedListElementAsset = Load<VisualTreeAsset>("WeightedListViewItem.uxml");
             RuleGroupElementAsset = Load<VisualTreeAsset>("RuleGroupElement.uxml");
         }

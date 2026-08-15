@@ -5,6 +5,7 @@ using Unity.Entities;
 
 namespace FireAlt.Mosaic
 {
+    [WorldSystemFilter(WorldSystemFilterFlags.Default | WorldSystemFilterFlags.Editor)]
     [UpdateInGroup(typeof(TilemapCleanupSystemGroup))]
     public partial struct EntityCleanupSystem : ISystem
     {
@@ -33,13 +34,15 @@ namespace FireAlt.Mosaic
                 ref var dataLayer = ref kvp.Value;
                 ref var spawnedEntities = ref dataLayer.SpawnedEntities;
 
-                if (dataLayer.RuleGrid.Count == 0 && dataLayer.SpawnedEntities.Count != 0)
+                if (dataLayer.DestroySpawnedEntities ||
+                    dataLayer.RuleGrid.Count == 0 && dataLayer.SpawnedEntities.Count != 0)
                 {
                     foreach (var kvPair in dataLayer.SpawnedEntities)
                     {
                         _entitiesToDelete.Add(kvPair.Value);
                     }
                     dataLayer.SpawnedEntities.Clear();
+                    dataLayer.DestroySpawnedEntities = false;
                 }
                 else
                 {

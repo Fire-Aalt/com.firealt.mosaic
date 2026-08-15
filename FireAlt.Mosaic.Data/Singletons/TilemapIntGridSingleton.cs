@@ -1,5 +1,6 @@
 using System;
 using FireAlt.Core.Collections;
+using FireAlt.Core.Extensions;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Entities;
@@ -22,10 +23,11 @@ namespace FireAlt.Mosaic.Data
             public UnsafeList<int2> RefreshedPositions;
 
             public bool Cleared;
+            public bool DestroySpawnedEntities;
 
-            public readonly bool DualGrid;
-            public readonly bool IsTerrainLayer;
-            public readonly Entity IntGridEntity;
+            public bool DualGrid;
+            public bool IsTerrainLayer;
+            public Entity IntGridEntity;
             
             public IntGridLayer(int capacity, Allocator allocator, IntGridData intGridData, bool isTerrainLayer, Entity intGridEntity)
             {
@@ -41,10 +43,46 @@ namespace FireAlt.Mosaic.Data
                 RefreshedPositions = new UnsafeList<int2>(capacity, allocator);
 
                 Cleared = false;
+                DestroySpawnedEntities = false;
                 
                 DualGrid = intGridData.DualGrid;
                 IsTerrainLayer = isTerrainLayer;
                 IntGridEntity = intGridEntity;
+            }
+
+            public void Reset(IntGridData intGridData, bool isTerrainLayer, Entity intGridEntity)
+            {
+                IntGrid.Clear();
+                RuleGrid.Clear();
+                RenderedSprites.Clear();
+                ChangedPositions.Clear();
+                PositionsToRefresh.Clear();
+                RefreshedPositions.Clear();
+
+                Cleared = true;
+                DestroySpawnedEntities = SpawnedEntities.Count != 0;
+                DualGrid = intGridData.DualGrid;
+                IsTerrainLayer = isTerrainLayer;
+                IntGridEntity = intGridEntity;
+            }
+
+            public void SetValue(int2 position, IntGridValue value)
+            {
+                ChangedPositions.Add(position);
+                if (value == 0)
+                {
+                    IntGrid.Remove(position);
+                }
+                else
+                {
+                    IntGrid[position] = value;
+                }
+
+                if (!DualGrid) return;
+
+                ChangedPositions.Add(position + new int2(-1, 0));
+                ChangedPositions.Add(position + new int2(0, -1));
+                ChangedPositions.Add(position + new int2(-1, -1));
             }
             
             public void Dispose()
@@ -67,9 +105,23 @@ namespace FireAlt.Mosaic.Data
         // Store entity commands on a singleton to sort it later and instantiate using batch API
         public NativeThreadToListMapper<EntityCommand> EntityCommands;
             
-        public bool TryRegisterIntGridLayer(IntGridData intGridData, bool terrainLayer, Entity intGridEntity)
+        public bool TryRegisterIntGridLayer(IntGridData intGridData, bool terrainLayer, Entity intGridEntity,
+            in EntityStorageInfoLookup entityLookup)
         {
-            if (IntGridLayers.ContainsKey(intGridData.Hash)) return false;
+            if (IntGridLayers.TryGetValue(intGridData.Hash, out var existing))
+            {
+                if (existing.IntGridEntity == intGridEntity)
+                {
+                    ref var layer = ref IntGridLayers.GetValueAsRef(intGridData.Hash);
+                    layer.Reset(intGridData, terrainLayer, intGridEntity);
+                    return true;
+                }
+
+                if (entityLookup.Exists(existing.IntGridEntity)) return false;
+
+                existing.Dispose();
+                IntGridLayers.Remove(intGridData.Hash);
+            }
                 
             IntGridLayers.Add(intGridData.Hash, new IntGridLayer(64, Allocator.Persistent, intGridData, terrainLayer, intGridEntity));
             return true;

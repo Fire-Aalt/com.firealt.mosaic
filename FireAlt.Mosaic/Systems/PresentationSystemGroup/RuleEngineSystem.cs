@@ -12,6 +12,7 @@ using Random = Unity.Mathematics.Random;
 
 namespace FireAlt.Mosaic
 {
+    [WorldSystemFilter(WorldSystemFilterFlags.Default | WorldSystemFilterFlags.Editor)]
     [UpdateInGroup(typeof(TilemapUpdateSystemGroup))]
     public partial struct RuleEngineSystem : ISystem
     {
@@ -133,20 +134,7 @@ namespace FireAlt.Mosaic
             {
                 foreach (var command in commandsLayer.SetCommands)
                 {
-                    dataLayer.ChangedPositions.Add(command.Position);
-                    if (command.IntGridValue == 0)
-                        dataLayer.IntGrid.Remove(command.Position);
-                    else
-                        dataLayer.IntGrid[command.Position] = command.IntGridValue;
-                    
-                    if (dataLayer.DualGrid)
-                    {
-                        // Refresh position as if current is Top-Right corner.
-                        // We have to do it like this because data assumes that coordinates start in Bottom-Left corner
-                        dataLayer.ChangedPositions.Add(command.Position + new int2(-1, 0));
-                        dataLayer.ChangedPositions.Add(command.Position + new int2(0, -1));
-                        dataLayer.ChangedPositions.Add(command.Position + new int2(-1, -1));
-                    }
+                    dataLayer.SetValue(command.Position, command.IntGridValue);
                 }
                 commandsLayer.SetCommands.Clear();
             }

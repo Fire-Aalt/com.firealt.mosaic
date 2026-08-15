@@ -11,6 +11,7 @@ using TerrainData = FireAlt.Mosaic.Data.TerrainData;
 
 namespace FireAlt.Mosaic
 {
+	[WorldSystemFilter(WorldSystemFilterFlags.Default | WorldSystemFilterFlags.Editor)]
 	[UpdateInGroup(typeof(PresentationSystemGroup), OrderFirst = true)]
 	public partial class MosaicPresentationSystem : SystemBase
 	{
@@ -25,14 +26,25 @@ namespace FireAlt.Mosaic
 
 		protected override void OnDestroy()
 		{
-			SystemAPI.GetSingleton<PresentationDataSingleton>().Dispose();
+			var singleton = SystemAPI.GetSingleton<PresentationDataSingleton>();
+			if (singleton.Value.Value != null) singleton.Dispose();
 		}
  
 		protected override void OnUpdate()
 		{
+			ref var presentationData = ref SystemAPI.GetSingletonRW<PresentationDataSingleton>().ValueRW;
+			if (presentationData.Value.Value == null)
+			{
+				presentationData = new PresentationDataSingleton(4);
+			}
+			else if (!presentationData.Value.Value.IsCreated)
+			{
+				presentationData.Value.Value.Init(4);
+			}
+
 			EntityManager.CompleteDependencyBeforeRW<IntGridMeshDataSystem.Singleton>();
 			EntityManager.CompleteDependencyBeforeRW<TerrainMeshDataSystem.Singleton>();
-			var singleton = SystemAPI.GetSingleton<PresentationDataSingleton>().Value.Value;
+			var singleton = presentationData.Value.Value;
 			ref var intGridSingleton = ref SystemAPI.GetSingletonRW<IntGridMeshDataSystem.Singleton>().ValueRW;
 			ref var terrainSingleton = ref SystemAPI.GetSingletonRW<TerrainMeshDataSystem.Singleton>().ValueRW;
 			

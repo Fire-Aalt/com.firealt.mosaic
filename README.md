@@ -12,7 +12,7 @@ Mosaic is a Next Gen Runtime Unity Tilemap solution, heavily inspired by LDtk, b
 | Performance        | Main thread only, really inefficient when using complex rule patterns         | 99% 'bursted' and 'jobified'. Main thread only applies mesh changes. All of the systems are optimized to the edge                                                                                        | 
 | Allocations        | Huge GC spikes when using RuleTile                                            | 0 GC allocations                                                                                                                                                                                         |
 | Random             | No option to set a seed                                                       | `SetGlobalSeed()` and 100% deterministic                                                                                                                                                                 |
-| World editing      | Tilemap saves changes in the editor                                           | `TilemapAuthoring` does not save editor data for now. However, adding such feature is trivial as all the data is stored as `IntGridValue`s, which is just a wrapper for `short`                          |
+| World editing      | Tilemap saves changes in the editor                                           | `TilemapAuthoring` and `TilemapTerrainAuthoring` persist sparse IntGrid cells painted with the Mosaic Painting window                                                                                   |
 | Grid types         | Rectangular, hexagonal and isometric                                          | Only rectangular                                                                                                                                                                                         |
 | Object rule result | Instantiates GameObjects, which is really expensive. A lot of GC allocations  | Instantiates Entities, which is really cheap. No GC allocations                                                                                                                                          |                  
 | Rendering Pipeline | Internal `SpriteRenderer` based rendering path                                | `Entities.Graphics` based rendering with every `IntGridAuthoring` being a separate entity with a mesh. Utilizing `RuntimeMaterial` to create materials at runtime with different main textures as needed |                                                                                                                                                                                                                               
@@ -51,6 +51,16 @@ To edit the rule pattern, click on the matrix of the rule matrix preview of the 
 Here you can modify rule matrix pattern and add or remove results. All the results are weighted, where more weight means more chance to be selected. You can have both sprite and entity to be rendered/spawned.
 
 Next add `GridAuthoring` component to a GameObject in a SubScene and add a `TilemapAuthoring` as a child to Grid. Configure them as needed.
+
+### Painting IntGrids
+
+Open `Window/Mosaic/Painting`. The UI Toolkit palette discovers tilemaps in the current scene or prefab stage and groups values by their owning IntGrid layer. Select a value, then paint in the Scene View with the left mouse button or erase with the right mouse button. Brush Radius controls a circular brush from a single cell at radius 0 through radius 8. Dragging interpolates crossed cells and each drag is one Undo operation.
+
+Hold `Alt` to use normal Scene View navigation while a value remains selected. Press `Escape`, or click the selected IntGrid value a second time, to leave painting and restore the previous editor tool.
+
+The eye toggle controls **Show details** and is also available with `Ctrl+H`. With details hidden, Mosaic draws the saved cells in their configured IntGrid colors. With details shown, those saved values are loaded into Mosaic's existing RuleEngine and presentation path so sprite and terrain results are previewed.
+
+Tilemaps in normally baked SubScenes use the Editor world's converted entities and retain entity-prefab rule results. Scene and prefab-stage tilemaps that are not in a SubScene use a temporary visual-only preview world; sprite and terrain results are shown, while entity-prefab results require normal SubScene baking.
 
 ### Editor (Dual-Grid workflow)
 

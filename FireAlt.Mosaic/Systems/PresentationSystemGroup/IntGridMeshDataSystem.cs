@@ -14,6 +14,7 @@ using Mesh = UnityEngine.Mesh;
 
 namespace FireAlt.Mosaic
 {
+	[WorldSystemFilter(WorldSystemFilterFlags.Default | WorldSystemFilterFlags.Editor)]
 	[UpdateAfter(typeof(RuleEngineSystem))]
 	[UpdateInGroup(typeof(TilemapUpdateSystemGroup))]
     public partial struct IntGridMeshDataSystem : ISystem

@@ -1,0 +1,30 @@
+{
+    "name": "FireAlt.Mosaic.Tests",
+    "rootNamespace": "FireAlt.Mosaic.Tests",
+    "references": [
+        "FireAlt.Core",
+        "FireAlt.Mosaic",
+        "FireAlt.Mosaic.Authoring",
+        "FireAlt.Mosaic.Data",
+        "FireAlt.Mosaic.Editor",
+        "Unity.Collections",
+        "Unity.Entities",
+        "Unity.Entities.Hybrid",
+        "Unity.Mathematics",
+        "Unity.Transforms"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false,
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

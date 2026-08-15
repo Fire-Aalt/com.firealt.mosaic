@@ -7,6 +7,7 @@ using Unity.Transforms;
 
 namespace FireAlt.Mosaic
 {
+    [WorldSystemFilter(WorldSystemFilterFlags.Default | WorldSystemFilterFlags.Editor)]
     [UpdateInGroup(typeof(TilemapInitializationSystemGroup))]
     public partial struct EntityInitializationSystem : ISystem
     {

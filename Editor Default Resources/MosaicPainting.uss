@@ -1,0 +1,88 @@
+.mosaic-paint-controls {
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-top: 5px;
+    padding-bottom: 3px;
+}
+
+.mosaic-paint-brush-radius {
+    flex-grow: 1;
+}
+
+.mosaic-paint-help {
+    margin-left: 6px;
+    margin-right: 6px;
+    margin-bottom: 2px;
+}
+
+.mosaic-paint-palette {
+    flex-grow: 1;
+    padding-left: 6px;
+    padding-right: 6px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+}
+
+.mosaic-paint-group {
+    margin-bottom: 6px;
+}
+
+.mosaic-paint-value {
+    height: 54px;
+    min-height: 54px;
+    margin-top: 1px;
+    margin-bottom: 1px;
+    padding-left: 0;
+    padding-right: 8px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    border-left-width: 0;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-right-color: rgba(0, 0, 0, 0.55);
+    border-top-color: rgba(0, 0, 0, 0.55);
+    border-bottom-color: rgba(0, 0, 0, 0.55);
+}
+
+.mosaic-paint-value:hover {
+    border-right-color: rgba(255, 255, 255, 0.55);
+    border-top-color: rgba(255, 255, 255, 0.55);
+    border-bottom-color: rgba(255, 255, 255, 0.55);
+}
+
+.mosaic-paint-value--selected {
+    border-left-width: 3px;
+    border-right-width: 3px;
+    border-top-width: 3px;
+    border-bottom-width: 3px;
+    border-left-color: rgb(255, 255, 255);
+    border-right-color: rgb(255, 255, 255);
+    border-top-color: rgb(255, 255, 255);
+    border-bottom-color: rgb(255, 255, 255);
+}
+
+.mosaic-paint-value__accent {
+    width: 8px;
+    align-self: stretch;
+    margin-right: 12px;
+    margin-top: -4px;
+    margin-bottom: -4px;
+}
+
+.mosaic-paint-value__preview {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    min-height: 38px;
+    margin-right: 12px;
+}
+
+.mosaic-paint-value__label {
+    font-size: 15px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-left;
+}

@@ -9,7 +9,8 @@ namespace FireAlt.Mosaic.Authoring
 {
     public struct RuleBlobCreator
     {
-        public static BlobAssetReference<RuleBlob> Create(RuleGroup.Rule rule, int entityCount, NativeHashSet<int2> refreshPositions)
+        public static BlobAssetReference<RuleBlob> Create(RuleGroup.Rule rule, int entityCount,
+            NativeHashSet<int2> refreshPositions, bool includeEntityResults = true)
         {
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<RuleBlob>();
@@ -19,7 +20,7 @@ namespace FireAlt.Mosaic.Authoring
             root.ResultTransform = rule.resultTransformation;
             
             AddPatterns(ref builder, ref root, rule, refreshPositions);
-            AddResults(ref builder, ref root, rule, entityCount);
+            AddResults(ref builder, ref root, rule, entityCount, includeEntityResults);
 
             return builder.CreateBlobAssetReference<RuleBlob>(Allocator.Persistent);
         }
@@ -36,10 +37,11 @@ namespace FireAlt.Mosaic.Authoring
             AddMirrorPattern(rule.ruleTransformation.IsMirroredX() && rule.ruleTransformation.IsMirroredY(), rule, cells, refreshPositions, new bool2(true, true));
             if (rule.ruleTransformation.HasFlagBurst(Transformation.Rotated)) AddRotatedPattern(rule, cells, refreshPositions);
 
-            builder.Construct(ref root.Cells, cells);
+            if (cells.Length != 0) builder.Construct(ref root.Cells, cells);
         }
 
-        private static void AddResults(ref BlobBuilder builder, ref RuleBlob root, RuleGroup.Rule rule, int entityCount)
+        private static void AddResults(ref BlobBuilder builder, ref RuleBlob root, RuleGroup.Rule rule,
+            int entityCount, bool includeEntityResults)
         {
             if (rule.TileSprites != null)
             {
@@ -56,7 +58,7 @@ namespace FireAlt.Mosaic.Authoring
                 root.SpritesWeightSum = sum;
             }
             
-            if (rule.TileEntities != null)
+            if (includeEntityResults && rule.TileEntities != null)
             {
                 var entitiesWeights = builder.Allocate(ref root.EntitiesWeights, rule.TileEntities.Count);
                 var entitiesPointers = builder.Allocate(ref root.EntitiesPointers, rule.TileEntities.Count);

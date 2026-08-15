@@ -56,12 +56,8 @@ namespace FireAlt.Mosaic.Data
         internal NativeReference<AABB2D> CullingBounds;
         internal NativeReference<AABB2D> PrevCullingBounds;
 
-        private readonly Allocator _allocator;
-        
         public TilemapCommandBufferSingleton(int layersCapacity, Allocator allocator)
         {
-            _allocator = allocator;
-
             IntGridLayers = new NativeHashMap<Hash128, IntGridLayer>(layersCapacity, allocator);
             GlobalSeed = new NativeReference<uint>(allocator);
             CullingBounds = new NativeReference<AABB2D>(allocator);
@@ -105,15 +101,6 @@ namespace FireAlt.Mosaic.Data
             GlobalSeed.Value = seed;
         }
         
-        internal bool TryRegisterIntGridLayer(in Hash128 intGridHash)
-        {
-            if (IntGridLayers.ContainsKey(intGridHash)) return false;
-            
-            var layer = new IntGridLayer(256, _allocator);
-            IntGridLayers.Add(intGridHash, layer);
-            return true;
-        }
-
         public void Dispose()
         {
             foreach (var layer in IntGridLayers)

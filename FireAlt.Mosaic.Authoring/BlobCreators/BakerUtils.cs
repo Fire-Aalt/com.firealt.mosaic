@@ -1,34 +1,40 @@
 using System;
+using System.Collections.Generic;
+using FireAlt.Core.EntityCommands;
 using FireAlt.Core.Rendering;
 using FireAlt.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEditor;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
-using Random = Unity.Mathematics.Random;
 
 namespace FireAlt.Mosaic.Authoring
 {
     public static class BakerUtils
     {
-        public static void AddTilemapTransform(IBaker baker, Entity entity, RenderingData renderingData, GridAuthoring gridAuthoring)
+        public static void AddTilemapTransform<TCommands>(ref TCommands commands, Entity gridEntity,
+            RenderingData renderingData)
+            where TCommands : IEntityCommands
         {
-            baker.AddComponent(entity, new TilemapTransform
+            commands.AddComponent(new TilemapTransform
             {
-                GridEntity = baker.GetEntity(gridAuthoring, TransformUsageFlags.None),
+                GridEntity = gridEntity,
                 Orientation = renderingData.orientation,
             });
         }
         
-        public static void AddRenderingData(IBaker baker, GameObject gameObject, Entity entity, Hash128 hash, RenderingData renderingData, RefSprite refSprite)
+        public static void AddRenderingData<TCommands>(ref TCommands commands, GameObject gameObject, Hash128 hash,
+            RenderingData renderingData, RefSprite refSprite)
+            where TCommands : IEntityCommands
         {
             if (renderingData.material == null)
             {
                 throw new Exception("Material is null");
             }
             
-            baker.AddComponent(entity, new TilemapRendererData
+            commands.AddComponent(new TilemapRendererData
             {
                 MeshHash = hash,
                 LayerMask = gameObject.layer,
@@ -37,28 +43,50 @@ namespace FireAlt.Mosaic.Authoring
                 ReceiveShadows = renderingData.receiveShadows,
             });
             
-            baker.AddComponent(entity, new RuntimeMaterialLookup(renderingData.material, refSprite.Sprite));
-            baker.AddComponent<RuntimeMaterial>(entity);
+            commands.AddComponent(refSprite.Sprite == null
+                ? new RuntimeMaterialLookup(renderingData.material, renderingData.material.mainTexture)
+                : new RuntimeMaterialLookup(renderingData.material, refSprite.Sprite));
+            commands.AddComponent<RuntimeMaterial>();
+            commands.AddComponent<MosaicRendererInitialized>();
+            commands.SetComponentEnabled<MosaicRendererInitialized>(false);
         }
         
-        public static void AddIntGridLayerData(IBaker baker, Entity entity, IntGridDefinition intGrid, bool isGlobal,
-            RefSprite refSprite, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize, out Hash128 runtimeHash)
+        public static void AddIntGridLayerData<TCommands>(ref TCommands commands, IntGridDefinition intGrid,
+            Hash128 runtimeHash, RefSprite refSprite, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize,
+            IReadOnlyList<SerializedIntGridCell> initialValues, Func<GameObject, Entity> entityResolver)
+            where TCommands : IEntityCommands
         {
-            var ruleBlobBuffer = baker.AddBuffer<RuleBlobReferenceElement>(entity);
-            var weightedEntityBuffer = baker.AddBuffer<WeightedEntityElement>(entity);
+            commands.AddBuffer<RuleBlobReferenceElement>();
+            commands.AddBuffer<WeightedEntityElement>();
+            commands.AddComponent(new IntGridData
+            {
+                Hash = runtimeHash,
+                DebugName = intGrid.name,
+                DualGrid = intGrid.useDualGrid
+            });
+            commands.SetComponentEnabled<IntGridData>(false);
+            commands.AddBuffer<RefreshPositionElement>();
+            commands.AddBuffer<IntGridValueElement>();
+            commands.AddBuffer<IntGridInitialValueElement>();
+
+            // Acquire buffers only after all structural commands. EntityManagerCommands invalidates existing
+            // DynamicBuffer handles whenever another component or buffer is added.
+            var ruleBlobBuffer = commands.SetBuffer<RuleBlobReferenceElement>();
+            var weightedEntityBuffer = commands.SetBuffer<WeightedEntityElement>();
+            var refreshPositionsBuffer = commands.SetBuffer<RefreshPositionElement>();
+            var intGridValues = commands.SetBuffer<IntGridValueElement>();
+            var initialValuesBuffer = commands.SetBuffer<IntGridInitialValueElement>();
 
             var refreshPositions = new NativeHashSet<int2>(64, Allocator.Temp);
 
             var entityCount = 0;
-            baker.DependsOn(intGrid);
             foreach (var group in intGrid.ruleGroups)
             {
-                baker.DependsOn(group);
-                
                 foreach (var rule in group.rules)
                 {
-                    var blob = RuleBlobCreator.Create(rule, entityCount, refreshPositions);
-                    baker.AddBlobAsset(ref blob, out _);
+                    var includeEntityResults = entityResolver != null;
+                    var blob = RuleBlobCreator.Create(rule, entityCount, refreshPositions, includeEntityResults);
+                    commands.AddBlobAsset(ref blob, out _);
 
                     ruleBlobBuffer.Add(new RuleBlobReferenceElement
                     {
@@ -66,24 +94,14 @@ namespace FireAlt.Mosaic.Authoring
                         Value = blob
                     });
                     
-                    AddResults(baker, rule, weightedEntityBuffer, refSprite, constPivotAndSize, ref tilePivot, ref tileSize);
-                    entityCount += rule.TileEntities.Count;
+                    AddResults(rule, weightedEntityBuffer, refSprite, constPivotAndSize, ref tilePivot, ref tileSize,
+                        entityResolver);
+                    if (includeEntityResults) entityCount += rule.TileEntities.Count;
                 }
             }
 
-            runtimeHash = GetHash(intGrid, isGlobal);
-            baker.AddComponent(entity, new IntGridData
-            {
-                Hash = runtimeHash,
-                DebugName = intGrid.name,
-                DualGrid = intGrid.useDualGrid
-            });
-            baker.SetComponentEnabled<IntGridData>(entity, false);
-            
-            var refreshPositionsBuffer = baker.AddBuffer<RefreshPositionElement>(entity);
             refreshPositionsBuffer.AddRange(refreshPositions.ToNativeArray(Allocator.Temp).Reinterpret<RefreshPositionElement>());
 
-            var intGridValues = baker.AddBuffer<IntGridValueElement>(entity);
             foreach (var definition in intGrid.intGridValues)
             {
                 intGridValues.Add(new IntGridValueElement
@@ -94,20 +112,32 @@ namespace FireAlt.Mosaic.Authoring
                     Texture = definition.texture,
                 });
             }
+
+            foreach (var initialValue in initialValues)
+            {
+                if (initialValue.Value == 0) continue;
+
+                initialValuesBuffer.Add(new IntGridInitialValueElement
+                {
+                    Position = new int2(initialValue.Position.x, initialValue.Position.y),
+                    Value = initialValue.Value,
+                });
+            }
         }
         
-        private static void AddResults(IBaker baker, RuleGroup.Rule rule,
-            DynamicBuffer<WeightedEntityElement> weightedEntityBuffer, RefSprite refSprite,
-            bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize)
+        private static void AddResults(RuleGroup.Rule rule, DynamicBuffer<WeightedEntityElement> weightedEntityBuffer,
+            RefSprite refSprite, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize,
+            Func<GameObject, Entity> entityResolver)
         {
-            for (var i = 0; i < rule.TileEntities.Count; i++)
+            if (entityResolver != null)
             {
-                var go = rule.TileEntities[i].result;
-
-                weightedEntityBuffer.Add(new WeightedEntityElement
+                for (var i = 0; i < rule.TileEntities.Count; i++)
                 {
-                    Value = baker.GetEntity(go, TransformUsageFlags.None)
-                });
+                    weightedEntityBuffer.Add(new WeightedEntityElement
+                    {
+                        Value = entityResolver(rule.TileEntities[i].result)
+                    });
+                }
             }
 
             for (int i = 0; i < rule.TileSprites.Count; i++)
@@ -152,14 +182,13 @@ namespace FireAlt.Mosaic.Authoring
             }
         }
         
-        public static Hash128 GetHash(IntGridDefinition intGrid, bool isGlobal)
+        public static Hash128 GetHash(UnityEngine.Object owner, IntGridDefinition intGrid, bool isGlobal,
+            int layerIndex)
         {
-            if (isGlobal)
-            {
-                return intGrid.Hash;
-            }
-            var seed = (uint)UnityEngine.Random.Range(int.MinValue, int.MaxValue);
-            return new Hash128(Random.CreateFromIndex(seed).NextUInt4());
+            if (isGlobal) return intGrid.Hash;
+
+            var ownerId = GlobalObjectId.GetGlobalObjectIdSlow(owner);
+            return UnityEngine.Hash128.Compute($"{ownerId}:{intGrid.Hash}:{layerIndex}");
         } 
     }
 }
