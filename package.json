@@ -1,6 +1,6 @@
 {
   "name": "com.firealt.mosaic",
-  "version": "3.1.1",
+  "version": "3.2.0",
   "displayName": "FireAlt Mosaic",
   "description": "Mosaic is a Next Gen Runtime Unity Tilemap solution, heavily inspired by LDtk, built using Entity Component System.",
   "unity": "6000.3",

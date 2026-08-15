@@ -5,12 +5,16 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
+using Hash128 = Unity.Entities.Hash128;
 
 namespace FireAlt.Mosaic.Authoring
 {
     public class TilemapTerrainAuthoring : MonoBehaviour
     {
         public List<IntGridDefinition> intGridLayers = new();
+        [Tooltip("True: to access the runtime IntGrid of this tilemap, the IntGridDefinition can be used directly.\n\n" +
+                 "False: the hash of the runtime IntGrid is unique per each instance and the entity needs to be queried to get the runtime hash.")]
+        public bool isGlobal = true;
         public RenderingData renderingData;
         public int maxLayersBlend = 4;
 
@@ -54,7 +58,9 @@ namespace FireAlt.Mosaic.Authoring
                 // Bake layers
                 var intGridLayersEntities = new NativeArray<Entity>(authoring.intGridLayers.Count, Allocator.Temp);
                 CreateAdditionalEntities(intGridLayersEntities, TransformUsageFlags.None);
-                
+
+                // The system ensures that IntGrids are not shared, so we can just use the first one as hash
+                var terrainHash = authoring.isGlobal ? authoring.intGridLayers[0].Hash : default;
                 var tilePivot = float2.zero;
                 var tileSize = float2.zero;
                 for (int i = 0; i < intGridLayersEntities.Length; i++)
@@ -62,13 +68,17 @@ namespace FireAlt.Mosaic.Authoring
                     var intGridLayerEntity = intGridLayersEntities[i];
                     
                     BakerUtils.AddTilemapTransform(this, intGridLayerEntity, authoring.renderingData, gridAuthoring);
-                    BakerUtils.AddIntGridLayerData(this, intGridLayerEntity, authoring.intGridLayers[i], refSprite, true, ref tilePivot, ref tileSize);
+                    BakerUtils.AddIntGridLayerData(this, intGridLayerEntity, authoring.intGridLayers[i], authoring.isGlobal, refSprite, true, ref tilePivot, ref tileSize, out var runtimeHash);
+
+                    if (i == 0 && !authoring.isGlobal)
+                    {
+                        // First IntGrid has the same hash as the terrain.
+                        terrainHash = runtimeHash;
+                    }
+                    
                     layersBuffer.Add(new TilemapTerrainLayerElement { IntGridHash = authoring.intGridLayers[i].Hash });
                     AddComponent(intGridLayerEntity, new Data.TerrainLayer { TerrainEntity = entity });
                 }
-
-                // The system ensures that IntGrids are not shared, so we can just use the first one as hash
-                var terrainHash = authoring.intGridLayers[0].Hash;
                 
                 // Bake terrain entity
                 AddComponent(entity, new Data.TerrainData

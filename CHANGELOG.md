@@ -1,3 +1,10 @@
+## [3.2.0] - 2026-08-15
+
+### Changed
+* Add support for `IsGlobal` property in `Tilemap` and `TilemapTerrain`. 
+It is by default `true` and preserves the old behavior of `IntGridDefinition` having the same hash as the runtime `IntGrid`.
+When the value is false, the runtime `IntGrid` hash is unique per each instance of the `Tilemap` and `TilemapTerrain`, allowing for multiple Tilemaps to use the same `IntGrid` without conflicts.
+
 ## [3.1.0] - 2026-07-01
 
 ### Changed

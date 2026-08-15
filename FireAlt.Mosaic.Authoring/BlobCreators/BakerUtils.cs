@@ -6,6 +6,7 @@ using Unity.Entities;
 using Unity.Mathematics;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
+using Random = Unity.Mathematics.Random;
 
 namespace FireAlt.Mosaic.Authoring
 {
@@ -20,7 +21,7 @@ namespace FireAlt.Mosaic.Authoring
             });
         }
         
-        public static void AddRenderingData(IBaker baker, GameObject gameObject, Entity entity, Hash128 meshHash, RenderingData renderingData, RefSprite refSprite)
+        public static void AddRenderingData(IBaker baker, GameObject gameObject, Entity entity, Hash128 hash, RenderingData renderingData, RefSprite refSprite)
         {
             if (renderingData.material == null)
             {
@@ -29,7 +30,7 @@ namespace FireAlt.Mosaic.Authoring
             
             baker.AddComponent(entity, new TilemapRendererData
             {
-                MeshHash = meshHash,
+                MeshHash = hash,
                 LayerMask = gameObject.layer,
                 RenderingLayerMask = renderingData.renderingLayerMask,
                 ShadowCastingMode = renderingData.shadowCastingMode,
@@ -40,8 +41,8 @@ namespace FireAlt.Mosaic.Authoring
             baker.AddComponent<RuntimeMaterial>(entity);
         }
         
-        public static void AddIntGridLayerData(IBaker baker, Entity entity, IntGridDefinition intGrid,
-            RefSprite refSprite, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize)
+        public static void AddIntGridLayerData(IBaker baker, Entity entity, IntGridDefinition intGrid, bool isGlobal,
+            RefSprite refSprite, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize, out Hash128 runtimeHash)
         {
             var ruleBlobBuffer = baker.AddBuffer<RuleBlobReferenceElement>(entity);
             var weightedEntityBuffer = baker.AddBuffer<WeightedEntityElement>(entity);
@@ -69,10 +70,11 @@ namespace FireAlt.Mosaic.Authoring
                     entityCount += rule.TileEntities.Count;
                 }
             }
-            
+
+            runtimeHash = GetHash(intGrid, isGlobal);
             baker.AddComponent(entity, new IntGridData
             {
-                Hash = intGrid.Hash,
+                Hash = runtimeHash,
                 DebugName = intGrid.name,
                 DualGrid = intGrid.useDualGrid
             });
@@ -149,5 +151,15 @@ namespace FireAlt.Mosaic.Authoring
                 }
             }
         }
+        
+        public static Hash128 GetHash(IntGridDefinition intGrid, bool isGlobal)
+        {
+            if (isGlobal)
+            {
+                return intGrid.Hash;
+            }
+            var seed = (uint)UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+            return new Hash128(Random.CreateFromIndex(seed).NextUInt4());
+        } 
     }
 }
