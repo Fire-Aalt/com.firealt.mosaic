@@ -555,6 +555,7 @@ namespace FireAlt.Mosaic.Editor
             var query = entityManager.CreateEntityQuery(ComponentType.ReadOnly<TilemapIntGridSingleton>());
             if (query.IsEmpty) return;
 
+            entityManager.CompleteDependencyBeforeRW<TilemapIntGridSingleton>();
             var singleton = query.GetSingleton<TilemapIntGridSingleton>();
             if (!singleton.IntGridLayers.TryGetValue(binding.Hash, out var layer)) return;
 
