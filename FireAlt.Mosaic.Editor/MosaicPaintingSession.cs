@@ -8,10 +8,10 @@ namespace FireAlt.Mosaic.Editor
 {
     internal static class MosaicPaintingSession
     {
-        public const int MIN_BRUSH_RADIUS = 0;
-        public const int MAX_BRUSH_RADIUS = 8;
+        public const int MIN_BRUSH_SIZE = 1;
+        public const int MAX_BRUSH_SIZE = 10;
 
-        private static int _brushRadius;
+        private static int _brushSize = MIN_BRUSH_SIZE;
 
         public static event Action Changed;
 
@@ -23,11 +23,13 @@ namespace FireAlt.Mosaic.Editor
 
         public static Color Color { get; private set; }
 
-        public static int BrushRadius
+        public static int BrushSize
         {
-            get => _brushRadius;
-            set => _brushRadius = Mathf.Clamp(value, MIN_BRUSH_RADIUS, MAX_BRUSH_RADIUS);
+            get => _brushSize;
+            set => _brushSize = Mathf.Clamp(value, MIN_BRUSH_SIZE, MAX_BRUSH_SIZE);
         }
+
+        public static int BrushRadius => _brushSize - 1;
 
         public static bool IsPainting => Target != null && Value > 0;
 

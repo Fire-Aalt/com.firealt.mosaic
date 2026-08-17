@@ -89,7 +89,7 @@ namespace FireAlt.Mosaic.Editor
 
             _controlId = GUIUtility.GetControlID(CONTROL_HINT, FocusType.Passive);
             var currentEvent = Event.current;
-            if (currentEvent.type == EventType.Layout && !currentEvent.alt)
+            if (currentEvent.type == EventType.Layout && !currentEvent.alt && !currentEvent.shift)
             {
                 HandleUtility.AddDefaultControl(_controlId);
             }
@@ -114,7 +114,7 @@ namespace FireAlt.Mosaic.Editor
             if (!target.TryGetCell(currentEvent.mousePosition, out var cell)) return;
             DrawBrush(target, cell);
 
-            if (currentEvent.alt || currentEvent.button == 2) return;
+            if (currentEvent.alt || currentEvent.shift || currentEvent.button == 2) return;
 
             switch (currentEvent.type)
             {

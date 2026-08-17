@@ -33,10 +33,10 @@ namespace FireAlt.Mosaic.Editor
 
         private MosaicPaintingShortcutContext _shortcutContext;
         private ScrollView _palette;
-        private ToolbarToggle _detailsToggle;
+        private ToolbarToggle _intGridColorsToggle;
         private ToolbarToggle _boundsToggle;
-        private SliderInt _brushRadius;
-        private bool _details = true;
+        private SliderInt _brushSize;
+        private bool _showIntGridColors;
         private bool _showBounds;
         private bool _refreshQueued;
         private bool _selectFirstValue;
@@ -82,14 +82,14 @@ namespace FireAlt.Mosaic.Editor
             root.styleSheets.Add(EditorResources.PaintingStyleSheet);
 
             var toolbar = new Toolbar();
-            _detailsToggle = new ToolbarToggle
+            _intGridColorsToggle = new ToolbarToggle
             {
-                text = "◉  Show details",
-                tooltip = "Show RuleEngine and Mosaic presentation output instead of raw IntGrid colors. Ctrl+H",
-                value = _details,
+                text = "◉  Show IntGrid",
+                tooltip = "Show raw IntGrid colors instead of RuleEngine and Mosaic presentation output. Ctrl+H",
+                value = _showIntGridColors,
             };
-            _detailsToggle.RegisterValueChangedCallback(evt => SetDetails(evt.newValue));
-            toolbar.Add(_detailsToggle);
+            _intGridColorsToggle.RegisterValueChangedCallback(evt => SetShowIntGridColors(evt.newValue));
+            toolbar.Add(_intGridColorsToggle);
 
             _boundsToggle = new ToolbarToggle
             {
@@ -118,24 +118,24 @@ namespace FireAlt.Mosaic.Editor
 
             var brushControls = new VisualElement();
             brushControls.AddToClassList("mosaic-paint-controls");
-            _brushRadius = new SliderInt("Brush Radius", MosaicPaintingSession.MIN_BRUSH_RADIUS,
-                MosaicPaintingSession.MAX_BRUSH_RADIUS)
+            _brushSize = new SliderInt("Brush Size", MosaicPaintingSession.MIN_BRUSH_SIZE,
+                MosaicPaintingSession.MAX_BRUSH_SIZE)
             {
-                value = MosaicPaintingSession.BrushRadius,
+                value = MosaicPaintingSession.BrushSize,
                 showInputField = true,
-                tooltip = "Circular brush radius in cells. A radius of 0 paints one cell.",
+                tooltip = "Circular brush size. A size of 1 paints one cell.",
             };
-            _brushRadius.AddToClassList("mosaic-paint-brush-radius");
-            _brushRadius.RegisterValueChangedCallback(evt =>
+            _brushSize.AddToClassList("mosaic-paint-brush-radius");
+            _brushSize.RegisterValueChangedCallback(evt =>
             {
-                MosaicPaintingSession.BrushRadius = evt.newValue;
+                MosaicPaintingSession.BrushSize = evt.newValue;
                 SceneView.RepaintAll();
             });
-            brushControls.Add(_brushRadius);
+            brushControls.Add(_brushSize);
             root.Add(brushControls);
 
             var controlsHelp = new HelpBox(
-                "LMB paints, RMB erases, and Alt temporarily restores normal Scene View navigation. "
+                "LMB paints, RMB erases, and Alt or Shift temporarily restores normal Scene View navigation. "
                 + "Click the selected value again or press Escape to leave painting.",
                 HelpBoxMessageType.None);
             controlsHelp.AddToClassList("mosaic-paint-help");
@@ -180,7 +180,7 @@ namespace FireAlt.Mosaic.Editor
             if (_shortcutContext != null) ShortcutManager.UnregisterContext(_shortcutContext);
             _shortcutContext = null;
 
-            MosaicPaintingPreviewService.SetDetails(_targets, true);
+            MosaicPaintingPreviewService.SetShowIntGridColors(_targets, false);
             MosaicPaintingSession.Clear();
             if (ToolManager.activeToolType == typeof(MosaicPaintingTool)) ToolManager.RestorePreviousPersistentTool();
         }
@@ -190,7 +190,7 @@ namespace FireAlt.Mosaic.Editor
             var currentStage = StageUtility.GetCurrentStageHandle();
             if (!_stage.Equals(currentStage))
             {
-                MosaicPaintingPreviewService.SetDetails(_targets, true);
+                MosaicPaintingPreviewService.SetShowIntGridColors(_targets, false);
                 MosaicPaintingSession.Clear();
                 if (ToolManager.activeToolType == typeof(MosaicPaintingTool))
                 {
@@ -225,7 +225,7 @@ namespace FireAlt.Mosaic.Editor
             }
 
             ValidateSelection();
-            MosaicPaintingPreviewService.SetDetails(_targets, _details);
+            MosaicPaintingPreviewService.SetShowIntGridColors(_targets, _showIntGridColors);
 
             SceneView.RepaintAll();
         }
@@ -278,7 +278,7 @@ namespace FireAlt.Mosaic.Editor
         private void DiscoverEditorWorldTargets()
         {
             var world = World.DefaultGameObjectInjectionWorld;
-            if (world == null || !world.IsCreated || (world.Flags & WorldFlags.Editor) == 0) return;
+            if (world == null) return;
 
             var entityManager = world.EntityManager;
             entityManager.CompleteAllTrackedJobs();
@@ -293,7 +293,7 @@ namespace FireAlt.Mosaic.Editor
             }
 
             var terrainQuery = new EntityQueryBuilder(Allocator.Temp)
-                .WithAll<FireAlt.Mosaic.Data.TerrainData, TilemapRendererData, TilemapTerrainLayerElement, SceneSection>()
+                .WithAll<Data.TerrainData, TilemapRendererData, TilemapTerrainLayerElement, SceneSection>()
                 .Build(entityManager);
             foreach (var terrainEntity in terrainQuery.ToEntityArray(Allocator.Temp))
             {
@@ -325,9 +325,9 @@ namespace FireAlt.Mosaic.Editor
             {
                 if (hashes.TryGetValue(target.IntGridHash, out var existing))
                 {
-                    const string message = "Another active tilemap uses the same runtime IntGrid hash.";
-                    existing.AdditionalValidationMessage = message;
-                    target.AdditionalValidationMessage = message;
+                    const string MESSAGE = "Another active tilemap uses the same runtime IntGrid hash.";
+                    existing.AdditionalValidationMessage = MESSAGE;
+                    target.AdditionalValidationMessage = MESSAGE;
                 }
                 else
                 {
@@ -447,20 +447,20 @@ namespace FireAlt.Mosaic.Editor
             }
         }
 
-        private void SetDetails(bool details)
+        private void SetShowIntGridColors(bool showIntGridColors)
         {
-            if (_details == details) return;
-            _details = details;
-            _detailsToggle?.SetValueWithoutNotify(details);
+            if (_showIntGridColors == showIntGridColors) return;
+            _showIntGridColors = showIntGridColors;
+            _intGridColorsToggle?.SetValueWithoutNotify(showIntGridColors);
 
-            MosaicPaintingPreviewService.SetDetails(_targets, details);
+            MosaicPaintingPreviewService.SetShowIntGridColors(_targets, showIntGridColors);
 
             SceneView.RepaintAll();
         }
 
         private void ToggleDetails()
         {
-            SetDetails(!_details);
+            SetShowIntGridColors(_showIntGridColors);
         }
 
         private void DuringSceneGui(SceneView sceneView)
@@ -468,13 +468,13 @@ namespace FireAlt.Mosaic.Editor
             if (Event.current.type != EventType.Repaint) return;
 
             if (_showBounds) DrawRenderBounds();
-            if (!_details) DrawRawCells();
+            if (_showIntGridColors) DrawRawCells();
         }
 
         private void DrawRenderBounds()
         {
             var world = World.DefaultGameObjectInjectionWorld;
-            if (world == null || !world.IsCreated || (world.Flags & WorldFlags.Editor) == 0) return;
+            if (world == null) return;
 
             var entityManager = world.EntityManager;
             entityManager.CompleteAllTrackedJobs();
@@ -574,7 +574,7 @@ namespace FireAlt.Mosaic.Editor
         {
             if (state == PlayModeStateChange.ExitingEditMode)
             {
-                MosaicPaintingPreviewService.SetDetails(_targets, true);
+                MosaicPaintingPreviewService.SetShowIntGridColors(_targets, true);
                 MosaicPaintingSession.Clear();
                 if (ToolManager.activeToolType == typeof(MosaicPaintingTool))
                 {
@@ -591,6 +591,5 @@ namespace FireAlt.Mosaic.Editor
         {
             _refreshQueued = true;
         }
-
     }
 }

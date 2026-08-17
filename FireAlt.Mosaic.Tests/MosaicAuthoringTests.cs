@@ -411,9 +411,19 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
+        public void PaintingBrush_MinimumSizePaintsOneCell()
+        {
+            MosaicPaintingSession.BrushSize = MosaicPaintingSession.MIN_BRUSH_SIZE;
+
+            Assert.That(MosaicPaintingSession.BrushRadius, Is.Zero);
+            Assert.That(MosaicPaintingTool.IsWithinBrushRadius(0, 0), Is.True);
+            Assert.That(MosaicPaintingTool.IsWithinBrushRadius(1, 0), Is.False);
+        }
+
+        [Test]
         public void PaintingBrush_UsesPoICircularRadius()
         {
-            MosaicPaintingSession.BrushRadius = 2;
+            MosaicPaintingSession.BrushSize = 3;
             try
             {
                 Assert.That(MosaicPaintingTool.IsWithinBrushRadius(2, 0), Is.True);
@@ -422,7 +432,7 @@ namespace FireAlt.Mosaic.Tests
             }
             finally
             {
-                MosaicPaintingSession.BrushRadius = 0;
+                MosaicPaintingSession.BrushSize = MosaicPaintingSession.MIN_BRUSH_SIZE;
             }
         }
 

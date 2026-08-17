@@ -51,7 +51,7 @@ namespace FireAlt.Mosaic.Editor
             _world = world;
         }
 
-        public void SetVisibility(IReadOnlyList<MosaicPaintingTarget> targets, bool showDetails)
+        public void SetVisibility(IReadOnlyList<MosaicPaintingTarget> targets, bool showIntGridColors)
         {
             var world = World.DefaultGameObjectInjectionWorld;
             if (world == null || !world.IsCreated || (world.Flags & WorldFlags.Editor) == 0) return;
@@ -80,7 +80,7 @@ namespace FireAlt.Mosaic.Editor
             foreach (var target in targets)
             {
                 if (!target.IsValid) continue;
-                var mask = showDetails ? target.SceneCullingMask : 0;
+                var mask = showIntGridColors ? 0 : target.SceneCullingMask;
 
                 for (var i = 0; i < rendererEntities.Length; i++)
                 {
@@ -278,7 +278,7 @@ namespace FireAlt.Mosaic.Editor
 
         private static StageHandle _stage;
         private static bool _refreshQueued;
-        private static bool _showDetails = true;
+        private static bool _showIntGridColors;
         private static int _previewUpdatesRemaining;
         private static uint _previewWorldVersion;
 
@@ -299,16 +299,16 @@ namespace FireAlt.Mosaic.Editor
             _refreshQueued = true;
         }
 
-        internal static void SetDetails(IReadOnlyList<MosaicPaintingTarget> targets, bool showDetails)
+        internal static void SetShowIntGridColors(IReadOnlyList<MosaicPaintingTarget> targets, bool showIntGridColors)
         {
-            _showDetails = showDetails;
-            if (showDetails)
+            _showIntGridColors = showIntGridColors;
+            if (!showIntGridColors)
             {
                 foreach (var target in targets) Preview.Reseed(target);
                 RequestPreviewUpdates();
             }
 
-            Preview.SetVisibility(targets, showDetails);
+            Preview.SetVisibility(targets, showIntGridColors);
             SceneView.RepaintAll();
         }
 
@@ -350,12 +350,12 @@ namespace FireAlt.Mosaic.Editor
             EditorApplication.QueuePlayerLoopUpdate();
             if (!HasPreviewWorldAdvanced()) return;
 
-            if (_showDetails)
+            if (!_showIntGridColors)
             {
                 foreach (var target in Targets) Preview.Reseed(target);
             }
 
-            Preview.SetVisibility(Targets, _showDetails);
+            Preview.SetVisibility(Targets, _showIntGridColors);
             _previewUpdatesRemaining--;
             SceneView.RepaintAll();
         }
@@ -366,14 +366,14 @@ namespace FireAlt.Mosaic.Editor
             Targets.Clear();
             AddAuthoringTargets(Targets, _stage);
             Preview.Rebuild(Targets);
-            Preview.SetVisibility(Targets, _showDetails);
+            Preview.SetVisibility(Targets, _showIntGridColors);
             RequestPreviewUpdates();
         }
 
         private static void OnCellsChanged(MosaicPaintingTarget target,
             IReadOnlyCollection<Vector2Int> positions, short value)
         {
-            if (!_showDetails) return;
+            if (_showIntGridColors) return;
             if (!target.IsEntityTarget) MosaicPaintingPreview.Apply(target, positions, value);
             RequestPreviewUpdates();
         }
