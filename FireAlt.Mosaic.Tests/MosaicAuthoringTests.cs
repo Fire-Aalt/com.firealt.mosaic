@@ -361,6 +361,22 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
+        public void PaintingTarget_CentersDualGridCellsOnGridVertices()
+        {
+            _intGrid.useDualGrid = true;
+            var tilemapObject = CreateTilemap("Tilemap");
+            var target = new MosaicPaintingTarget(tilemapObject.GetComponent<TilemapAuthoring>());
+            var corners = new Vector3[4];
+
+            target.GetCellCorners(new Vector2Int(2, 3), corners, 0f);
+
+            Assert.That(corners[0], Is.EqualTo(new Vector3(1.5f, 0f, 2.5f)));
+            Assert.That(corners[2], Is.EqualTo(new Vector3(2.5f, 0f, 3.5f)));
+
+            Object.DestroyImmediate(tilemapObject);
+        }
+
+        [Test]
         public void PaintingStroke_AppliesEachIncrementImmediately()
         {
             var tilemapObject = CreateTilemap("Tilemap");
@@ -378,6 +394,20 @@ namespace FireAlt.Mosaic.Tests
             }
 
             Object.DestroyImmediate(tilemapObject);
+        }
+
+        [Test]
+        public void PaintingTool_IsAlwaysAvailable()
+        {
+            var tool = ScriptableObject.CreateInstance<MosaicPaintingTool>();
+            try
+            {
+                Assert.That(tool.IsAvailable(), Is.True);
+            }
+            finally
+            {
+                Object.DestroyImmediate(tool);
+            }
         }
 
         [Test]

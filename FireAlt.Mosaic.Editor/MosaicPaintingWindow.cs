@@ -12,6 +12,8 @@ using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.UIElements;
+using Unity.Rendering;
+using Unity.Transforms;
 using Hash128 = Unity.Entities.Hash128;
 
 namespace FireAlt.Mosaic.Editor
@@ -24,22 +26,20 @@ namespace FireAlt.Mosaic.Editor
     public sealed class MosaicPaintingWindow : EditorWindow
     {
         private const string SELECTED_CLASS = "mosaic-paint-value--selected";
-        private const int PREVIEW_UPDATE_FRAMES = 4;
         private static readonly Vector3[] CellCorners = new Vector3[4];
 
         private readonly List<MosaicPaintingTarget> _targets = new();
         private readonly List<Button> _valueButtons = new();
 
-        private MosaicPaintingPreview _preview;
         private MosaicPaintingShortcutContext _shortcutContext;
         private ScrollView _palette;
         private ToolbarToggle _detailsToggle;
+        private ToolbarToggle _boundsToggle;
         private SliderInt _brushRadius;
-        private bool _details;
-        private bool _rediscoverAfterPreviewUpdate;
+        private bool _details = true;
+        private bool _showBounds;
         private bool _refreshQueued;
-        private int _previewUpdatesRemaining;
-        private uint _previewWorldVersion;
+        private bool _selectFirstValue;
         private StageHandle _stage;
         private string _selectedTargetId;
         private short _selectedValue;
@@ -49,10 +49,23 @@ namespace FireAlt.Mosaic.Editor
         [MenuItem("Window/Mosaic/Painting")]
         public static void Open()
         {
+            OpenWindow();
+        }
+
+        internal static void OpenAndSelectFirst()
+        {
+            var window = OpenWindow();
+            window._selectFirstValue = true;
+            window.Refresh();
+        }
+
+        private static MosaicPaintingWindow OpenWindow()
+        {
             var window = GetWindow<MosaicPaintingWindow>();
             window.titleContent = new GUIContent("Mosaic Painting");
             window.minSize = new Vector2(280f, 260f);
             window.Show();
+            return window;
         }
 
         [Shortcut("Mosaic/Toggle Details", typeof(MosaicPaintingShortcutContext), KeyCode.H,
@@ -77,6 +90,19 @@ namespace FireAlt.Mosaic.Editor
             };
             _detailsToggle.RegisterValueChangedCallback(evt => SetDetails(evt.newValue));
             toolbar.Add(_detailsToggle);
+
+            _boundsToggle = new ToolbarToggle
+            {
+                text = "Bounds",
+                tooltip = "Show tilemap RenderBounds in the Scene View",
+                value = _showBounds,
+            };
+            _boundsToggle.RegisterValueChangedCallback(evt =>
+            {
+                _showBounds = evt.newValue;
+                SceneView.RepaintAll();
+            });
+            toolbar.Add(_boundsToggle);
 
             var spacer = new VisualElement();
             spacer.style.flexGrow = 1f;
@@ -125,20 +151,16 @@ namespace FireAlt.Mosaic.Editor
         private void OnEnable()
         {
             ActiveWindow = this;
-            _preview = new MosaicPaintingPreview();
             _shortcutContext = new MosaicPaintingShortcutContext();
             ShortcutManager.RegisterContext(_shortcutContext);
 
             EditorApplication.projectChanged += QueueRefresh;
+            EditorApplication.hierarchyChanged += QueueRefresh;
             EditorApplication.update += OnEditorUpdate;
             Undo.undoRedoPerformed += OnUndoRedo;
             SceneView.duringSceneGui += DuringSceneGui;
-            PrefabStage.prefabStageOpened += OnPrefabStageChanged;
-            PrefabStage.prefabStageClosing += OnPrefabStageChanged;
-            AssemblyReloadEvents.beforeAssemblyReload += BeforeAssemblyReload;
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
             MosaicPaintingSession.Changed += OnPaintingChanged;
-            MosaicPaintingSession.CellsChanged += OnCellsChanged;
 
             QueueRefresh();
         }
@@ -148,21 +170,17 @@ namespace FireAlt.Mosaic.Editor
             if (ReferenceEquals(ActiveWindow, this)) ActiveWindow = null;
 
             EditorApplication.projectChanged -= QueueRefresh;
+            EditorApplication.hierarchyChanged -= QueueRefresh;
             EditorApplication.update -= OnEditorUpdate;
             Undo.undoRedoPerformed -= OnUndoRedo;
             SceneView.duringSceneGui -= DuringSceneGui;
-            PrefabStage.prefabStageOpened -= OnPrefabStageChanged;
-            PrefabStage.prefabStageClosing -= OnPrefabStageChanged;
-            AssemblyReloadEvents.beforeAssemblyReload -= BeforeAssemblyReload;
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
             MosaicPaintingSession.Changed -= OnPaintingChanged;
-            MosaicPaintingSession.CellsChanged -= OnCellsChanged;
 
             if (_shortcutContext != null) ShortcutManager.UnregisterContext(_shortcutContext);
             _shortcutContext = null;
 
-            _preview?.SetVisibility(_targets, true);
-            DisposePreview();
+            MosaicPaintingPreviewService.SetDetails(_targets, true);
             MosaicPaintingSession.Clear();
             if (ToolManager.activeToolType == typeof(MosaicPaintingTool)) ToolManager.RestorePreviousPersistentTool();
         }
@@ -172,7 +190,7 @@ namespace FireAlt.Mosaic.Editor
             var currentStage = StageUtility.GetCurrentStageHandle();
             if (!_stage.Equals(currentStage))
             {
-                _preview?.SetVisibility(_targets, true);
+                MosaicPaintingPreviewService.SetDetails(_targets, true);
                 MosaicPaintingSession.Clear();
                 if (ToolManager.activeToolType == typeof(MosaicPaintingTool))
                 {
@@ -189,22 +207,6 @@ namespace FireAlt.Mosaic.Editor
                 Refresh();
             }
 
-            if (EditorApplication.isPlayingOrWillChangePlaymode) return;
-
-            if (_previewUpdatesRemaining > 0)
-            {
-                EditorApplication.QueuePlayerLoopUpdate();
-                if (!HasPreviewWorldAdvanced()) return;
-
-                if (_rediscoverAfterPreviewUpdate && _previewUpdatesRemaining == 1)
-                {
-                    RediscoverTargets();
-                }
-
-                if (_details) ReseedAll();
-                _previewUpdatesRemaining--;
-                SceneView.RepaintAll();
-            }
         }
 
         private void Refresh()
@@ -212,34 +214,35 @@ namespace FireAlt.Mosaic.Editor
             _refreshQueued = false;
             if (_palette == null) return;
 
-            _preview?.SetVisibility(_targets, true);
-            DisposePreview();
             DiscoverTargets();
-            _preview?.Rebuild(_targets);
-            _rediscoverAfterPreviewUpdate = true;
-            RequestPreviewUpdates();
+            MosaicPaintingPreviewService.QueueRefresh();
             BuildPalette();
 
-            ValidateSelection();
-
-            if (_details)
+            if (_selectFirstValue)
             {
-                ReseedAll();
+                _selectFirstValue = false;
+                SelectFirstValue();
             }
 
-            _preview?.SetVisibility(_targets, _details);
+            ValidateSelection();
+            MosaicPaintingPreviewService.SetDetails(_targets, _details);
 
             SceneView.RepaintAll();
         }
 
-        private void RediscoverTargets()
+        private void SelectFirstValue()
         {
-            _preview?.SetVisibility(_targets, true);
-            DiscoverTargets();
-            BuildPalette();
-            ValidateSelection();
-            _preview?.SetVisibility(_targets, _details);
-            _rediscoverAfterPreviewUpdate = false;
+            foreach (var target in _targets)
+            {
+                if (!target.IsValid || target.Values.Count == 0) continue;
+
+                var value = target.Values[0];
+                _selectedTargetId = target.Id;
+                _selectedValue = value.value;
+                MosaicPaintingSession.Select(target, value);
+                RefreshButtonSelection();
+                return;
+            }
         }
 
         private void ValidateSelection()
@@ -261,22 +264,12 @@ namespace FireAlt.Mosaic.Editor
             var currentStage = StageUtility.GetCurrentStageHandle();
             _stage = currentStage;
 
-            DiscoverEditorWorldTargets();
-
-            foreach (var tilemap in Resources.FindObjectsOfTypeAll<TilemapAuthoring>())
+            if (PrefabStageUtility.GetCurrentPrefabStage() == null)
             {
-                if (!BelongsToStage(tilemap, currentStage) || tilemap.gameObject.scene.isSubScene) continue;
-                _targets.Add(new MosaicPaintingTarget(tilemap));
+                DiscoverEditorWorldTargets();
             }
 
-            foreach (var terrain in Resources.FindObjectsOfTypeAll<TilemapTerrainAuthoring>())
-            {
-                if (!BelongsToStage(terrain, currentStage) || terrain.gameObject.scene.isSubScene) continue;
-                for (var i = 0; i < terrain.intGridLayers.Count; i++)
-                {
-                    _targets.Add(new MosaicPaintingTarget(terrain, terrain.intGridLayers[i], i));
-                }
-            }
+            MosaicPaintingPreviewService.AddAuthoringTargets(_targets, currentStage);
 
             _targets.Sort((left, right) => string.CompareOrdinal(left.DisplayName, right.DisplayName));
             ValidateDuplicateHashes();
@@ -460,13 +453,7 @@ namespace FireAlt.Mosaic.Editor
             _details = details;
             _detailsToggle?.SetValueWithoutNotify(details);
 
-            if (details)
-            {
-                ReseedAll();
-                RequestPreviewUpdates();
-            }
-
-            _preview?.SetVisibility(_targets, details);
+            MosaicPaintingPreviewService.SetDetails(_targets, details);
 
             SceneView.RepaintAll();
         }
@@ -480,12 +467,53 @@ namespace FireAlt.Mosaic.Editor
         {
             if (Event.current.type != EventType.Repaint) return;
 
-            if (_details)
+            if (_showBounds) DrawRenderBounds();
+            if (!_details) DrawRawCells();
+        }
+
+        private void DrawRenderBounds()
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated || (world.Flags & WorldFlags.Editor) == 0) return;
+
+            var entityManager = world.EntityManager;
+            entityManager.CompleteAllTrackedJobs();
+            var query = new EntityQueryBuilder(Allocator.Temp)
+                .WithAll<TilemapRendererData, RenderBounds, LocalToWorld>()
+                .Build(entityManager);
+
+            var previousColor = Handles.color;
+            var previousMatrix = Handles.matrix;
+            var previousZTest = Handles.zTest;
+            Handles.color = Color.yellow;
+            Handles.zTest = CompareFunction.LessEqual;
+
+            foreach (var entity in query.ToEntityArray(Allocator.Temp))
             {
-                return;
+                var rendererData = entityManager.GetComponentData<TilemapRendererData>(entity);
+                if (!ContainsRenderer(rendererData.MeshHash)) continue;
+
+                var localToWorld = entityManager.GetComponentData<LocalToWorld>(entity).Value;
+                var bounds = entityManager.GetComponentData<RenderBounds>(entity).Value;
+                Handles.matrix = new Matrix4x4(localToWorld.c0, localToWorld.c1, localToWorld.c2, localToWorld.c3);
+                Handles.DrawWireCube(new Vector3(bounds.Center.x, bounds.Center.y, bounds.Center.z),
+                    new Vector3(bounds.Extents.x, bounds.Extents.y, bounds.Extents.z) * 2f);
             }
 
-            DrawRawCells();
+            Handles.color = previousColor;
+            Handles.matrix = previousMatrix;
+            Handles.zTest = previousZTest;
+            query.Dispose();
+        }
+
+        private bool ContainsRenderer(Hash128 hash)
+        {
+            foreach (var target in _targets)
+            {
+                if (target.IsValid && target.RendererHash == hash) return true;
+            }
+
+            return false;
         }
 
         private void DrawRawCells()
@@ -513,11 +541,6 @@ namespace FireAlt.Mosaic.Editor
             Handles.zTest = previousZTest;
         }
 
-        private void ReseedAll()
-        {
-            foreach (var target in _targets) _preview?.Reseed(target);
-        }
-
         private void OnPaintingChanged()
         {
             if (!MosaicPaintingSession.IsPainting)
@@ -527,18 +550,6 @@ namespace FireAlt.Mosaic.Editor
             }
 
             RefreshButtonSelection();
-        }
-
-        private void OnCellsChanged(MosaicPaintingTarget target, IReadOnlyCollection<Vector2Int> positions,
-            short value)
-        {
-            if (_details)
-            {
-                if (!target.IsEntityTarget) MosaicPaintingPreview.Apply(target, positions, value);
-                RequestPreviewUpdates();
-            }
-
-            SceneView.RepaintAll();
         }
 
         private bool TryFindSelectedTarget(out MosaicPaintingTarget target)
@@ -559,17 +570,11 @@ namespace FireAlt.Mosaic.Editor
             QueueRefresh();
         }
 
-        private void OnPrefabStageChanged(PrefabStage stage)
-        {
-            QueueRefresh();
-        }
-
         private void OnPlayModeChanged(PlayModeStateChange state)
         {
             if (state == PlayModeStateChange.ExitingEditMode)
             {
-                _preview?.SetVisibility(_targets, true);
-                DisposePreview();
+                MosaicPaintingPreviewService.SetDetails(_targets, true);
                 MosaicPaintingSession.Clear();
                 if (ToolManager.activeToolType == typeof(MosaicPaintingTool))
                 {
@@ -587,44 +592,5 @@ namespace FireAlt.Mosaic.Editor
             _refreshQueued = true;
         }
 
-        private void DisposePreview()
-        {
-            _preview?.Dispose();
-            RequestPreviewUpdates();
-        }
-
-        private void RequestPreviewUpdates()
-        {
-            _previewUpdatesRemaining = PREVIEW_UPDATE_FRAMES;
-            var world = World.DefaultGameObjectInjectionWorld;
-            _previewWorldVersion = world != null && world.IsCreated
-                ? world.EntityManager.GlobalSystemVersion
-                : 0;
-            EditorApplication.QueuePlayerLoopUpdate();
-        }
-
-        private bool HasPreviewWorldAdvanced()
-        {
-            var world = World.DefaultGameObjectInjectionWorld;
-            if (world == null || !world.IsCreated) return false;
-
-            var version = world.EntityManager.GlobalSystemVersion;
-            if (version == _previewWorldVersion) return false;
-
-            _previewWorldVersion = version;
-            return true;
-        }
-
-        private void BeforeAssemblyReload()
-        {
-            _preview?.SetVisibility(_targets, true);
-            DisposePreview();
-        }
-
-        private static bool BelongsToStage(Component component, StageHandle stage)
-        {
-            return component != null && component.gameObject.scene.IsValid() && component.gameObject.scene.isLoaded
-                   && StageUtility.GetStageHandle(component.gameObject) == stage;
-        }
     }
 }

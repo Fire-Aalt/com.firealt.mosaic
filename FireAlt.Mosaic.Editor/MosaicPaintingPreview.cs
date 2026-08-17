@@ -9,6 +9,8 @@ using FireAlt.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 
@@ -263,6 +265,158 @@ namespace FireAlt.Mosaic.Editor
             }
 
             if (_world == world) _world = null;
+        }
+    }
+
+    [InitializeOnLoad]
+    internal static class MosaicPaintingPreviewService
+    {
+        private const int PREVIEW_UPDATE_FRAMES = 4;
+
+        private static readonly List<MosaicPaintingTarget> Targets = new();
+        private static readonly MosaicPaintingPreview Preview = new();
+
+        private static StageHandle _stage;
+        private static bool _refreshQueued;
+        private static bool _showDetails = true;
+        private static int _previewUpdatesRemaining;
+        private static uint _previewWorldVersion;
+
+        static MosaicPaintingPreviewService()
+        {
+            _stage = StageUtility.GetCurrentStageHandle();
+            EditorApplication.projectChanged += QueueRefresh;
+            EditorApplication.hierarchyChanged += QueueRefresh;
+            EditorApplication.update += OnEditorUpdate;
+            EditorApplication.playModeStateChanged += OnPlayModeChanged;
+            AssemblyReloadEvents.beforeAssemblyReload += Preview.Dispose;
+            MosaicPaintingSession.CellsChanged += OnCellsChanged;
+            QueueRefresh();
+        }
+
+        internal static void QueueRefresh()
+        {
+            _refreshQueued = true;
+        }
+
+        internal static void SetDetails(IReadOnlyList<MosaicPaintingTarget> targets, bool showDetails)
+        {
+            _showDetails = showDetails;
+            if (showDetails)
+            {
+                foreach (var target in targets) Preview.Reseed(target);
+                RequestPreviewUpdates();
+            }
+
+            Preview.SetVisibility(targets, showDetails);
+            SceneView.RepaintAll();
+        }
+
+        internal static void AddAuthoringTargets(List<MosaicPaintingTarget> targets, StageHandle stage)
+        {
+            foreach (var tilemap in Resources.FindObjectsOfTypeAll<TilemapAuthoring>())
+            {
+                if (!BelongsToStage(tilemap, stage) || tilemap.gameObject.scene.isSubScene) continue;
+                targets.Add(new MosaicPaintingTarget(tilemap));
+            }
+
+            foreach (var terrain in Resources.FindObjectsOfTypeAll<TilemapTerrainAuthoring>())
+            {
+                if (!BelongsToStage(terrain, stage) || terrain.gameObject.scene.isSubScene) continue;
+                for (var i = 0; i < terrain.intGridLayers.Count; i++)
+                {
+                    targets.Add(new MosaicPaintingTarget(terrain, terrain.intGridLayers[i], i));
+                }
+            }
+        }
+
+        private static void OnEditorUpdate()
+        {
+            var currentStage = StageUtility.GetCurrentStageHandle();
+            if (!_stage.Equals(currentStage))
+            {
+                _stage = currentStage;
+                _refreshQueued = true;
+            }
+
+            if (_refreshQueued && !EditorApplication.isCompiling
+                && !EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                Refresh();
+            }
+
+            if (EditorApplication.isPlayingOrWillChangePlaymode || _previewUpdatesRemaining == 0) return;
+
+            EditorApplication.QueuePlayerLoopUpdate();
+            if (!HasPreviewWorldAdvanced()) return;
+
+            if (_showDetails)
+            {
+                foreach (var target in Targets) Preview.Reseed(target);
+            }
+
+            Preview.SetVisibility(Targets, _showDetails);
+            _previewUpdatesRemaining--;
+            SceneView.RepaintAll();
+        }
+
+        private static void Refresh()
+        {
+            _refreshQueued = false;
+            Targets.Clear();
+            AddAuthoringTargets(Targets, _stage);
+            Preview.Rebuild(Targets);
+            Preview.SetVisibility(Targets, _showDetails);
+            RequestPreviewUpdates();
+        }
+
+        private static void OnCellsChanged(MosaicPaintingTarget target,
+            IReadOnlyCollection<Vector2Int> positions, short value)
+        {
+            if (!_showDetails) return;
+            if (!target.IsEntityTarget) MosaicPaintingPreview.Apply(target, positions, value);
+            RequestPreviewUpdates();
+        }
+
+        private static void OnPlayModeChanged(PlayModeStateChange state)
+        {
+            if (state == PlayModeStateChange.ExitingEditMode)
+            {
+                Preview.Dispose();
+                _previewUpdatesRemaining = 0;
+            }
+            else if (state == PlayModeStateChange.EnteredEditMode)
+            {
+                QueueRefresh();
+            }
+        }
+
+        private static void RequestPreviewUpdates()
+        {
+            _previewUpdatesRemaining = PREVIEW_UPDATE_FRAMES;
+            var world = World.DefaultGameObjectInjectionWorld;
+            _previewWorldVersion = world != null && world.IsCreated
+                ? world.EntityManager.GlobalSystemVersion
+                : 0;
+            EditorApplication.QueuePlayerLoopUpdate();
+        }
+
+        private static bool HasPreviewWorldAdvanced()
+        {
+            var world = World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated) return false;
+
+            var version = world.EntityManager.GlobalSystemVersion;
+            if (version == _previewWorldVersion) return false;
+
+            _previewWorldVersion = version;
+            return true;
+        }
+
+        private static bool BelongsToStage(Component component, StageHandle stage)
+        {
+            return component != null && component.gameObject.scene.IsValid() && component.gameObject.scene.isLoaded
+                   && StageUtility.GetStageHandle(component.gameObject) == stage;
         }
     }
 }

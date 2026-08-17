@@ -262,36 +262,38 @@ namespace FireAlt.Mosaic
 				        spriteMesh.Flip.x ? spriteMesh.MinUv.x : spriteMesh.MaxUv.x,
 				        spriteMesh.Flip.y ? spriteMesh.MinUv.y : spriteMesh.MaxUv.y);
 
-			        var minVertexPos = worldPos + MosaicUtils.Rotate(-pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
-			        var maxVertexPos = worldPos + MosaicUtils.Rotate(up + right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
-			        
-			        minPos = math.min(minPos, minVertexPos);
-			        maxPos = math.max(maxPos, maxVertexPos);
+			        var vertex0 = worldPos + MosaicUtils.Rotate(up - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
+			        var vertex1 = worldPos + MosaicUtils.Rotate(up + right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
+			        var vertex2 = worldPos + MosaicUtils.Rotate(right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
+			        var vertex3 = worldPos + MosaicUtils.Rotate(-pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
+
+			        minPos = math.min(minPos, math.min(math.min(vertex0, vertex1), math.min(vertex2, vertex3)));
+			        maxPos = math.max(maxPos, math.max(math.max(vertex0, vertex1), math.max(vertex2, vertex3)));
 			        
 			        vertices[vc + 0] = new Vertex
         			{
-        				Position = worldPos + MosaicUtils.Rotate(up - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
+					        Position = vertex0,
 				        Normal = normal,
         				TexCoord0 = new float2(minUv.x, maxUv.y)
         			};
 
 			        vertices[vc + 1] = new Vertex
         			{
-        				Position = maxVertexPos,
+					        Position = vertex1,
 				        Normal = normal,
         				TexCoord0 = new float2(maxUv.x, maxUv.y)
         			};
 
 			        vertices[vc + 2] = new Vertex
         			{
-        				Position = worldPos + MosaicUtils.Rotate(right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint,
+					        Position = vertex2,
 				        Normal = normal,
         				TexCoord0 = new float2(maxUv.x, minUv.y)
         			};
 
 			        vertices[vc + 3] = new Vertex
         			{
-        				Position = minVertexPos,
+					        Position = vertex3,
 				        Normal = normal,
         				TexCoord0 = new float2(minUv.x, minUv.y)
         			};

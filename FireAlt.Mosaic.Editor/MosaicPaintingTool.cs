@@ -17,6 +17,7 @@ namespace FireAlt.Mosaic.Editor
         private GUIContent _toolbarIcon;
         private int _controlId;
         private int _undoGroup = -1;
+        private bool _activationPending;
         private bool _strokeActive;
         private bool _erase;
         private Vector2Int? _previousCell;
@@ -33,20 +34,43 @@ namespace FireAlt.Mosaic.Editor
 
         public override bool IsAvailable()
         {
-            return MosaicPaintingSession.IsPainting && MosaicPaintingSession.Target.IsValid;
+            return true;
         }
 
         public override void OnActivated()
         {
+            if (!MosaicPaintingSession.IsPainting)
+            {
+                _activationPending = true;
+                EditorApplication.delayCall += OpenPaintingWindow;
+            }
+
             SceneView.RepaintAll();
             MosaicPaintingSession.NotifyChanged();
         }
 
         public override void OnWillBeDeactivated()
         {
+            EditorApplication.delayCall -= OpenPaintingWindow;
+            _activationPending = false;
             EndStroke();
             SceneView.RepaintAll();
             MosaicPaintingSession.Clear();
+        }
+
+        private void OpenPaintingWindow()
+        {
+            try
+            {
+                if (ToolManager.activeToolType == typeof(MosaicPaintingTool) && !MosaicPaintingSession.IsPainting)
+                {
+                    MosaicPaintingWindow.OpenAndSelectFirst();
+                }
+            }
+            finally
+            {
+                _activationPending = false;
+            }
         }
 
         public override void OnToolGUI(EditorWindow window)
@@ -58,6 +82,7 @@ namespace FireAlt.Mosaic.Editor
             {
                 EndStroke();
                 MosaicPaintingSession.Clear();
+                if (_activationPending) return;
                 ToolManager.RestorePreviousPersistentTool();
                 return;
             }

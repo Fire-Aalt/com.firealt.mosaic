@@ -237,9 +237,10 @@ namespace FireAlt.Mosaic.Editor
 
             var local = ray.GetPoint(distance);
             var second = tilemapTransform.Swizzle == Swizzle.XZY ? local.z : local.y;
+            var centerOffset = PaintedCellCenterOffset;
             cell = new Vector2Int(
-                Mathf.FloorToInt(local.x / tilemapTransform.CellSize.x),
-                Mathf.FloorToInt(second / tilemapTransform.CellSize.y));
+                Mathf.FloorToInt((local.x / tilemapTransform.CellSize.x) - centerOffset + 0.5f),
+                Mathf.FloorToInt((second / tilemapTransform.CellSize.y) - centerOffset + 0.5f));
             return true;
         }
 
@@ -248,7 +249,7 @@ namespace FireAlt.Mosaic.Editor
             var tilemapTransform = GetTilemapTransform();
             var matrix = GetLocalToWorldMatrix();
 
-            var min = new float2(cell.x, cell.y);
+            var min = new float2(cell.x, cell.y) + PaintedCellCenterOffset - 0.5f;
             var max = min + 1f;
             corners[0] = matrix.MultiplyPoint(MosaicUtils.ToWorldSpace(min, tilemapTransform));
             corners[1] = matrix.MultiplyPoint(MosaicUtils.ToWorldSpace(new float2(min.x, max.y), tilemapTransform));
@@ -258,6 +259,12 @@ namespace FireAlt.Mosaic.Editor
             var normal = Vector3.Cross(corners[1] - corners[0], corners[3] - corners[0]).normalized * normalOffset;
             for (var i = 0; i < corners.Length; i++) corners[i] += normal;
         }
+
+        private float PaintedCellCenterOffset => IsDualGrid ? 0f : 0.5f;
+
+        private bool IsDualGrid => _world != null
+            ? _world.EntityManager.GetComponentData<IntGridData>(_intGridEntity).DualGrid
+            : IntGrid.useDualGrid;
 
         private bool IsAuthoringValid()
         {

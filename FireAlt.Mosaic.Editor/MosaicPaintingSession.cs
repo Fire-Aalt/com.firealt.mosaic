@@ -36,7 +36,7 @@ namespace FireAlt.Mosaic.Editor
             Target = target;
             Value = value.value;
             Color = value.color;
-            ToolManager.SetActiveTool<MosaicPaintingTool>();
+            if (ToolManager.activeToolType != typeof(MosaicPaintingTool)) ToolManager.SetActiveTool<MosaicPaintingTool>();
             Changed?.Invoke();
         }
 
