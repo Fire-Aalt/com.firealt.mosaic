@@ -40,6 +40,33 @@ namespace FireAlt.Mosaic
             TerrainMap = new Dictionary<Hash128, TilemapTerrainRenderingData>(1);
             RenderingEntityMap = new Dictionary<Hash128, Entity>(capacity);
         }
+
+        public Mesh GetOrCreateMesh(Hash128 hash)
+        {
+            if (MeshMap.TryGetValue(hash, out var mesh)) return mesh;
+
+            mesh = new Mesh { name = "Mosaic.TilemapMesh" };
+            mesh.MarkDynamic();
+            MeshMap.Add(hash, mesh);
+            return mesh;
+        }
+
+        public void ReleaseEntity(Hash128 hash, Entity entity)
+        {
+            if (RenderingEntityMap.TryGetValue(hash, out var registered) && registered == entity)
+            {
+                RenderingEntityMap.Remove(hash);
+            }
+        }
+
+        public void ReleaseTerrain(Hash128 hash)
+        {
+            if (!TerrainMap.Remove(hash, out var terrain)) return;
+
+            terrain.Dispose();
+            CoreUtils.Destroy(terrain.Material);
+            CoreUtils.Destroy(terrain);
+        }
 		
         public void Dispose()
         {
@@ -56,8 +83,12 @@ namespace FireAlt.Mosaic
                 foreach (var kvp in TerrainMap)
                 {
                     kvp.Value.Dispose();
+                    CoreUtils.Destroy(kvp.Value.Material);
+                    CoreUtils.Destroy(kvp.Value);
                 }
             }
+
+            CoreUtils.Destroy(this);
         }
     }
 }

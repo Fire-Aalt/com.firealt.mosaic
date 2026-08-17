@@ -106,7 +106,7 @@ namespace FireAlt.Mosaic.Data
         public NativeThreadToListMapper<EntityCommand> EntityCommands;
             
         public bool TryRegisterIntGridLayer(IntGridData intGridData, bool terrainLayer, Entity intGridEntity,
-            in EntityStorageInfoLookup entityLookup)
+            in ComponentLookup<IntGridData> intGridDataLookup)
         {
             if (IntGridLayers.TryGetValue(intGridData.Hash, out var existing))
             {
@@ -117,7 +117,7 @@ namespace FireAlt.Mosaic.Data
                     return true;
                 }
 
-                if (entityLookup.Exists(existing.IntGridEntity)) return false;
+                if (intGridDataLookup.HasComponent(existing.IntGridEntity)) return false;
 
                 existing.Dispose();
                 IntGridLayers.Remove(intGridData.Hash);

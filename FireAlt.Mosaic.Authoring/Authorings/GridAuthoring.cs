@@ -15,16 +15,6 @@ namespace FireAlt.Mosaic.Authoring
 
         public Swizzle CellSwizzle => _cellSwizzle;
 
-        public void Bake<TCommands>(ref TCommands commands)
-            where TCommands : IEntityCommands
-        {
-            commands.AddComponent(new GridData
-            {
-                CellSize = _cellSize,
-                Swizzle = _cellSwizzle
-            });
-        }
-
         private void OnValidate()
         {
             _cellSize = math.max(0.005f, _cellSize);
@@ -36,7 +26,11 @@ namespace FireAlt.Mosaic.Authoring
             {
                 var entity = GetEntity(TransformUsageFlags.Dynamic);
                 var commands = new BakerCommands(this, entity);
-                authoring.Bake(ref commands);
+                commands.AddComponent(new GridData
+                {
+                    CellSize = authoring._cellSize,
+                    Swizzle = authoring._cellSwizzle
+                });
             }
         }
     }

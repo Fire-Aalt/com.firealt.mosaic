@@ -69,8 +69,7 @@ namespace FireAlt.Mosaic.Authoring
             commands.AddBuffer<IntGridValueElement>();
             commands.AddBuffer<IntGridInitialValueElement>();
 
-            // Acquire buffers only after all structural commands. EntityManagerCommands invalidates existing
-            // DynamicBuffer handles whenever another component or buffer is added.
+            // Acquire buffers only after all structural commands, which can invalidate DynamicBuffer handles.
             var ruleBlobBuffer = commands.SetBuffer<RuleBlobReferenceElement>();
             var weightedEntityBuffer = commands.SetBuffer<WeightedEntityElement>();
             var refreshPositionsBuffer = commands.SetBuffer<RefreshPositionElement>();
@@ -84,8 +83,7 @@ namespace FireAlt.Mosaic.Authoring
             {
                 foreach (var rule in group.rules)
                 {
-                    var includeEntityResults = entityResolver != null;
-                    var blob = RuleBlobCreator.Create(rule, entityCount, refreshPositions, includeEntityResults);
+                    var blob = RuleBlobCreator.Create(rule, entityCount, refreshPositions);
                     commands.AddBlobAsset(ref blob, out _);
 
                     ruleBlobBuffer.Add(new RuleBlobReferenceElement
@@ -96,7 +94,7 @@ namespace FireAlt.Mosaic.Authoring
                     
                     AddResults(rule, weightedEntityBuffer, refSprite, constPivotAndSize, ref tilePivot, ref tileSize,
                         entityResolver);
-                    if (includeEntityResults) entityCount += rule.TileEntities.Count;
+                    entityCount += rule.TileEntities.Count;
                 }
             }
 
@@ -129,15 +127,12 @@ namespace FireAlt.Mosaic.Authoring
             RefSprite refSprite, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize,
             Func<GameObject, Entity> entityResolver)
         {
-            if (entityResolver != null)
+            for (var i = 0; i < rule.TileEntities.Count; i++)
             {
-                for (var i = 0; i < rule.TileEntities.Count; i++)
+                weightedEntityBuffer.Add(new WeightedEntityElement
                 {
-                    weightedEntityBuffer.Add(new WeightedEntityElement
-                    {
-                        Value = entityResolver(rule.TileEntities[i].result)
-                    });
-                }
+                    Value = entityResolver(rule.TileEntities[i].result)
+                });
             }
 
             for (int i = 0; i < rule.TileSprites.Count; i++)

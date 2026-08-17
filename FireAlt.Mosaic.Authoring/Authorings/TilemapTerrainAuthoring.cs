@@ -25,8 +25,8 @@ namespace FireAlt.Mosaic.Authoring
 
         internal List<SerializedIntGridLayer> MutablePaintedLayers => _paintedLayers;
 
-        public void Bake<TCommands>(ref TCommands commands, Entity gridEntity,
-            Func<GameObject, Entity> entityResolver = null)
+        private void Bake<TCommands>(ref TCommands commands, Entity gridEntity,
+            Func<GameObject, Entity> entityResolver)
             where TCommands : IEntityCommands
         {
             if (intGridLayers.Count == 0) return;

@@ -129,6 +129,7 @@ namespace FireAlt.Mosaic
         }
         
         [BurstCompile]
+        [WithAll(typeof(MosaicRendererInitialized))]
         private partial struct FindHashesToUpdateJob : IJobEntity
         {
 	        [ReadOnly]
@@ -141,11 +142,18 @@ namespace FireAlt.Mosaic
             
 	        private void Execute(in IntGridData intGridData, in TilemapRendererData tilemapRendererData, Entity entity)
 	        {
+		        if (Tilemaps.TryGetValue(tilemapRendererData.MeshHash, out var existing)
+		            && existing.IntGridEntity != entity)
+		        {
+		        	existing.Dispose();
+		        	Tilemaps.Remove(tilemapRendererData.MeshHash);
+		        }
+
 		        if (!Tilemaps.ContainsKey(tilemapRendererData.MeshHash))
 		        {
-			        var terrain = new Singleton.IntGrid(entity, 256, Allocator.Persistent);
+			        var tilemap = new Singleton.IntGrid(entity, 256, Allocator.Persistent);
                     
-			        Tilemaps.Add(tilemapRendererData.MeshHash, terrain);
+			        Tilemaps.Add(tilemapRendererData.MeshHash, tilemap);
 		        }
                 
 		        ref var dataLayer = ref IntGridLayers.GetValueAsRef(intGridData.Hash);
@@ -206,7 +214,10 @@ namespace FireAlt.Mosaic
 		        var hash = HashesToUpdate[index];
 		        var meshData = MeshDataArray[index];
 		        ref var intGrid = ref Tilemaps.GetValueAsRef(hash);
-		        var rendererData = TilemapTransformLookup[intGrid.IntGridEntity];
+		        if (!TilemapTransformLookup.TryGetComponent(intGrid.IntGridEntity, out var rendererData)) // TODO: review as it is not needed
+		        {
+			        return;
+		        }
 		     
 				var quadCount = intGrid.SpriteMeshes.Count;
                 

@@ -152,6 +152,7 @@ namespace FireAlt.Mosaic
         }
 
         [BurstCompile]
+        [WithAll(typeof(MosaicRendererInitialized))]
         private partial struct FindHashesToUpdateJob : IJobEntity
         {
             [ReadOnly]
@@ -163,6 +164,13 @@ namespace FireAlt.Mosaic
             
             private void Execute(in TerrainData terrainData, in DynamicBuffer<TilemapTerrainLayerElement> layers, Entity entity)
             {
+                if (Terrains.TryGetValue(terrainData.TerrainHash, out var existing)
+                    && existing.TerrainEntity != entity)
+                {
+                    existing.Dispose();
+                    Terrains.Remove(terrainData.TerrainHash);
+                }
+
                 if (!Terrains.ContainsKey(terrainData.TerrainHash))
                 {
                     var terrain = new Singleton.Terrain(entity, 256, Allocator.Persistent);
@@ -180,6 +188,7 @@ namespace FireAlt.Mosaic
                     }
                 }
             }
+
         }
         
         [BurstCompile]

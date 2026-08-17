@@ -60,7 +60,7 @@ Hold `Alt` to use normal Scene View navigation while a value remains selected. P
 
 The eye toggle controls **Show details** and is also available with `Ctrl+H`. With details hidden, Mosaic draws the saved cells in their configured IntGrid colors. With details shown, those saved values are loaded into Mosaic's existing RuleEngine and presentation path so sprite and terrain results are previewed.
 
-Tilemaps in normally baked SubScenes use the Editor world's converted entities and retain entity-prefab rule results. Scene and prefab-stage tilemaps that are not in a SubScene use a temporary visual-only preview world; sprite and terrain results are shown, while entity-prefab results require normal SubScene baking.
+Tilemaps in SubScenes use their normally baked Editor entities. Scene and prefab-stage tilemaps outside SubScenes are baked into the same Editor world for painting, so sprite, terrain, and entity-prefab rule results all use the normal Mosaic runtime path.
 
 ### Editor (Dual-Grid workflow)
 

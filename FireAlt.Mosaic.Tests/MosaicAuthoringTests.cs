@@ -1,5 +1,8 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
-using FireAlt.Core.EntityCommands;
+using FireAlt.Core;
+using FireAlt.Core.Editor;
 using FireAlt.Core.Extensions;
 using FireAlt.Mosaic.Authoring;
 using FireAlt.Mosaic.Data;
@@ -8,13 +11,18 @@ using NUnit.Framework;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using UnityEditor;
 using UnityEngine;
 
 namespace FireAlt.Mosaic.Tests
 {
     public sealed class MosaicAuthoringTests
     {
-        private BlobAssetStore _blobAssetStore;
+        private struct TestCleanup : ICleanupComponentData
+        {
+        }
+
+        private readonly List<string> _temporaryAssets = new();
         private GameObject _gridObject;
         private IntGridDefinition _intGrid;
         private Material _material;
@@ -24,7 +32,6 @@ namespace FireAlt.Mosaic.Tests
         public void SetUp()
         {
             _world = new World(nameof(MosaicAuthoringTests), WorldFlags.Editor);
-            _blobAssetStore = new BlobAssetStore(32);
             _gridObject = new GameObject("Grid", typeof(GridAuthoring));
             _intGrid = ScriptableObject.CreateInstance<IntGridDefinition>();
             _intGrid.name = "Test IntGrid";
@@ -44,28 +51,23 @@ namespace FireAlt.Mosaic.Tests
         public void TearDown()
         {
             if (_world != null && _world.IsCreated) _world.Dispose();
-            if (_blobAssetStore.IsCreated) _blobAssetStore.Dispose();
             Object.DestroyImmediate(_material);
+            foreach (var assetPath in _temporaryAssets) AssetDatabase.DeleteAsset(assetPath);
+            _temporaryAssets.Clear();
             Object.DestroyImmediate(_intGrid);
             Object.DestroyImmediate(_gridObject);
         }
 
         [Test]
-        public void PublicBake_WritesSavedCellsAndStableLocalHash()
+        public void EditorBake_WritesSavedCellsAndStableLocalHash()
         {
             var tilemapObject = CreateTilemap("Tilemap");
             var tilemap = tilemapObject.GetComponent<TilemapAuthoring>();
             tilemap.isGlobal = false;
             tilemap.MutablePaintedCells.Add(new SerializedIntGridCell(new Vector2Int(-2, 3), 1));
 
-            var gridEntity = BakeGrid();
-            var firstEntity = _world.EntityManager.CreateEntity();
-            var firstCommands = new EntityManagerCommands(_world.EntityManager, firstEntity, _blobAssetStore);
-            tilemap.Bake(ref firstCommands, gridEntity);
-
-            var secondEntity = _world.EntityManager.CreateEntity();
-            var secondCommands = new EntityManagerCommands(_world.EntityManager, secondEntity, _blobAssetStore);
-            tilemap.Bake(ref secondCommands, gridEntity);
+            var firstEntity = FindEntity<IntGridData>(EditorBakingWorld.BakeInto(new[] { _gridObject }, _world));
+            var secondEntity = FindEntity<IntGridData>(EditorBakingWorld.BakeInto(new[] { _gridObject }, _world));
 
             Assert.That(_world.EntityManager.HasComponent<TilemapTransform>(firstEntity), Is.True);
             Assert.That(_world.EntityManager.HasComponent<TilemapRendererData>(firstEntity), Is.True);
@@ -84,44 +86,42 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
-        public void PublicBake_SupportsFullAndVisualOnlyRuleBlobs()
+        public void EditorBake_BakesEntityRuleResults()
         {
-            var prefab = new GameObject("Rule Entity");
+            var prefabPath = AssetDatabase.GenerateUniqueAssetPath("Assets/MosaicAuthoringTests.prefab");
+            var groupPath = AssetDatabase.GenerateUniqueAssetPath("Assets/MosaicAuthoringTests.asset");
+            var intGridPath = AssetDatabase.GenerateUniqueAssetPath("Assets/MosaicAuthoringTestsIntGrid.asset");
+            _temporaryAssets.Add(prefabPath);
+            _temporaryAssets.Add(groupPath);
+            _temporaryAssets.Add(intGridPath);
+            var prefabSource = new GameObject("Rule Entity");
+            var prefab = PrefabUtility.SaveAsPrefabAsset(prefabSource, prefabPath);
+            Object.DestroyImmediate(prefabSource);
             var group = ScriptableObject.CreateInstance<RuleGroup>();
             group.intGrid = _intGrid;
             var rule = new RuleGroup.Rule();
             rule.TileEntities.Add(new PrefabResult(prefab));
             group.rules.Add(rule);
             group.OnValidate();
+            AssetDatabase.CreateAsset(group, groupPath);
             _intGrid.ruleGroups.Add(group);
+            AssetDatabase.CreateAsset(_intGrid, intGridPath);
+            EditorUtility.SetDirty(_intGrid);
+            AssetDatabase.SaveAssets();
 
             var tilemapObject = CreateTilemap("Tilemap");
             var tilemap = tilemapObject.GetComponent<TilemapAuthoring>();
-            var gridEntity = BakeGrid();
-            var entity = _world.EntityManager.CreateEntity();
-            var commands = new EntityManagerCommands(_world.EntityManager, entity, _blobAssetStore);
-            tilemap.Bake(ref commands, gridEntity);
+            var entity = FindEntity<IntGridData>(EditorBakingWorld.BakeInto(new[] { _gridObject }, _world));
 
             var rules = _world.EntityManager.GetBuffer<RuleBlobReferenceElement>(entity);
             var weightedEntities = _world.EntityManager.GetBuffer<WeightedEntityElement>(entity);
             Assert.That(rules.Length, Is.EqualTo(1));
-            Assert.That(rules[0].Value.Value.EntitiesPointers.Length, Is.EqualTo(0));
-            Assert.That(weightedEntities.Length, Is.EqualTo(0));
-
-            var prefabEntity = _world.EntityManager.CreateEntity();
-            var fullEntity = _world.EntityManager.CreateEntity();
-            var fullCommands = new EntityManagerCommands(_world.EntityManager, fullEntity, _blobAssetStore);
-            tilemap.Bake(ref fullCommands, gridEntity, _ => prefabEntity);
-
-            var fullRules = _world.EntityManager.GetBuffer<RuleBlobReferenceElement>(fullEntity);
-            var fullWeightedEntities = _world.EntityManager.GetBuffer<WeightedEntityElement>(fullEntity);
-            Assert.That(fullRules[0].Value.Value.EntitiesPointers.Length, Is.EqualTo(1));
-            Assert.That(fullWeightedEntities.Length, Is.EqualTo(1));
-            Assert.That(fullWeightedEntities[0].Value, Is.EqualTo(prefabEntity));
+            Assert.That(rules[0].Value.Value.EntitiesPointers.Length, Is.EqualTo(1));
+            Assert.That(weightedEntities.Length, Is.EqualTo(1));
+            Assert.That(weightedEntities[0].Value, Is.Not.EqualTo(Entity.Null));
+            Assert.That(_world.EntityManager.Exists(weightedEntities[0].Value), Is.True);
 
             Object.DestroyImmediate(tilemapObject);
-            Object.DestroyImmediate(prefab);
-            Object.DestroyImmediate(group);
         }
 
         [Test]
@@ -137,10 +137,8 @@ namespace FireAlt.Mosaic.Tests
             terrain.intGridLayers.Add(_intGrid);
             terrain.intGridLayers.Add(secondIntGrid);
 
-            var gridEntity = BakeGrid();
-            var terrainEntity = _world.EntityManager.CreateEntity();
-            var commands = new EntityManagerCommands(_world.EntityManager, terrainEntity, _blobAssetStore);
-            terrain.Bake(ref commands, gridEntity);
+            var terrainEntity = FindEntity<FireAlt.Mosaic.Data.TerrainData>(
+                EditorBakingWorld.BakeInto(new[] { _gridObject }, _world));
 
             var layers = _world.EntityManager.GetBuffer<TilemapTerrainLayerElement>(terrainEntity);
             var intGridQuery = new EntityQueryBuilder(Allocator.Temp)
@@ -228,6 +226,65 @@ namespace FireAlt.Mosaic.Tests
             var layer = singleton.IntGridLayers[hash];
             Assert.That(layer.IntGrid.ContainsKey(new int2(1, 2)), Is.False);
             Assert.That(layer.IntGrid[new int2(-4, 6)], Is.EqualTo((IntGridValue)1));
+        }
+
+        [Test]
+        public void Cleanup_RemovesLayersAndSpawnsWhenTheirBakedEntityIsGone()
+        {
+            var hash = (Unity.Entities.Hash128)UnityEngine.Hash128.Compute("Mosaic cleanup test");
+            _world.GetOrCreateSystem<RuleEngineSystem>();
+            var cleanup = _world.GetOrCreateSystem<EntityCleanupSystem>();
+            var updateGroup = _world.GetOrCreateSystemManaged<SimulationSystemGroup>();
+            updateGroup.AddSystemToUpdateList(cleanup);
+
+            var intGridEntity = _world.EntityManager.CreateEntity();
+            _world.EntityManager.AddComponentData(intGridEntity, new IntGridData { Hash = hash });
+            var spawnedEntity = _world.EntityManager.CreateEntity();
+            var dataSingleton = _world.EntityManager.CreateEntityQuery(typeof(TilemapIntGridSingleton))
+                .GetSingleton<TilemapIntGridSingleton>();
+            var dataLayer = new TilemapIntGridSingleton.IntGridLayer(8, Allocator.Persistent,
+                new IntGridData { Hash = hash }, false, intGridEntity);
+            dataLayer.SpawnedEntities.Add(int2.zero, spawnedEntity);
+            dataSingleton.IntGridLayers.Add(hash, dataLayer);
+
+            _world.EntityManager.AddComponent<TestCleanup>(intGridEntity);
+            _world.EntityManager.DestroyEntity(intGridEntity);
+            Assert.That(_world.EntityManager.Exists(intGridEntity), Is.True);
+            Assert.That(_world.EntityManager.HasComponent<IntGridData>(intGridEntity), Is.False);
+            updateGroup.Update();
+
+            Assert.That(_world.EntityManager.Exists(spawnedEntity), Is.False);
+            Assert.That(dataSingleton.IntGridLayers.ContainsKey(hash), Is.False);
+        }
+
+        [Test]
+        public void Initialization_ReplacesAnIntGridCleanupShell()
+        {
+            var hash = (Unity.Entities.Hash128)UnityEngine.Hash128.Compute("Mosaic cleanup shell test");
+            _world.GetOrCreateSystem<RuleEngineSystem>();
+            _world.GetOrCreateSystem<IntGridMeshDataSystem>();
+            _world.GetOrCreateSystem<TerrainMeshDataSystem>();
+            _world.GetOrCreateSystemManaged<MosaicPresentationSystem>();
+            var initialization = _world.GetOrCreateSystemManaged<MosaicInitializationSystem>();
+            var gridEntity = _world.EntityManager.CreateEntity();
+            _world.EntityManager.AddComponentData(gridEntity, new GridData { CellSize = 1f });
+            var previous = CreateIntGridEntity(hash, gridEntity);
+
+            initialization.Update();
+            _world.EntityManager.CompleteAllTrackedJobs();
+            _world.EntityManager.AddComponent<TestCleanup>(previous);
+            _world.EntityManager.DestroyEntity(previous);
+            Assert.That(_world.EntityManager.Exists(previous), Is.True);
+            Assert.That(_world.EntityManager.HasComponent<IntGridData>(previous), Is.False);
+
+            var replacement = CreateIntGridEntity(hash, gridEntity);
+            initialization.Update();
+            _world.EntityManager.CompleteAllTrackedJobs();
+
+            Assert.That(_world.EntityManager.IsComponentEnabled<IntGridData>(replacement), Is.True);
+            var singleton = _world.EntityManager.CreateEntityQuery(typeof(TilemapIntGridSingleton))
+                .GetSingleton<TilemapIntGridSingleton>();
+            Assert.That(singleton.IntGridLayers[hash].IntGridEntity, Is.EqualTo(replacement));
         }
 
         [Test]
@@ -346,7 +403,7 @@ namespace FireAlt.Mosaic.Tests
             var tilemap = tilemapObject.GetComponent<TilemapAuthoring>();
             tilemap.MutablePaintedCells.Add(new SerializedIntGridCell(new Vector2Int(-2, 3), 1));
             var target = new MosaicPaintingTarget(tilemap);
-            var hash = (Unity.Entities.Hash128)UnityEngine.Hash128.Compute("Mosaic preview reseed test");
+            var hash = target.IntGridHash;
             var intGridEntity = _world.EntityManager.CreateEntity();
             _world.EntityManager.AddComponentData(intGridEntity, new IntGridData
             {
@@ -363,8 +420,7 @@ namespace FireAlt.Mosaic.Tests
             layer.SetValue(new int2(8, 9), 1);
             layer.ChangedPositions.Clear();
 
-            var binding = new MosaicPreviewWorld.Binding(_world, hash, hash, intGridEntity, intGridEntity);
-            MosaicPreviewWorld.Reseed(binding, target);
+            MosaicPaintingPreview.Reseed(_world, target);
 
             Assert.That(layer.IntGrid.ContainsKey(new int2(8, 9)), Is.False);
             Assert.That(layer.IntGrid[new int2(-2, 3)], Is.EqualTo((IntGridValue)1));
@@ -372,9 +428,41 @@ namespace FireAlt.Mosaic.Tests
             Assert.That(layer.ChangedPositions.Contains(new int2(-3, 2)), Is.True);
 
             layer.ChangedPositions.Clear();
-            MosaicPreviewWorld.Apply(binding, new[] { new Vector2Int(5, -6) }, 1);
+            MosaicPaintingPreview.Apply(_world, target, new[] { new Vector2Int(5, -6) }, 1);
             Assert.That(layer.IntGrid[new int2(5, -6)], Is.EqualTo((IntGridValue)1));
             Assert.That(layer.ChangedPositions.Contains(new int2(5, -6)), Is.True);
+
+            Object.DestroyImmediate(tilemapObject);
+        }
+
+        [Test]
+        public void PaintingPreview_RebuildReplacesItsBakedEntitiesAndSynchronizesTransforms()
+        {
+            var tilemapObject = CreateTilemap("Tilemap");
+            var tilemap = tilemapObject.GetComponent<TilemapAuthoring>();
+            tilemap.isGlobal = false;
+            var target = new MosaicPaintingTarget(tilemap);
+            using var preview = new MosaicPaintingPreview();
+
+            preview.Rebuild(_world, new[] { target });
+            var firstRenderer = FindEntity<TilemapRendererData>(GetPreviewEntities());
+
+            Assert.That(_world.EntityManager.HasComponent<HybridEntitySync>(firstRenderer), Is.True);
+            Assert.That(_world.EntityManager.GetComponentData<HybridEntitySync>(firstRenderer).MonoBehaviour.Value,
+                Is.EqualTo(tilemap));
+
+            preview.Rebuild(_world, new[] { target });
+            var previewEntities = GetPreviewEntities();
+            var renderer = FindEntity<TilemapRendererData>(previewEntities);
+            var grid = FindEntity<GridData>(previewEntities);
+
+            Assert.That(_world.EntityManager.Exists(firstRenderer), Is.False);
+            Assert.That(previewEntities.Count(entity => _world.EntityManager.HasComponent<TilemapRendererData>(entity)),
+                Is.EqualTo(1));
+            Assert.That(_world.EntityManager.GetComponentData<HybridEntitySync>(renderer).MonoBehaviour.Value,
+                Is.EqualTo(tilemap));
+            Assert.That(_world.EntityManager.GetComponentData<HybridEntitySync>(grid).MonoBehaviour.Value,
+                Is.EqualTo(_gridObject.GetComponent<GridAuthoring>()));
 
             Object.DestroyImmediate(tilemapObject);
         }
@@ -389,12 +477,35 @@ namespace FireAlt.Mosaic.Tests
             return tilemapObject;
         }
 
-        private Entity BakeGrid()
+        private Entity CreateIntGridEntity(Unity.Entities.Hash128 hash, Entity gridEntity)
         {
             var entity = _world.EntityManager.CreateEntity();
-            var commands = new EntityManagerCommands(_world.EntityManager, entity, _blobAssetStore);
-            _gridObject.GetComponent<GridAuthoring>().Bake(ref commands);
+            _world.EntityManager.AddComponentData(entity, new IntGridData { Hash = hash, DebugName = "Test" });
+            _world.EntityManager.SetComponentEnabled<IntGridData>(entity, false);
+            _world.EntityManager.AddComponentData(entity, new TilemapTransform { GridEntity = gridEntity });
+            _world.EntityManager.AddBuffer<IntGridInitialValueElement>(entity);
             return entity;
+        }
+
+        private Entity FindEntity<T>(Entity[] entities)
+            where T : unmanaged, IComponentData
+        {
+            foreach (var entity in entities)
+            {
+                if (_world.EntityManager.HasComponent<T>(entity)) return entity;
+            }
+
+            Assert.Fail($"No baked entity contains {typeof(T).Name}.");
+            return Entity.Null;
+        }
+
+        private Entity[] GetPreviewEntities()
+        {
+            var query = new EntityQueryBuilder(Allocator.Temp)
+                .WithAll<MosaicPaintingPreviewEntity>()
+                .WithOptions(EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IncludePrefab)
+                .Build(_world.EntityManager);
+            return query.ToEntityArray(Allocator.Temp).ToArray();
         }
 
         private static bool ContainsHash(NativeArray<IntGridData> data, Unity.Entities.Hash128 hash)

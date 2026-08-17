@@ -3,6 +3,7 @@
     "rootNamespace": "FireAlt.Mosaic.Tests",
     "references": [
         "FireAlt.Core",
+        "FireAlt.Core.Editor",
         "FireAlt.Mosaic",
         "FireAlt.Mosaic.Authoring",
         "FireAlt.Mosaic.Data",

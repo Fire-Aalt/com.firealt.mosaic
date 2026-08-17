@@ -10,7 +10,7 @@ namespace FireAlt.Mosaic.Authoring
     public struct RuleBlobCreator
     {
         public static BlobAssetReference<RuleBlob> Create(RuleGroup.Rule rule, int entityCount,
-            NativeHashSet<int2> refreshPositions, bool includeEntityResults = true)
+            NativeHashSet<int2> refreshPositions)
         {
             var builder = new BlobBuilder(Allocator.Temp);
             ref var root = ref builder.ConstructRoot<RuleBlob>();
@@ -20,7 +20,7 @@ namespace FireAlt.Mosaic.Authoring
             root.ResultTransform = rule.resultTransformation;
             
             AddPatterns(ref builder, ref root, rule, refreshPositions);
-            AddResults(ref builder, ref root, rule, entityCount, includeEntityResults);
+            AddResults(ref builder, ref root, rule, entityCount);
 
             return builder.CreateBlobAssetReference<RuleBlob>(Allocator.Persistent);
         }
@@ -41,7 +41,7 @@ namespace FireAlt.Mosaic.Authoring
         }
 
         private static void AddResults(ref BlobBuilder builder, ref RuleBlob root, RuleGroup.Rule rule,
-            int entityCount, bool includeEntityResults)
+            int entityCount)
         {
             if (rule.TileSprites != null)
             {
@@ -58,7 +58,7 @@ namespace FireAlt.Mosaic.Authoring
                 root.SpritesWeightSum = sum;
             }
             
-            if (includeEntityResults && rule.TileEntities != null)
+            if (rule.TileEntities != null)
             {
                 var entitiesWeights = builder.Allocate(ref root.EntitiesWeights, rule.TileEntities.Count);
                 var entitiesPointers = builder.Allocate(ref root.EntitiesPointers, rule.TileEntities.Count);
