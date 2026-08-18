@@ -17,6 +17,7 @@ namespace FireAlt.Mosaic
     public partial struct RuleEngineSystem : ISystem
     {
         private EntityQuery _query;
+        private uint _previousSeed;
         
         [BurstCompile]
         public void OnCreate(ref SystemState state)
@@ -47,6 +48,9 @@ namespace FireAlt.Mosaic
         { 
             var tcb = SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW; 
             var dataSingleton = SystemAPI.GetSingletonRW<TilemapIntGridSingleton>().ValueRW;
+            var seed = tcb.GlobalSeed.Value;
+            var randomize = seed != _previousSeed;
+            _previousSeed = seed;
             
             var intGridEntities = _query.ToEntityListAsync(state.WorldUpdateAllocator,
                 state.Dependency, out var dependency);
@@ -60,6 +64,7 @@ namespace FireAlt.Mosaic
                 RefreshOffsetsBufferLookup = SystemAPI.GetBufferLookup<RefreshPositionElement>(true),
                 IntGridLayers = dataSingleton.IntGridLayers,
                 TcbLayers = tcb.IntGridLayers,
+                RefreshAll = randomize,
             }.Schedule(intGridEntities, 1, dependency);
             
             state.Dependency = new ExecuteRulesJob
@@ -70,7 +75,8 @@ namespace FireAlt.Mosaic
                 EntitiesBufferLookup = SystemAPI.GetBufferLookup<WeightedEntityElement>(true),
                 IntGridLayers = dataSingleton.IntGridLayers,
                 EntityCommands = dataSingleton.EntityCommands.AsThreadWriter(),
-                Seed = tcb.GlobalSeed.Value
+                Seed = seed,
+                Randomize = randomize,
             }.Schedule(intGridEntities, 1, state.Dependency);
             
             state.Dependency = dataSingleton.EntityCommands.CopyParallelToListSingle(state.Dependency);
@@ -89,6 +95,7 @@ namespace FireAlt.Mosaic
             public NativeHashMap<Hash128, TilemapCommandBufferSingleton.IntGridLayer> TcbLayers;
             [NativeDisableParallelForRestriction]
             public NativeHashMap<Hash128, TilemapIntGridSingleton.IntGridLayer> IntGridLayers;
+            public bool RefreshAll;
 
             public void Execute(int index)
             {
@@ -101,6 +108,8 @@ namespace FireAlt.Mosaic
                 dataLayer.Cleared = false;
                 dataLayer.PositionsToRefresh.Clear();
                 dataLayer.RefreshedPositions.Clear();
+
+                if (RefreshAll) PrepareRandomization(ref dataLayer);
                 
                 if (TryClearAll(ref commandsLayer, ref dataLayer))
                     return;
@@ -170,8 +179,10 @@ namespace FireAlt.Mosaic
             public NativeThreadList<EntityCommand>.ThreadWriter EntityCommands;
             
             public uint Seed;
+            public bool Randomize;
 
             private Hash128 _intGridHash;
+            private uint _layerSeed;
             [ReadOnly]
             private DynamicBuffer<RuleBlobReferenceElement> _rulesBuffer;
             [ReadOnly]
@@ -184,6 +195,7 @@ namespace FireAlt.Mosaic
                 var intGridEntity = IntGridEntities[index];
                 
                 _intGridHash = TilemapData[intGridEntity].Hash;
+                _layerSeed = Seed ^ math.hash(_intGridHash.Value);
                 ref var dataLayer = ref IntGridLayers.GetValueAsRef(_intGridHash);
                 
                 if (dataLayer.PositionsToRefresh.Count == 0) 
@@ -221,7 +233,7 @@ namespace FireAlt.Mosaic
                     
                     ref var rule = ref ruleElement.Value.Value;
                         
-                    var random = new Random(MosaicUtils.Hash(Seed, posToRefresh));
+                    var random = new Random(MosaicUtils.Hash(_layerSeed, posToRefresh));
                     if (random.NextFloat() * 100f > rule.Chance)
                         continue;
 
@@ -231,7 +243,7 @@ namespace FireAlt.Mosaic
                     var currentRuleHash = ruleHashExists ? ruleHash : 0;
                     var newRuleHash = MosaicUtils.Hash(ruleIndex, appliedMirror, appliedRotation);
                         
-                    if (currentRuleHash == newRuleHash)
+                    if (!RuleResultChanged(currentRuleHash, newRuleHash, Randomize))
                         return true;
                     
                     dataLayer.RefreshedPositions.Add(posToRefresh);
@@ -363,6 +375,17 @@ namespace FireAlt.Mosaic
                 }
                 return true;
             }
+        }
+
+        private static void PrepareRandomization(ref TilemapIntGridSingleton.IntGridLayer dataLayer)
+        {
+            foreach (var cell in dataLayer.IntGrid) dataLayer.ChangedPositions.Add(cell.Key);
+            foreach (var rule in dataLayer.RuleGrid) dataLayer.PositionsToRefresh.Add(rule.Key);
+        }
+
+        private static bool RuleResultChanged(int currentRuleHash, int newRuleHash, bool randomize)
+        {
+            return randomize || currentRuleHash != newRuleHash;
         }
     }
 }

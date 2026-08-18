@@ -10,6 +10,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 
@@ -21,7 +22,24 @@ namespace FireAlt.Mosaic.Editor
 
     internal sealed class MosaicPaintingPreview : IDisposable
     {
+        private readonly Dictionary<Entity, CullingState> _hiddenEntities = new();
+        private readonly HashSet<Entity> _entitiesToHide = new();
+        private readonly List<Entity> _entitiesToRestore = new();
         private World _world;
+        private World _visibilityWorld;
+
+        private readonly struct CullingState
+        {
+            public CullingState(bool hadSceneCullingMask, ulong sceneCullingMask)
+            {
+                HadSceneCullingMask = hadSceneCullingMask;
+                SceneCullingMask = sceneCullingMask;
+            }
+
+            public bool HadSceneCullingMask { get; }
+
+            public ulong SceneCullingMask { get; }
+        }
 
         public void Rebuild(IReadOnlyList<MosaicPaintingTarget> targets)
         {
@@ -58,6 +76,11 @@ namespace FireAlt.Mosaic.Editor
             var entityManager = world.EntityManager;
             entityManager.CompleteAllTrackedJobs();
 
+            if (_visibilityWorld != null && _visibilityWorld != world) RestoreHiddenEntities();
+            _visibilityWorld = world;
+            if (showIntGridColors) _entitiesToHide.Clear();
+            else RestoreHiddenEntities();
+
             var rendererQuery = new EntityQueryBuilder(Allocator.Temp)
                 .WithAll<TilemapRendererData>()
                 .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
@@ -79,13 +102,12 @@ namespace FireAlt.Mosaic.Editor
             foreach (var target in targets)
             {
                 if (!target.IsValid) continue;
-                var mask = showIntGridColors ? 0 : target.SceneCullingMask;
 
                 for (var i = 0; i < rendererEntities.Length; i++)
                 {
                     if (rendererData[i].MeshHash == target.RendererHash)
                     {
-                        SetSceneCullingMaskForHierarchy(entityManager, rendererEntities[i], mask);
+                        SetHierarchyVisibility(entityManager, rendererEntities[i], showIntGridColors);
                     }
                 }
 
@@ -101,16 +123,32 @@ namespace FireAlt.Mosaic.Editor
                         .ToNativeArray(Allocator.Temp);
                     foreach (var weightedEntity in weightedEntities)
                     {
-                        SetSceneCullingMaskForHierarchy(entityManager, weightedEntity.Value, mask);
+                        SetHierarchyVisibility(entityManager, weightedEntity.Value, showIntGridColors);
                     }
                 }
 
                 if (!hasLayers || !layers.IntGridLayers.TryGetValue(target.IntGridHash, out var layer)) continue;
                 foreach (var spawnedEntity in layer.SpawnedEntities)
                 {
-                    SetSceneCullingMaskForHierarchy(entityManager, spawnedEntity.Value, mask);
+                    SetHierarchyVisibility(entityManager, spawnedEntity.Value, showIntGridColors);
                 }
             }
+
+            if (!showIntGridColors) return;
+
+            _entitiesToRestore.Clear();
+            foreach (var hiddenEntity in _hiddenEntities.Keys)
+            {
+                if (!_entitiesToHide.Contains(hiddenEntity)) _entitiesToRestore.Add(hiddenEntity);
+            }
+
+            foreach (var entity in _entitiesToRestore)
+            {
+                RestoreHiddenEntity(entityManager, entity, _hiddenEntities[entity]);
+                _hiddenEntities.Remove(entity);
+            }
+
+            foreach (var entity in _entitiesToHide) HideEntity(entityManager, entity);
         }
 
         public void Reseed(MosaicPaintingTarget target)
@@ -133,6 +171,26 @@ namespace FireAlt.Mosaic.Editor
             }
         }
 
+        internal static uint RandomizeRuleEngineSeed(World world, IReadOnlyList<MosaicPaintingTarget> targets)
+        {
+            if (world == null || !world.IsCreated) return 0;
+
+            var entityManager = world.EntityManager;
+            entityManager.CompleteAllTrackedJobs();
+            if (!entityManager.TryGetUnmanagedSingleton<TilemapCommandBufferSingleton>(out var commandBuffer))
+            {
+                return 0;
+            }
+
+            var currentSeed = commandBuffer.GlobalSeed.Value;
+            var seed = (uint)UnityEngine.Random.Range(1, int.MaxValue);
+            if (seed == currentSeed) seed = seed == int.MaxValue - 1 ? 1u : seed + 1u;
+            commandBuffer.SetGlobalSeed(seed);
+
+            foreach (var target in targets) Reseed(world, target);
+            return seed;
+        }
+
         public static void Apply(MosaicPaintingTarget target, IReadOnlyCollection<Vector2Int> positions, short value)
         {
             var world = World.DefaultGameObjectInjectionWorld;
@@ -153,6 +211,7 @@ namespace FireAlt.Mosaic.Editor
 
         public void Dispose()
         {
+            RestoreHiddenEntities();
             DisposeInjectedEntities(_world ?? World.DefaultGameObjectInjectionWorld);
         }
 
@@ -171,20 +230,84 @@ namespace FireAlt.Mosaic.Editor
             return true;
         }
 
-        private static void SetSceneCullingMaskForHierarchy(EntityManager entityManager, Entity hierarchyRoot, ulong mask)
+        private void SetHierarchyVisibility(EntityManager entityManager, Entity hierarchyRoot, bool hidden)
         {
             if (!entityManager.Exists(hierarchyRoot)) return;
 
-            InternalEditorRenderData.SetSceneCullingMask(entityManager, hierarchyRoot, mask);
+            SetEntityVisibility(entityManager, hierarchyRoot, hidden);
             if (entityManager.TryGetBuffer<LinkedEntityGroup>(hierarchyRoot, out var leg))
             {
                 foreach (var linkedEntity in leg.AsNativeArray())
                 {
                     if (linkedEntity.Value != hierarchyRoot && entityManager.Exists(linkedEntity.Value))
                     {
-                        InternalEditorRenderData.SetSceneCullingMask(entityManager, linkedEntity.Value, mask);
+                        SetEntityVisibility(entityManager, linkedEntity.Value, hidden);
                     }
                 }
+            }
+        }
+
+        private void SetEntityVisibility(EntityManager entityManager, Entity entity, bool hidden)
+        {
+            if (hidden)
+            {
+                _entitiesToHide.Add(entity);
+            }
+            else if (entityManager.HasComponent<SceneSection>(entity)
+                     && InternalEditorRenderData.GetSceneCullingMask(entityManager, entity) == 0)
+            {
+                InternalEditorRenderData.SetSceneCullingMask(entityManager, entity,
+                    EditorSceneManager.DefaultSceneCullingMask | (1UL << 59));
+            }
+        }
+
+        private void HideEntity(EntityManager entityManager, Entity entity)
+        {
+            if (!_hiddenEntities.ContainsKey(entity))
+            {
+                var hadSceneCullingMask = InternalEditorRenderData.HasSceneCullingMask(entityManager, entity);
+                var sceneCullingMask = InternalEditorRenderData.GetSceneCullingMask(entityManager, entity);
+                if (sceneCullingMask == 0 && entityManager.HasComponent<SceneSection>(entity))
+                {
+                    hadSceneCullingMask = true;
+                    sceneCullingMask = EditorSceneManager.DefaultSceneCullingMask | (1UL << 59);
+                }
+
+                _hiddenEntities.Add(entity, new CullingState(hadSceneCullingMask, sceneCullingMask));
+            }
+
+            InternalEditorRenderData.SetSceneCullingMask(entityManager, entity, 0);
+        }
+
+        private void RestoreHiddenEntities()
+        {
+            if (_visibilityWorld != null && _visibilityWorld.IsCreated)
+            {
+                var entityManager = _visibilityWorld.EntityManager;
+                entityManager.CompleteAllTrackedJobs();
+                foreach (var hiddenEntity in _hiddenEntities)
+                {
+                    RestoreHiddenEntity(entityManager, hiddenEntity.Key, hiddenEntity.Value);
+                }
+            }
+
+            _hiddenEntities.Clear();
+            _entitiesToHide.Clear();
+            _entitiesToRestore.Clear();
+            _visibilityWorld = null;
+        }
+
+        private static void RestoreHiddenEntity(EntityManager entityManager, Entity entity, CullingState state)
+        {
+            if (!entityManager.Exists(entity)) return;
+
+            if (state.HadSceneCullingMask)
+            {
+                InternalEditorRenderData.SetSceneCullingMask(entityManager, entity, state.SceneCullingMask);
+            }
+            else
+            {
+                InternalEditorRenderData.RemoveSceneCullingMask(entityManager, entity);
             }
         }
 

@@ -43,7 +43,7 @@ namespace FireAlt.Mosaic
         private void UploadBatch(ref SystemState state, int beginIndex, int endIndex, in Entity srcEntity)
         {
             var length = endIndex - beginIndex + 1;
-            if (length <= 0) return;
+            if (length <= 0 || !state.EntityManager.Exists(srcEntity)) return;
             
             var srcTransform = state.EntityManager.GetComponentData<LocalTransform>(srcEntity);
             var hasTilemapCellComponent = state.EntityManager.HasComponent<TilemapCell>(srcEntity);

@@ -104,6 +104,13 @@ namespace FireAlt.Mosaic.Editor
             });
             toolbar.Add(_boundsToggle);
 
+            var randomize = new ToolbarButton(() => MosaicPaintingPreviewService.RandomizeRuleEngineSeed(_targets))
+            {
+                text = "Randomize",
+                tooltip = "Randomize the seed used by RuleEngine and refresh the current Mosaic output",
+            };
+            toolbar.Add(randomize);
+
             var spacer = new VisualElement();
             spacer.style.flexGrow = 1f;
             toolbar.Add(spacer);
@@ -265,9 +272,21 @@ namespace FireAlt.Mosaic.Editor
             }
 
             MosaicPaintingPreviewService.AddAuthoringTargets(_targets, currentStage);
+            RemoveEntityTargetsShadowedByAuthoring(_targets);
 
             _targets.Sort((left, right) => string.CompareOrdinal(left.DisplayName, right.DisplayName));
             ValidateDuplicateHashes();
+        }
+
+        internal static void RemoveEntityTargetsShadowedByAuthoring(List<MosaicPaintingTarget> targets)
+        {
+            var authoringHashes = new HashSet<Hash128>();
+            foreach (var target in targets)
+            {
+                if (!target.IsEntityTarget) authoringHashes.Add(target.IntGridHash);
+            }
+
+            targets.RemoveAll(target => target.IsEntityTarget && authoringHashes.Contains(target.IntGridHash));
         }
 
         private void DiscoverEditorWorldTargets()
