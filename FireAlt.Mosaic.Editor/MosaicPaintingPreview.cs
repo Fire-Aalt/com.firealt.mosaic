@@ -61,6 +61,8 @@ namespace FireAlt.Mosaic.Editor
             var entityManager = world.EntityManager;
             foreach (var entity in entities)
             {
+                InternalEditorRenderData.SetSceneCullingMask(entityManager, entity,
+                    GetSceneCullingMask(entityManager, entity, roots[0].sceneCullingMask));
                 entityManager.AddComponent<MosaicPaintingPreviewEntity>(entity);
             }
 
@@ -346,6 +348,15 @@ namespace FireAlt.Mosaic.Editor
                     entityManager.AddComponentData(entity, new HybridEntitySync(grid));
                 }
             }
+        }
+
+        private static ulong GetSceneCullingMask(EntityManager entityManager, Entity entity, ulong fallback)
+        {
+            if (!entityManager.HasComponent<EntityGuid>(entity)) return fallback;
+
+            var source = EditorUtility.EntityIdToObject(
+                entityManager.GetComponentData<EntityGuid>(entity).OriginatingEntityId) as GameObject;
+            return source == null ? fallback : source.sceneCullingMask;
         }
 
         private static void DisposeLegacyEntities(EntityManager entityManager, IReadOnlyList<GameObject> roots)
