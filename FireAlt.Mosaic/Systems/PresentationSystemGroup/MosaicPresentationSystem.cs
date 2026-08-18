@@ -17,7 +17,7 @@ namespace FireAlt.Mosaic
 	{
 		private readonly List<Mesh> _intGridMeshesToUpdate = new();
 		private readonly List<Mesh> _terrainMeshesToUpdate = new();
-		private readonly Mesh _dummyMesh = new();
+		private Mesh _dummyMesh;
 		
 		protected override void OnCreate()
 		{
@@ -26,12 +26,16 @@ namespace FireAlt.Mosaic
 
 		protected override void OnDestroy()
 		{
+			UnityEngine.Rendering.CoreUtils.Destroy(_dummyMesh);
 			var singleton = SystemAPI.GetSingleton<PresentationDataSingleton>();
 			if (singleton.Value.Value != null) singleton.Dispose();
 		}
  
 		protected override void OnUpdate()
 		{
+			_intGridMeshesToUpdate.Clear();
+			_terrainMeshesToUpdate.Clear();
+
 			ref var presentationData = ref SystemAPI.GetSingletonRW<PresentationDataSingleton>().ValueRW;
 			if (presentationData.Value.Value == null)
 			{
@@ -94,7 +98,7 @@ namespace FireAlt.Mosaic
 				var neededDummies = meshDataArray.Array.Length - meshes.Count;
 				for (int i = 0; i < neededDummies; i++)
 				{
-					meshes.Add(_dummyMesh);
+					meshes.Add(GetDummyMesh());
 				}
 				meshDataArray.ApplyAndDisposeWritableMeshData(meshes);
 			}
@@ -103,6 +107,18 @@ namespace FireAlt.Mosaic
 			{
 				meshDataArray.AllocateWritableMeshData(neededMeshesCount);
 			}
+		}
+
+		private Mesh GetDummyMesh()
+		{
+			if (_dummyMesh != null) return _dummyMesh;
+
+			_dummyMesh = new Mesh
+			{
+				name = "Mosaic.MeshDataPadding",
+				hideFlags = UnityEngine.HideFlags.HideAndDontSave,
+			};
+			return _dummyMesh;
 		}
 
 		[BurstCompile]

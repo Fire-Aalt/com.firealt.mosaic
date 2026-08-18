@@ -43,11 +43,15 @@ namespace FireAlt.Mosaic
 
         public Mesh GetOrCreateMesh(Hash128 hash)
         {
-            if (MeshMap.TryGetValue(hash, out var mesh)) return mesh;
+            if (MeshMap.TryGetValue(hash, out var mesh) && mesh != null) return mesh;
 
-            mesh = new Mesh { name = "Mosaic.TilemapMesh" };
+            mesh = new Mesh
+            {
+                name = "Mosaic.TilemapMesh",
+                hideFlags = HideFlags.HideAndDontSave,
+            };
             mesh.MarkDynamic();
-            MeshMap.Add(hash, mesh);
+            MeshMap[hash] = mesh;
             return mesh;
         }
 
