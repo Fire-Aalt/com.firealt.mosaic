@@ -128,9 +128,9 @@ namespace FireAlt.Mosaic.Authoring
             var existing = new Dictionary<IntGridDefinition, SerializedIntGridLayer>();
             foreach (var layer in _paintedLayers)
             {
-                if (layer != null && layer.IntGrid != null && !existing.ContainsKey(layer.IntGrid))
+                if (layer != null && layer.IntGrid != null)
                 {
-                    existing.Add(layer.IntGrid, layer);
+                    existing.TryAdd(layer.IntGrid, layer);
                 }
             }
 

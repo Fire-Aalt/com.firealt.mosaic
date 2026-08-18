@@ -437,6 +437,55 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
+        public void PaintingPreviewInvalidation_FiltersUnrelatedHierarchy()
+        {
+            var ancestor = new GameObject("Ancestor");
+            var unrelated = new GameObject("Unrelated");
+            var newMosaicRoot = new GameObject("New Mosaic Root", typeof(GridAuthoring));
+            var tilemapObject = CreateTilemap("Tilemap");
+            _gridObject.transform.SetParent(ancestor.transform);
+            var target = new MosaicPaintingTarget(tilemapObject.GetComponent<TilemapAuthoring>());
+            var invalidation = new MosaicPaintingPreviewInvalidation();
+            invalidation.Reset(new[] { target });
+
+            Assert.That(invalidation.IsRelevant(ancestor), Is.True);
+            Assert.That(invalidation.IsRelevant(_gridObject), Is.True);
+            Assert.That(invalidation.IsRelevant(tilemapObject), Is.True);
+            Assert.That(invalidation.IsRelevant(unrelated), Is.False);
+            Assert.That(invalidation.IsRelevant(newMosaicRoot), Is.True);
+
+            var tilemapId = tilemapObject.GetEntityId();
+            Object.DestroyImmediate(tilemapObject);
+            Assert.That(invalidation.IsRelevant(tilemapId), Is.True);
+
+            _gridObject.transform.SetParent(null);
+            Object.DestroyImmediate(ancestor);
+            Object.DestroyImmediate(unrelated);
+            Object.DestroyImmediate(newMosaicRoot);
+        }
+
+        [Test]
+        public void PaintingPreviewInvalidation_IgnoresOnlyPaintedCellProperties()
+        {
+            var tilemapObject = CreateTilemap("Tilemap");
+            var tilemap = tilemapObject.GetComponent<TilemapAuthoring>();
+            var terrainObject = new GameObject("Terrain", typeof(TilemapTerrainAuthoring));
+            var terrain = terrainObject.GetComponent<TilemapTerrainAuthoring>();
+
+            Assert.That(MosaicPaintingTarget.IsPaintedCellProperty(
+                tilemap, "_paintedCells.Array.data[0]._value"), Is.True);
+            Assert.That(MosaicPaintingTarget.IsPaintedCellProperty(
+                tilemap, "renderingData.material"), Is.False);
+            Assert.That(MosaicPaintingTarget.IsPaintedCellProperty(
+                terrain, "_paintedLayers.Array.data[0]._cells.Array.data[0]._value"), Is.True);
+            Assert.That(MosaicPaintingTarget.IsPaintedCellProperty(
+                terrain, "_paintedLayers.Array.data[0]._intGrid"), Is.False);
+
+            Object.DestroyImmediate(tilemapObject);
+            Object.DestroyImmediate(terrainObject);
+        }
+
+        [Test]
         public void PaintingPreview_ReseedsExistingLayerWithoutClearCommand()
         {
             var tilemapObject = CreateTilemap("Tilemap");

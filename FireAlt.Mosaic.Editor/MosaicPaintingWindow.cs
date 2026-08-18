@@ -154,12 +154,10 @@ namespace FireAlt.Mosaic.Editor
             _shortcutContext = new MosaicPaintingShortcutContext();
             ShortcutManager.RegisterContext(_shortcutContext);
 
-            EditorApplication.projectChanged += QueueRefresh;
-            EditorApplication.hierarchyChanged += QueueRefresh;
             EditorApplication.update += OnEditorUpdate;
-            Undo.undoRedoPerformed += OnUndoRedo;
             SceneView.duringSceneGui += DuringSceneGui;
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
+            MosaicPaintingPreviewService.Refreshed += QueueRefresh;
             MosaicPaintingSession.Changed += OnPaintingChanged;
 
             QueueRefresh();
@@ -169,12 +167,10 @@ namespace FireAlt.Mosaic.Editor
         {
             if (ReferenceEquals(ActiveWindow, this)) ActiveWindow = null;
 
-            EditorApplication.projectChanged -= QueueRefresh;
-            EditorApplication.hierarchyChanged -= QueueRefresh;
             EditorApplication.update -= OnEditorUpdate;
-            Undo.undoRedoPerformed -= OnUndoRedo;
             SceneView.duringSceneGui -= DuringSceneGui;
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+            MosaicPaintingPreviewService.Refreshed -= QueueRefresh;
             MosaicPaintingSession.Changed -= OnPaintingChanged;
 
             if (_shortcutContext != null) ShortcutManager.UnregisterContext(_shortcutContext);
@@ -215,7 +211,6 @@ namespace FireAlt.Mosaic.Editor
             if (_palette == null) return;
 
             DiscoverTargets();
-            MosaicPaintingPreviewService.QueueRefresh();
             BuildPalette();
 
             if (_selectFirstValue)
@@ -359,7 +354,7 @@ namespace FireAlt.Mosaic.Editor
 
                 if (!target.IsValid)
                 {
-                    foldout.Add(new HelpBox(target.ValidationMessage, HelpBoxMessageType.Error));
+                    foldout.Add(new HelpBox(target.AdditionalValidationMessage, HelpBoxMessageType.Error));
                     _palette.Add(foldout);
                     continue;
                 }
@@ -563,11 +558,6 @@ namespace FireAlt.Mosaic.Editor
 
             target = null;
             return false;
-        }
-
-        private void OnUndoRedo()
-        {
-            QueueRefresh();
         }
 
         private void OnPlayModeChanged(PlayModeStateChange state)

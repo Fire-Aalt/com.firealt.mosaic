@@ -10,7 +10,6 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 
@@ -33,7 +32,7 @@ namespace FireAlt.Mosaic.Editor
         {
             DisposeInjectedEntities(world);
 
-            if (world == null || !world.IsCreated || (world.Flags & WorldFlags.Editor) == 0) return;
+            if (world == null) return;
 
             var roots = targets.Where(target => target.IsValid && !target.IsSubScene)
                 .Select(target => target.Grid.gameObject).Distinct().ToArray();
@@ -86,7 +85,7 @@ namespace FireAlt.Mosaic.Editor
                 {
                     if (rendererData[i].MeshHash == target.RendererHash)
                     {
-                        SetEntityAndLinkedGroup(entityManager, rendererEntities[i], mask);
+                        SetSceneCullingMaskForHierarchy(entityManager, rendererEntities[i], mask);
                     }
                 }
 
@@ -102,14 +101,14 @@ namespace FireAlt.Mosaic.Editor
                         .ToNativeArray(Allocator.Temp);
                     foreach (var weightedEntity in weightedEntities)
                     {
-                        SetEntityAndLinkedGroup(entityManager, weightedEntity.Value, mask);
+                        SetSceneCullingMaskForHierarchy(entityManager, weightedEntity.Value, mask);
                     }
                 }
 
                 if (!hasLayers || !layers.IntGridLayers.TryGetValue(target.IntGridHash, out var layer)) continue;
                 foreach (var spawnedEntity in layer.SpawnedEntities)
                 {
-                    SetEntityAndLinkedGroup(entityManager, spawnedEntity.Value, mask);
+                    SetSceneCullingMaskForHierarchy(entityManager, spawnedEntity.Value, mask);
                 }
             }
         }
@@ -137,7 +136,7 @@ namespace FireAlt.Mosaic.Editor
         public static void Apply(MosaicPaintingTarget target, IReadOnlyCollection<Vector2Int> positions, short value)
         {
             var world = World.DefaultGameObjectInjectionWorld;
-            if (world != null && world.IsCreated) Apply(world, target, positions, value);
+            if (world != null) Apply(world, target, positions, value);
         }
 
         internal static void Apply(World world, MosaicPaintingTarget target,
@@ -157,34 +156,34 @@ namespace FireAlt.Mosaic.Editor
             DisposeInjectedEntities(_world ?? World.DefaultGameObjectInjectionWorld);
         }
 
-        private static bool TryGetLayers(World world,
+        private static bool TryGetLayers(World world, 
             out NativeHashMap<Hash128, TilemapIntGridSingleton.IntGridLayer> layers)
         {
             layers = default;
-            if (world == null || !world.IsCreated) return false;
+            if (world == null) return false;
 
-            var entityManager = world.EntityManager;
-            entityManager.CompleteAllTrackedJobs();
-            var query = entityManager.CreateEntityQuery(ComponentType.ReadOnly<TilemapIntGridSingleton>());
-            if (query.IsEmpty) return false;
-
-            layers = query.GetSingleton<TilemapIntGridSingleton>().IntGridLayers;
+            if (!world.EntityManager.TryGetUnmanagedSingleton<TilemapIntGridSingleton>(out var singleton))
+            {
+                return false;
+            }
+            
+            layers = singleton.IntGridLayers;
             return true;
         }
 
-        private static void SetEntityAndLinkedGroup(EntityManager entityManager, Entity entity, ulong mask)
+        private static void SetSceneCullingMaskForHierarchy(EntityManager entityManager, Entity hierarchyRoot, ulong mask)
         {
-            if (!entityManager.Exists(entity)) return;
+            if (!entityManager.Exists(hierarchyRoot)) return;
 
-            InternalEditorRenderData.Set(entityManager, entity, mask);
-            if (!entityManager.HasBuffer<LinkedEntityGroup>(entity)) return;
-
-            var linkedEntities = entityManager.GetBuffer<LinkedEntityGroup>(entity).ToNativeArray(Allocator.Temp);
-            foreach (var linkedEntity in linkedEntities)
+            InternalEditorRenderData.SetSceneCullingMask(entityManager, hierarchyRoot, mask);
+            if (entityManager.TryGetBuffer<LinkedEntityGroup>(hierarchyRoot, out var leg))
             {
-                if (linkedEntity.Value != entity && entityManager.Exists(linkedEntity.Value))
+                foreach (var linkedEntity in leg.AsNativeArray())
                 {
-                    InternalEditorRenderData.Set(entityManager, linkedEntity.Value, mask);
+                    if (linkedEntity.Value != hierarchyRoot && entityManager.Exists(linkedEntity.Value))
+                    {
+                        InternalEditorRenderData.SetSceneCullingMask(entityManager, linkedEntity.Value, mask);
+                    }
                 }
             }
         }
@@ -216,7 +215,7 @@ namespace FireAlt.Mosaic.Editor
                     continue;
                 }
 
-                var source = UnityEditor.EditorUtility.EntityIdToObject(
+                var source = EditorUtility.EntityIdToObject(
                     entityManager.GetComponentData<EntityGuid>(entity).OriginatingEntityId) as GameObject;
                 var grid = source == null ? null : source.GetComponent<GridAuthoring>();
                 if (grid != null && !entityManager.HasComponent<HybridEntitySync>(entity))
@@ -236,7 +235,7 @@ namespace FireAlt.Mosaic.Editor
             foreach (var entity in entities)
             {
                 if (!entityManager.Exists(entity)) continue;
-                var source = UnityEditor.EditorUtility.EntityIdToObject(
+                var source = EditorUtility.EntityIdToObject(
                     entityManager.GetComponentData<EntityGuid>(entity).OriginatingEntityId) as GameObject;
                 if (source == null) continue;
 
@@ -253,10 +252,9 @@ namespace FireAlt.Mosaic.Editor
 
         private void DisposeInjectedEntities(World world)
         {
-            if (world != null && world.IsCreated)
+            if (world != null)
             {
                 var entityManager = world.EntityManager;
-                entityManager.CompleteAllTrackedJobs();
                 var query = new EntityQueryBuilder(Allocator.Temp)
                     .WithAll<MosaicPaintingPreviewEntity>()
                     .WithOptions(EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IncludePrefab)
@@ -265,158 +263,6 @@ namespace FireAlt.Mosaic.Editor
             }
 
             if (_world == world) _world = null;
-        }
-    }
-
-    [InitializeOnLoad]
-    internal static class MosaicPaintingPreviewService
-    {
-        private const int PREVIEW_UPDATE_FRAMES = 4;
-
-        private static readonly List<MosaicPaintingTarget> Targets = new();
-        private static readonly MosaicPaintingPreview Preview = new();
-
-        private static StageHandle _stage;
-        private static bool _refreshQueued;
-        private static bool _showIntGridColors;
-        private static int _previewUpdatesRemaining;
-        private static uint _previewWorldVersion;
-
-        static MosaicPaintingPreviewService()
-        {
-            _stage = StageUtility.GetCurrentStageHandle();
-            EditorApplication.projectChanged += QueueRefresh;
-            EditorApplication.hierarchyChanged += QueueRefresh;
-            EditorApplication.update += OnEditorUpdate;
-            EditorApplication.playModeStateChanged += OnPlayModeChanged;
-            AssemblyReloadEvents.beforeAssemblyReload += Preview.Dispose;
-            MosaicPaintingSession.CellsChanged += OnCellsChanged;
-            QueueRefresh();
-        }
-
-        internal static void QueueRefresh()
-        {
-            _refreshQueued = true;
-        }
-
-        internal static void SetShowIntGridColors(IReadOnlyList<MosaicPaintingTarget> targets, bool showIntGridColors)
-        {
-            _showIntGridColors = showIntGridColors;
-            if (!showIntGridColors)
-            {
-                foreach (var target in targets) Preview.Reseed(target);
-                RequestPreviewUpdates();
-            }
-
-            Preview.SetVisibility(targets, showIntGridColors);
-            SceneView.RepaintAll();
-        }
-
-        internal static void AddAuthoringTargets(List<MosaicPaintingTarget> targets, StageHandle stage)
-        {
-            foreach (var tilemap in Resources.FindObjectsOfTypeAll<TilemapAuthoring>())
-            {
-                if (!BelongsToStage(tilemap, stage) || tilemap.gameObject.scene.isSubScene) continue;
-                targets.Add(new MosaicPaintingTarget(tilemap));
-            }
-
-            foreach (var terrain in Resources.FindObjectsOfTypeAll<TilemapTerrainAuthoring>())
-            {
-                if (!BelongsToStage(terrain, stage) || terrain.gameObject.scene.isSubScene) continue;
-                for (var i = 0; i < terrain.intGridLayers.Count; i++)
-                {
-                    targets.Add(new MosaicPaintingTarget(terrain, terrain.intGridLayers[i], i));
-                }
-            }
-        }
-
-        private static void OnEditorUpdate()
-        {
-            var currentStage = StageUtility.GetCurrentStageHandle();
-            if (!_stage.Equals(currentStage))
-            {
-                _stage = currentStage;
-                _refreshQueued = true;
-            }
-
-            if (_refreshQueued && !EditorApplication.isCompiling
-                && !EditorApplication.isPlayingOrWillChangePlaymode)
-            {
-                Refresh();
-            }
-
-            if (EditorApplication.isPlayingOrWillChangePlaymode || _previewUpdatesRemaining == 0) return;
-
-            EditorApplication.QueuePlayerLoopUpdate();
-            if (!HasPreviewWorldAdvanced()) return;
-
-            if (!_showIntGridColors)
-            {
-                foreach (var target in Targets) Preview.Reseed(target);
-            }
-
-            Preview.SetVisibility(Targets, _showIntGridColors);
-            _previewUpdatesRemaining--;
-            SceneView.RepaintAll();
-        }
-
-        private static void Refresh()
-        {
-            _refreshQueued = false;
-            Targets.Clear();
-            AddAuthoringTargets(Targets, _stage);
-            Preview.Rebuild(Targets);
-            Preview.SetVisibility(Targets, _showIntGridColors);
-            RequestPreviewUpdates();
-        }
-
-        private static void OnCellsChanged(MosaicPaintingTarget target,
-            IReadOnlyCollection<Vector2Int> positions, short value)
-        {
-            if (_showIntGridColors) return;
-            if (!target.IsEntityTarget) MosaicPaintingPreview.Apply(target, positions, value);
-            RequestPreviewUpdates();
-        }
-
-        private static void OnPlayModeChanged(PlayModeStateChange state)
-        {
-            if (state == PlayModeStateChange.ExitingEditMode)
-            {
-                Preview.Dispose();
-                _previewUpdatesRemaining = 0;
-            }
-            else if (state == PlayModeStateChange.EnteredEditMode)
-            {
-                QueueRefresh();
-            }
-        }
-
-        private static void RequestPreviewUpdates()
-        {
-            _previewUpdatesRemaining = PREVIEW_UPDATE_FRAMES;
-            var world = World.DefaultGameObjectInjectionWorld;
-            _previewWorldVersion = world != null && world.IsCreated
-                ? world.EntityManager.GlobalSystemVersion
-                : 0;
-            EditorApplication.QueuePlayerLoopUpdate();
-        }
-
-        private static bool HasPreviewWorldAdvanced()
-        {
-            var world = World.DefaultGameObjectInjectionWorld;
-            if (world == null || !world.IsCreated) return false;
-
-            var version = world.EntityManager.GlobalSystemVersion;
-            if (version == _previewWorldVersion) return false;
-
-            _previewWorldVersion = version;
-            return true;
-        }
-
-        private static bool BelongsToStage(Component component, StageHandle stage)
-        {
-            return component != null && component.gameObject.scene.IsValid() && component.gameObject.scene.isLoaded
-                   && StageUtility.GetStageHandle(component.gameObject) == stage;
         }
     }
 }

@@ -32,7 +32,6 @@ namespace FireAlt.Mosaic.Editor
         private readonly Hash128 _rendererHash;
         private readonly string _displayName;
         private readonly bool _isTerrain;
-        private readonly ulong _sceneCullingMask;
 
         public MosaicPaintingTarget(TilemapAuthoring owner)
         {
@@ -40,7 +39,7 @@ namespace FireAlt.Mosaic.Editor
             IntGrid = owner.intGrid;
             LayerIndex = 0;
             Grid = owner.GetComponentInParent<GridAuthoring>();
-            _sceneCullingMask = owner.gameObject.sceneCullingMask;
+            SceneCullingMask = owner.gameObject.sceneCullingMask;
         }
 
         public MosaicPaintingTarget(TilemapTerrainAuthoring owner, IntGridDefinition intGrid, int layerIndex)
@@ -49,7 +48,7 @@ namespace FireAlt.Mosaic.Editor
             IntGrid = intGrid;
             LayerIndex = layerIndex;
             Grid = owner.GetComponentInParent<GridAuthoring>();
-            _sceneCullingMask = owner.gameObject.sceneCullingMask;
+            SceneCullingMask = owner.gameObject.sceneCullingMask;
         }
 
         public MosaicPaintingTarget(World world, Entity intGridEntity, Entity rendererEntity,
@@ -66,7 +65,7 @@ namespace FireAlt.Mosaic.Editor
             var intGridData = entityManager.GetComponentData<IntGridData>(intGridEntity);
             _intGridHash = intGridData.Hash;
             _rendererHash = entityManager.GetComponentData<TilemapRendererData>(rendererEntity).MeshHash;
-            _sceneCullingMask = InternalEditorRenderData.GetSceneCullingMask(entityManager, rendererEntity);
+            SceneCullingMask = InternalEditorRenderData.GetSceneCullingMask(entityManager, rendererEntity);
 
             foreach (var value in entityManager.GetBuffer<IntGridValueElement>(intGridEntity))
             {
@@ -106,7 +105,7 @@ namespace FireAlt.Mosaic.Editor
 
         public bool IsEntityTarget => _world != null;
 
-        public ulong SceneCullingMask => _sceneCullingMask;
+        public ulong SceneCullingMask { get; }
 
         public Hash128 IntGridHash => _world != null ? _intGridHash : Owner switch
         {
@@ -130,37 +129,10 @@ namespace FireAlt.Mosaic.Editor
 
         public string AdditionalValidationMessage { get; set; }
 
-        public bool IsValid => (_world != null ? IsEntityValid() : IsAuthoringValid())
+        public bool IsValid => (_world != null ? IsEntityValid() : IsAuthoringValid()) 
                                && string.IsNullOrEmpty(AdditionalValidationMessage);
 
-        public string ValidationMessage
-        {
-            get
-            {
-                if (_world != null)
-                {
-                    if (!_world.IsCreated) return "The Editor World no longer exists.";
-                    if (!_world.EntityManager.Exists(_intGridEntity)) return "The baked IntGrid entity no longer exists.";
-                    if (!_world.EntityManager.Exists(_rendererEntity)) return "The baked renderer entity no longer exists.";
-                    if (!_world.EntityManager.HasComponent<IntGridData>(_intGridEntity)) return "The baked IntGrid data no longer exists.";
-                    if (!_world.EntityManager.HasComponent<TilemapRendererData>(_rendererEntity)) return "The baked renderer data no longer exists.";
-                    if (!_world.EntityManager.HasComponent<TilemapTransform>(_intGridEntity)) return "The baked tilemap transform is missing.";
-                    if (!_world.EntityManager.HasComponent<LocalToWorld>(_rendererEntity)) return "The baked world transform is missing.";
-                    if (_entityValues.Count == 0) return "The baked IntGrid has no values.";
-                    if (!string.IsNullOrEmpty(AdditionalValidationMessage)) return AdditionalValidationMessage;
-                    return string.Empty;
-                }
-
-                if (Owner == null) return "The tilemap owner no longer exists.";
-                if (IntGrid == null) return "No IntGridDefinition is assigned.";
-                if (Grid == null) return "No parent GridAuthoring was found.";
-                if (RenderingData == null || RenderingData.material == null) return "No rendering material is assigned.";
-                if (!string.IsNullOrEmpty(AdditionalValidationMessage)) return AdditionalValidationMessage;
-                return string.Empty;
-            }
-        }
-
-        public RenderingData RenderingData => Owner switch
+        private RenderingData RenderingData => Owner switch
         {
             TilemapAuthoring tilemap => tilemap.renderingData,
             TilemapTerrainAuthoring terrain => terrain.renderingData,
@@ -380,6 +352,24 @@ namespace FireAlt.Mosaic.Editor
             return null;
         }
 
+        internal static bool IsPaintedCellProperty(UnityEngine.Object target, string propertyPath)
+        {
+            if (target is TilemapAuthoring)
+            {
+                return propertyPath == PAINTED_CELLS
+                       || propertyPath.StartsWith($"{PAINTED_CELLS}.", StringComparison.Ordinal);
+            }
+
+            if (target is not TilemapTerrainAuthoring
+                || !propertyPath.StartsWith($"{PAINTED_LAYERS}.", StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            return propertyPath.EndsWith($".{CELLS}", StringComparison.Ordinal)
+                   || propertyPath.Contains($".{CELLS}.", StringComparison.Ordinal);
+        }
+
         internal sealed class PaintStroke : IDisposable
         {
             private readonly MosaicPaintingTarget _target;
@@ -477,11 +467,6 @@ namespace FireAlt.Mosaic.Editor
 
                 exists = false;
                 return min;
-            }
-
-            private static int Compare(Vector2Int left, Vector2Int right)
-            {
-                return MosaicPaintingTarget.Compare(left, right);
             }
         }
     }
