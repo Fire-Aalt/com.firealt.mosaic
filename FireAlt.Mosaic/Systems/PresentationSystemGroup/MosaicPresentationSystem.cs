@@ -5,9 +5,7 @@ using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
-using Hash128 = Unity.Entities.Hash128;
 using Mesh = UnityEngine.Mesh;
-using TerrainData = FireAlt.Mosaic.Data.TerrainData;
 
 namespace FireAlt.Mosaic
 {

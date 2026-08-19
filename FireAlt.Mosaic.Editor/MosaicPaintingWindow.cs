@@ -236,7 +236,7 @@ namespace FireAlt.Mosaic.Editor
         {
             foreach (var target in _targets)
             {
-                if (!target.IsValid || target.Values.Count == 0) continue;
+                if (target.IsEntityTarget || !target.IsValid || target.Values.Count == 0) continue;
 
                 var value = target.Values[0];
                 _selectedTargetId = target.Id;
@@ -249,7 +249,7 @@ namespace FireAlt.Mosaic.Editor
 
         private void ValidateSelection()
         {
-            if (TryFindSelectedTarget(out _)) return;
+            if (TryFindSelectedTarget(out var target) && !target.IsEntityTarget) return;
 
             _selectedTargetId = null;
             _selectedValue = 0;
@@ -355,15 +355,12 @@ namespace FireAlt.Mosaic.Editor
             _palette.Clear();
             _valueButtons.Clear();
 
-            if (_targets.Count == 0)
-            {
-                _palette.Add(new HelpBox("No Mosaic tilemaps were found in the current scene or prefab stage.",
-                    HelpBoxMessageType.Info));
-                return;
-            }
-
+            var hasPaintingTargets = false;
             foreach (var target in _targets)
             {
+                if (target.IsEntityTarget) continue;
+                hasPaintingTargets = true;
+
                 var foldout = new Foldout
                 {
                     text = target.DisplayName,
@@ -384,6 +381,13 @@ namespace FireAlt.Mosaic.Editor
                 }
 
                 _palette.Add(foldout);
+            }
+
+            if (!hasPaintingTargets)
+            {
+                _palette.Add(new HelpBox(
+                    "No editable Mosaic tilemaps were found in the current stage. Open a SubScene to paint its IntGrid layers.",
+                    HelpBoxMessageType.Info));
             }
         }
 
