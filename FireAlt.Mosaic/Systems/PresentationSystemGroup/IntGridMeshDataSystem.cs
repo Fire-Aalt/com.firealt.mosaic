@@ -214,11 +214,8 @@ namespace FireAlt.Mosaic
 		        var hash = HashesToUpdate[index];
 		        var meshData = MeshDataArray[index];
 		        ref var intGrid = ref Tilemaps.GetValueAsRef(hash);
-		        if (!TilemapTransformLookup.TryGetComponent(intGrid.IntGridEntity, out var rendererData)) // TODO: review as it is not needed
-		        {
-			        return;
-		        }
-		     
+		        var rendererData = TilemapTransformLookup[intGrid.IntGridEntity];
+
 				var quadCount = intGrid.SpriteMeshes.Count;
                 
 				var vertexCount = quadCount * 4;
