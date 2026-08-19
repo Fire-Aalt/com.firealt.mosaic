@@ -8,6 +8,8 @@ namespace FireAlt.Mosaic.Editor
     [InitializeOnLoad]
     public static class EditorResources
     {
+        public static readonly Texture MosaicPaintingToolIcon;
+        
         public static readonly Texture NotTexture;
         public static readonly Texture AnyTexture;
         public static readonly Texture MatrixCenterTexture;
@@ -23,6 +25,8 @@ namespace FireAlt.Mosaic.Editor
         
         static EditorResources()
         {
+            MosaicPaintingToolIcon = Load<Texture>("MosaicPaintingIcon.png");
+            
             NotTexture = Load<Texture>("not.png");
             AnyTexture = Load<Texture>("any.png");
             MatrixCenterTexture = Load<Texture>("matrixCenter.png");

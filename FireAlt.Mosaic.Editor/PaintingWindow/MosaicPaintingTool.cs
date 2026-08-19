@@ -29,7 +29,7 @@ namespace FireAlt.Mosaic.Editor
 
         private void OnEnable()
         {
-            _toolbarIcon = new GUIContent("M", "Paint Mosaic IntGrid values");
+            _toolbarIcon = new GUIContent(EditorResources.MosaicPaintingToolIcon, "Paint Mosaic IntGrid values");
         }
 
         public override bool IsAvailable()
