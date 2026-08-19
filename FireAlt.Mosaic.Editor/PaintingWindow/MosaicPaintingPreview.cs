@@ -97,9 +97,8 @@ namespace FireAlt.Mosaic.Editor
             var intGridEntities = intGridQuery.ToEntityArray(Allocator.Temp);
             var intGridData = intGridQuery.ToComponentDataArray<IntGridData>(Allocator.Temp);
 
-            var layerQuery = entityManager.CreateEntityQuery(ComponentType.ReadOnly<TilemapIntGridSingleton>());
-            var hasLayers = !layerQuery.IsEmpty;
-            var layers = hasLayers ? layerQuery.GetSingleton<TilemapIntGridSingleton>() : default;
+            var hasLayers = entityManager.TryGetUnmanagedSingleton<TilemapIntGridSingleton>(out var intGridSingleton);
+            var layers = hasLayers ? intGridSingleton : default;
 
             foreach (var target in targets)
             {

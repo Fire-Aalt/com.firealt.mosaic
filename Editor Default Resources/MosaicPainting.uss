@@ -1,3 +1,8 @@
+:root {
+    --selected_color: rgb(235, 235, 235);
+    --hover_color: rgba(255, 255, 255, 0.55);
+}
+
 .mosaic-paint-controls {
     padding-left: 8px;
     padding-right: 8px;
@@ -17,10 +22,7 @@
 
 .mosaic-paint-palette {
     flex-grow: 1;
-    padding-left: 6px;
-    padding-right: 6px;
-    padding-top: 6px;
-    padding-bottom: 6px;
+    padding: 6px;
 }
 
 .mosaic-paint-group {
@@ -32,10 +34,7 @@
     min-height: 54px;
     margin-top: 1px;
     margin-bottom: 1px;
-    padding-left: 0;
-    padding-right: 8px;
-    padding-top: 4px;
-    padding-bottom: 4px;
+    padding: 4px 8px 4px 0;
     flex-direction: row;
     align-items: center;
     justify-content: flex-start;
@@ -46,23 +45,20 @@
     border-right-color: rgba(0, 0, 0, 0.55);
     border-top-color: rgba(0, 0, 0, 0.55);
     border-bottom-color: rgba(0, 0, 0, 0.55);
+    transition-duration: 0.2s;
+    transition-timing-function: ease-in-out;
 }
 
 .mosaic-paint-value:hover {
-    border-right-color: rgba(255, 255, 255, 0.55);
-    border-top-color: rgba(255, 255, 255, 0.55);
-    border-bottom-color: rgba(255, 255, 255, 0.55);
+    border-color: var(--hover_color);
 }
 
 .mosaic-paint-value--selected {
-    border-left-width: 3px;
+    border-color: var(--selected_color);
+    border-left-width: 20px;
     border-right-width: 3px;
     border-top-width: 3px;
     border-bottom-width: 3px;
-    border-left-color: rgb(255, 255, 255);
-    border-right-color: rgb(255, 255, 255);
-    border-top-color: rgb(255, 255, 255);
-    border-bottom-color: rgb(255, 255, 255);
 }
 
 .mosaic-paint-value__accent {
