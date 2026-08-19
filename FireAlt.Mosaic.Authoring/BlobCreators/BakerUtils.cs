@@ -180,6 +180,7 @@ namespace FireAlt.Mosaic.Authoring
         public static Hash128 GetHash(UnityEngine.Object owner, IntGridDefinition intGrid, bool isGlobal,
             int layerIndex)
         {
+            if (intGrid == null) return default;
             if (isGlobal) return intGrid.Hash;
 
             var ownerId = GlobalObjectId.GetGlobalObjectIdSlow(owner);
