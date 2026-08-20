@@ -17,7 +17,7 @@ namespace FireAlt.Mosaic.Editor
         private const int PREVIEW_UPDATE_FRAMES = 4;
 
         private static readonly List<MosaicPaintingTarget> Targets = new();
-        private static readonly List<MosaicPaintingTarget> VisibilityTargets = new();
+        private static readonly HashSet<MosaicPaintingVisibilityTarget> VisibilityTargets = new();
         private static readonly HashSet<Hash128> PendingSubSceneLoads = new();
         private static readonly List<Hash128> CompletedSubSceneLoads = new();
         private static readonly MosaicPaintingPreview Preview = new();
@@ -28,7 +28,6 @@ namespace FireAlt.Mosaic.Editor
         private static bool _rebuildQueued;
         private static bool _showIntGridColors;
         private static int _previewUpdatesRemaining;
-        private static int _rediscoveryUpdatesRemaining;
         private static uint _previewWorldVersion;
 
         static MosaicPaintingPreviewService()
@@ -63,8 +62,12 @@ namespace FireAlt.Mosaic.Editor
         internal static void SetShowIntGridColors(IReadOnlyList<MosaicPaintingTarget> targets, bool showIntGridColors)
         {
             _showIntGridColors = showIntGridColors;
-            VisibilityTargets.Clear();
-            foreach (var target in targets) VisibilityTargets.Add(target);
+            if (PendingSubSceneLoads.Count == 0) VisibilityTargets.Clear();
+            foreach (var target in targets)
+            {
+                if (target.IsValid) VisibilityTargets.Add(target.VisibilityTarget);
+            }
+
             if (!showIntGridColors)
             {
                 foreach (var target in targets) Preview.Reseed(target);
@@ -86,12 +89,15 @@ namespace FireAlt.Mosaic.Editor
             SceneView.RepaintAll();
         }
 
-        internal static void AddAuthoringTargets(List<MosaicPaintingTarget> targets, StageHandle stage)
+        internal static void AddAuthoringTargets(List<MosaicPaintingTarget> targets, StageHandle stage,
+            HashSet<Hash128> inactiveHashes = null)
         {
             foreach (var tilemap in Resources.FindObjectsOfTypeAll<TilemapAuthoring>())
             {
                 if (!BelongsToStage(tilemap, stage)) continue;
-                targets.Add(new MosaicPaintingTarget(tilemap));
+
+                if (tilemap.isActiveAndEnabled) targets.Add(new MosaicPaintingTarget(tilemap));
+                else if (inactiveHashes != null) inactiveHashes.Add(new MosaicPaintingTarget(tilemap).IntGridHash);
             }
 
             foreach (var terrain in Resources.FindObjectsOfTypeAll<TilemapTerrainAuthoring>())
@@ -99,7 +105,9 @@ namespace FireAlt.Mosaic.Editor
                 if (!BelongsToStage(terrain, stage)) continue;
                 for (var i = 0; i < terrain.intGridLayers.Count; i++)
                 {
-                    targets.Add(new MosaicPaintingTarget(terrain, terrain.intGridLayers[i], i));
+                    var target = new MosaicPaintingTarget(terrain, terrain.intGridLayers[i], i);
+                    if (terrain.isActiveAndEnabled) targets.Add(target);
+                    else inactiveHashes?.Add(target.IntGridHash);
                 }
             }
         }
@@ -112,6 +120,7 @@ namespace FireAlt.Mosaic.Editor
             if (!_stage.Equals(currentStage))
             {
                 _stage = currentStage;
+                PendingSubSceneLoads.Clear();
                 QueueRefresh();
             }
 
@@ -125,12 +134,6 @@ namespace FireAlt.Mosaic.Editor
 
             EditorApplication.QueuePlayerLoopUpdate();
             if (!HasPreviewWorldAdvanced()) return;
-
-            if (_rediscoveryUpdatesRemaining > 0)
-            {
-                _rediscoveryUpdatesRemaining--;
-                Refreshed?.Invoke();
-            }
 
             if (!_showIntGridColors)
             {
@@ -151,7 +154,7 @@ namespace FireAlt.Mosaic.Editor
             AddAuthoringTargets(Targets, _stage);
             Invalidation.Reset(Targets);
             if (rebuild) Preview.Rebuild(Targets);
-            _rediscoveryUpdatesRemaining = PREVIEW_UPDATE_FRAMES;
+            TrackClosedSubSceneLoads();
             RequestPreviewUpdates();
             Refreshed?.Invoke();
         }
@@ -263,7 +266,7 @@ namespace FireAlt.Mosaic.Editor
                 }
 
                 PendingSubSceneLoads.Add(subScene.SceneGUID);
-                _rediscoveryUpdatesRemaining = 0;
+                QueueTargetRefresh();
                 EditorApplication.QueuePlayerLoopUpdate();
                 return;
             }
@@ -333,8 +336,35 @@ namespace FireAlt.Mosaic.Editor
             }
 
             foreach (var sceneGuid in CompletedSubSceneLoads) PendingSubSceneLoads.Remove(sceneGuid);
-            if (PendingSubSceneLoads.Count == 0) QueueTargetRefresh();
-            else EditorApplication.QueuePlayerLoopUpdate();
+            if (CompletedSubSceneLoads.Count != 0) QueueTargetRefresh();
+            if (PendingSubSceneLoads.Count != 0) EditorApplication.QueuePlayerLoopUpdate();
+        }
+
+        private static void TrackClosedSubSceneLoads()
+        {
+            if (PrefabStageUtility.GetCurrentPrefabStage() != null) return;
+
+            var world = World.DefaultGameObjectInjectionWorld;
+            foreach (var subScene in SubScene.AllSubScenes)
+            {
+                if (subScene == null || !subScene.isActiveAndEnabled || !subScene.AutoLoadScene || subScene.IsLoaded
+                    || subScene.SceneGUID == default)
+                {
+                    continue;
+                }
+
+                if (world != null && world.IsCreated)
+                {
+                    var sceneEntity = SceneSystem.GetSceneEntity(world.Unmanaged, subScene.SceneGUID);
+                    if (world.EntityManager.Exists(sceneEntity)
+                        && SceneSystem.IsSceneLoaded(world.Unmanaged, sceneEntity))
+                    {
+                        continue;
+                    }
+                }
+
+                PendingSubSceneLoads.Add(subScene.SceneGUID);
+            }
         }
 
         private static bool BelongsToStage(Component component, StageHandle stage)

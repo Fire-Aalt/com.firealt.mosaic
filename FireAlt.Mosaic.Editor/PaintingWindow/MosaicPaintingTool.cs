@@ -1,11 +1,17 @@
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.EditorTools;
+using UnityEditor.ShortcutManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 
 namespace FireAlt.Mosaic.Editor
 {
+    internal sealed class MosaicPaintingToolShortcutContext : IShortcutContext
+    {
+        public bool active => ToolManager.activeToolType == typeof(MosaicPaintingTool);
+    }
+
     [EditorTool("Paint Mosaic IntGrid")]
     internal sealed class MosaicPaintingTool : EditorTool
     {
@@ -15,9 +21,11 @@ namespace FireAlt.Mosaic.Editor
         private readonly Vector3[] _corners = new Vector3[4];
         private readonly HashSet<Vector2Int> _brushCells = new();
         private GUIContent _toolbarIcon;
+        private MosaicPaintingToolShortcutContext _shortcutContext;
         private int _controlId;
         private int _undoGroup = -1;
         private bool _activationPending;
+        private bool _isAvailable;
         private bool _strokeActive;
         private bool _erase;
         private Vector2Int? _previousCell;
@@ -30,11 +38,24 @@ namespace FireAlt.Mosaic.Editor
         private void OnEnable()
         {
             _toolbarIcon = new GUIContent(EditorResources.MosaicPaintingToolIcon, "Paint Mosaic IntGrid values");
+            _shortcutContext = new MosaicPaintingToolShortcutContext();
+            ShortcutManager.RegisterContext(_shortcutContext);
+            MosaicPaintingPreviewService.Refreshed += RefreshAvailability;
+            RefreshAvailability();
+        }
+
+        private void OnDisable()
+        {
+            EditorApplication.delayCall -= OpenPaintingWindow;
+            EditorApplication.delayCall -= ExitPainting;
+            MosaicPaintingPreviewService.Refreshed -= RefreshAvailability;
+            if (_shortcutContext != null) ShortcutManager.UnregisterContext(_shortcutContext);
+            _shortcutContext = null;
         }
 
         public override bool IsAvailable()
         {
-            return true;
+            return _isAvailable;
         }
 
         public override void OnActivated()
@@ -77,8 +98,17 @@ namespace FireAlt.Mosaic.Editor
         {
             if (window is not SceneView sceneView) return;
 
+            var currentEvent = Event.current;
+            if (currentEvent.type == EventType.KeyDown && currentEvent.keyCode == KeyCode.Escape)
+            {
+                EndStroke();
+                currentEvent.Use();
+                ExitPainting();
+                return;
+            }
+
             var target = MosaicPaintingSession.Target;
-            if (target == null || !target.IsValid)
+            if (target == null || !target.IsPaintable)
             {
                 EndStroke();
                 MosaicPaintingSession.Clear();
@@ -88,7 +118,6 @@ namespace FireAlt.Mosaic.Editor
             }
 
             _controlId = GUIUtility.GetControlID(CONTROL_HINT, FocusType.Passive);
-            var currentEvent = Event.current;
             if (currentEvent.type == EventType.Layout && !currentEvent.alt && !currentEvent.shift)
             {
                 HandleUtility.AddDefaultControl(_controlId);
@@ -100,14 +129,6 @@ namespace FireAlt.Mosaic.Editor
             {
                 EndStroke();
                 if (currentEvent.type is not EventType.Ignore and not EventType.Used) currentEvent.Use();
-                return;
-            }
-
-            if (currentEvent.type == EventType.KeyDown && currentEvent.keyCode == KeyCode.Escape)
-            {
-                EndStroke();
-                currentEvent.Use();
-                ToolManager.RestorePreviousPersistentTool();
                 return;
             }
 
@@ -251,6 +272,31 @@ namespace FireAlt.Mosaic.Editor
         {
             var radius = MosaicPaintingSession.BrushRadius;
             return (x * x) + (y * y) <= radius * radius;
+        }
+
+        [Shortcut("Mosaic/Exit Painting", typeof(MosaicPaintingToolShortcutContext), KeyCode.Escape)]
+        internal static void ExitPainting()
+        {
+            MosaicPaintingSession.Clear();
+            if (ToolManager.activeToolType == typeof(MosaicPaintingTool))
+            {
+                ToolManager.RestorePreviousPersistentTool();
+            }
+        }
+
+        private void RefreshAvailability()
+        {
+            _isAvailable = MosaicPaintingWindow.HasTargets();
+            var hidden = !_isAvailable;
+            if (isHidden != hidden)
+            {
+                SetHidden(hidden);
+                ToolManager.RefreshAvailableTools();
+            }
+
+            if (_isAvailable || ToolManager.activeToolType != typeof(MosaicPaintingTool)) return;
+            EditorApplication.delayCall -= ExitPainting;
+            EditorApplication.delayCall += ExitPainting;
         }
     }
 }

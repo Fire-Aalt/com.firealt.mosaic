@@ -14,6 +14,34 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace FireAlt.Mosaic.Editor
 {
+    internal readonly struct MosaicPaintingVisibilityTarget : IEquatable<MosaicPaintingVisibilityTarget>
+    {
+        public MosaicPaintingVisibilityTarget(Hash128 intGridHash, Hash128 rendererHash)
+        {
+            IntGridHash = intGridHash;
+            RendererHash = rendererHash;
+        }
+
+        public Hash128 IntGridHash { get; }
+
+        public Hash128 RendererHash { get; }
+
+        public bool Equals(MosaicPaintingVisibilityTarget other)
+        {
+            return IntGridHash.Equals(other.IntGridHash) && RendererHash.Equals(other.RendererHash);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is MosaicPaintingVisibilityTarget other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            return (IntGridHash.GetHashCode() * 397) ^ RendererHash.GetHashCode();
+        }
+    }
+
     internal sealed class MosaicPaintingTarget
     {
         private const string PAINTED_CELLS = "_paintedCells";
@@ -105,6 +133,11 @@ namespace FireAlt.Mosaic.Editor
 
         public bool IsEntityTarget => _world != null;
 
+        public bool HasLoadedAuthoringScene => !IsEntityTarget && Owner != null
+            && Owner.gameObject.scene.IsValid() && Owner.gameObject.scene.isLoaded;
+
+        public bool IsPaintable => !IsEntityTarget && IsValid;
+
         public ulong SceneCullingMask { get; }
 
         public Hash128 IntGridHash => _world != null ? _intGridHash : Owner switch
@@ -159,6 +192,10 @@ namespace FireAlt.Mosaic.Editor
                 return Array.Empty<SerializedIntGridCell>();
             }
         }
+
+        public Vector3 WorldPosition => GetLocalToWorldMatrix().GetPosition();
+
+        public MosaicPaintingVisibilityTarget VisibilityTarget => new(IntGridHash, RendererHash);
 
         public bool TryGetValueDefinition(short value, out IntGridValueDefinition definition)
         {
@@ -240,7 +277,8 @@ namespace FireAlt.Mosaic.Editor
 
         private bool IsAuthoringValid()
         {
-            return Owner != null && IntGrid != null && Grid != null && RenderingData?.material != null;
+            return HasLoadedAuthoringScene && Owner.isActiveAndEnabled && IntGrid != null && Grid != null
+                   && RenderingData?.material != null;
         }
 
         private bool IsEntityValid()
@@ -272,59 +310,6 @@ namespace FireAlt.Mosaic.Editor
 
             var value = _world.EntityManager.GetComponentData<LocalToWorld>(_rendererEntity).Value;
             return new Matrix4x4(value.c0, value.c1, value.c2, value.c3);
-        }
-
-        private bool SetEntityCells(IEnumerable<Vector2Int> positions, short value)
-        {
-            if (!IsEntityValid()) return false;
-
-            var changedPositions = new List<Vector2Int>();
-            foreach (var position in positions)
-            {
-                var index = FindEntityCell(position, out var exists);
-                if (value == 0)
-                {
-                    if (!exists) continue;
-                    _entityCells.RemoveAt(index);
-                }
-                else if (exists)
-                {
-                    if (_entityCells[index].Value == value) continue;
-                    _entityCells[index] = new SerializedIntGridCell(position, value);
-                }
-                else
-                {
-                    _entityCells.Insert(index, new SerializedIntGridCell(position, value));
-                }
-
-                changedPositions.Add(position);
-            }
-
-            if (changedPositions.Count == 0) return false;
-            MosaicPaintingPreview.Apply(_world, this, changedPositions, value);
-            return true;
-        }
-
-        private int FindEntityCell(Vector2Int position, out bool exists)
-        {
-            var min = 0;
-            var max = _entityCells.Count - 1;
-            while (min <= max)
-            {
-                var index = (min + max) / 2;
-                var comparison = Compare(_entityCells[index].Position, position);
-                if (comparison == 0)
-                {
-                    exists = true;
-                    return index;
-                }
-
-                if (comparison < 0) min = index + 1;
-                else max = index - 1;
-            }
-
-            exists = false;
-            return min;
         }
 
         private static int Compare(Vector2Int left, Vector2Int right)
@@ -382,7 +367,7 @@ namespace FireAlt.Mosaic.Editor
             {
                 _target = target;
                 _value = value;
-                if (target.IsEntityTarget) return;
+                if (!target.IsPaintable) return;
                 if (target.Owner == null) return;
 
                 _serializedObject = new SerializedObject(target.Owner);
@@ -396,7 +381,6 @@ namespace FireAlt.Mosaic.Editor
 
             public bool SetCells(IEnumerable<Vector2Int> positions)
             {
-                if (_target.IsEntityTarget) return _target.SetEntityCells(positions, _value);
                 if (_cells == null) return false;
 
                 var changed = false;

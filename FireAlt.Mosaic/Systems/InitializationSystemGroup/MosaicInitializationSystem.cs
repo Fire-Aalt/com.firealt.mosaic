@@ -20,14 +20,18 @@ namespace FireAlt.Mosaic
         protected override void OnUpdate()
         {
             CleanupRenderers();
-            InitializeRenderers();
+            var staleHashes = new NativeHashSet<Hash128>(
+                SystemAPI.GetSingleton<TilemapIntGridSingleton>().IntGridLayers.Count + 1, WorldUpdateAllocator);
+            InitializeRenderers(ref staleHashes);
         
             Dependency = new RegisterJob
             {
                 TilemapTerrainLayerTagLookup = SystemAPI.GetComponentLookup<Data.TerrainLayer>(true),
                 IntGridDataLookup = SystemAPI.GetComponentLookup<IntGridData>(true),
+                EntityGuidLookup = SystemAPI.GetComponentLookup<EntityGuid>(true),
                 IntGridLayers = SystemAPI.GetSingletonRW<TilemapCommandBufferSingleton>().ValueRW.IntGridLayers,
                 DataTilemapIntGridSingleton = SystemAPI.GetSingletonRW<TilemapIntGridSingleton>().ValueRW,
+                StaleHashes = staleHashes,
             }.Schedule(Dependency);
             
             Dependency = new UpdateTilemapRendererDataJob
@@ -64,7 +68,7 @@ namespace FireAlt.Mosaic
             EntityManager.RemoveComponent<MosaicRendererCleanup>(cleanupQuery);
         }
 
-        private void InitializeRenderers()
+        private void InitializeRenderers(ref NativeHashSet<Hash128> staleHashes)
         {
             var rendererQuery = new EntityQueryBuilder(Allocator.Temp)
                 .WithAll<TilemapRendererData, RuntimeMaterial>()
@@ -111,6 +115,14 @@ namespace FireAlt.Mosaic
                     if (EntityManager.HasComponent<TilemapRendererData>(registeredEntity))
                     {
                         EntityManager.SetComponentEnabled<MosaicRendererInitialized>(entity, false);
+                        if (IsStaleSceneEntity(EntityManager, registeredEntity))
+                        {
+                            AddStaleHashes(registeredEntity, renderingData.MeshHash, ref staleHashes);
+                            continue;
+                        }
+
+                        if (IsSameBakedEntity(registeredEntity, entity)) continue;
+
                         Debug.LogError($"A duplicate registry attempt detected. This may happen if a TilemapTerrain and a Tilemap share the same IntGrid. Culprit: {renderingData.MeshHash}");
                         continue;
                     }
@@ -189,6 +201,44 @@ namespace FireAlt.Mosaic
             var materialMeshInfo = EntityManager.GetComponentData<MaterialMeshInfo>(entity);
             return materialMeshInfo.MeshID == cleanup.MeshID
                    && materialMeshInfo.MaterialID == cleanup.MaterialID;
+        }
+
+        private bool IsSameBakedEntity(Entity left, Entity right)
+        {
+            if (!EntityManager.HasComponent<EntityGuid>(left) || !EntityManager.HasComponent<EntityGuid>(right))
+            {
+                return false;
+            }
+
+            var leftGuid = EntityManager.GetComponentData<EntityGuid>(left);
+            return IsSameBakedSource(leftGuid, EntityManager.GetComponentData<EntityGuid>(right));
+        }
+
+        internal static bool IsSameBakedSource(EntityGuid left, EntityGuid right)
+        {
+            return left != EntityGuid.Null && right != EntityGuid.Null
+                   && left.OriginatingEntityId == right.OriginatingEntityId
+                   && left.OriginatingSubEntityId == right.OriginatingSubEntityId
+                   && left.Serial == right.Serial;
+        }
+
+        internal static bool IsStaleSceneEntity(EntityManager entityManager, Entity entity)
+        {
+            if (!entityManager.HasComponent<SceneTag>(entity)) return false;
+
+            var sceneEntity = entityManager.GetSharedComponentManaged<SceneTag>(entity).SceneEntity;
+            return sceneEntity != Entity.Null && !entityManager.Exists(sceneEntity);
+        }
+
+        private void AddStaleHashes(Entity entity, Hash128 rendererHash, ref NativeHashSet<Hash128> staleHashes)
+        {
+            staleHashes.Add(rendererHash);
+            if (!EntityManager.HasBuffer<TilemapTerrainLayerElement>(entity)) return;
+
+            foreach (var layer in EntityManager.GetBuffer<TilemapTerrainLayerElement>(entity))
+            {
+                staleHashes.Add(layer.IntGridHash);
+            }
         }
 
         private static void AddRendererEntity(Entity entity, bool isTerrain,
@@ -277,14 +327,27 @@ namespace FireAlt.Mosaic
             [ReadOnly]
             [NativeDisableContainerSafetyRestriction]
             public ComponentLookup<IntGridData> IntGridDataLookup;
+
+            [ReadOnly]
+            public ComponentLookup<EntityGuid> EntityGuidLookup;
             
             public NativeHashMap<Hash128, TilemapCommandBufferSingleton.IntGridLayer> IntGridLayers;
             public TilemapIntGridSingleton DataTilemapIntGridSingleton;
+
+            [ReadOnly]
+            public NativeHashSet<Hash128> StaleHashes;
             
             private void Execute(ref IntGridData intGridData, EnabledRefRW<IntGridData> enabled,
                 in DynamicBuffer<IntGridInitialValueElement> initialValues, Entity entity)
             {
                 var isTerrainLayer = TilemapTerrainLayerTagLookup.HasComponent(entity);
+                if (DataTilemapIntGridSingleton.IntGridLayers.TryGetValue(intGridData.Hash, out var existing)
+                    && existing.IntGridEntity != entity
+                    && (StaleHashes.Contains(intGridData.Hash)
+                        || IsSameBakedEntity(existing.IntGridEntity, entity)))
+                {
+                    return;
+                }
 
                 if (DataTilemapIntGridSingleton.TryRegisterIntGridLayer(
                         intGridData, isTerrainLayer, entity, IntGridDataLookup)
@@ -302,6 +365,13 @@ namespace FireAlt.Mosaic
                 {
                     Debug.LogError($"A duplicate registry attempt detected. This may happen if a TilemapTerrain and a Tilemap share the same IntGrid. Culprit: {intGridData.DebugName}");
                 }
+            }
+
+            private bool IsSameBakedEntity(Entity left, Entity right)
+            {
+                return EntityGuidLookup.TryGetComponent(left, out var leftGuid)
+                       && EntityGuidLookup.TryGetComponent(right, out var rightGuid)
+                       && IsSameBakedSource(leftGuid, rightGuid);
             }
 
             private bool TryRegisterCommandLayer(Hash128 intGridHash)

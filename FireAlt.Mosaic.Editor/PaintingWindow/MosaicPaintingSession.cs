@@ -35,6 +35,12 @@ namespace FireAlt.Mosaic.Editor
 
         public static void Select(MosaicPaintingTarget target, IntGridValueDefinition value)
         {
+            if (target == null || !target.IsPaintable)
+            {
+                Clear();
+                return;
+            }
+
             Target = target;
             Value = value.value;
             Color = value.color;

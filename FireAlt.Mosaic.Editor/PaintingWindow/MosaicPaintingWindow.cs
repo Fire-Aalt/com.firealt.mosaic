@@ -29,6 +29,7 @@ namespace FireAlt.Mosaic.Editor
         private static readonly Vector3[] CellCorners = new Vector3[4];
 
         private readonly List<MosaicPaintingTarget> _targets = new();
+        private readonly List<MosaicPaintingTarget> _rawCellTargets = new();
         private readonly List<Button> _valueButtons = new();
 
         private MosaicPaintingShortcutContext _shortcutContext;
@@ -236,7 +237,7 @@ namespace FireAlt.Mosaic.Editor
         {
             foreach (var target in _targets)
             {
-                if (target.IsEntityTarget || !target.IsValid || target.Values.Count == 0) continue;
+                if (!target.IsPaintable || target.Values.Count == 0) continue;
 
                 var value = target.Values[0];
                 _selectedTargetId = target.Id;
@@ -249,7 +250,7 @@ namespace FireAlt.Mosaic.Editor
 
         private void ValidateSelection()
         {
-            if (TryFindSelectedTarget(out var target) && !target.IsEntityTarget) return;
+            if (TryFindSelectedTarget(out var target) && target.IsPaintable) return;
 
             _selectedTargetId = null;
             _selectedValue = 0;
@@ -262,23 +263,37 @@ namespace FireAlt.Mosaic.Editor
 
         private void DiscoverTargets()
         {
-            _targets.Clear();
             var currentStage = StageUtility.GetCurrentStageHandle();
             _stage = currentStage;
+            DiscoverTargets(_targets, currentStage);
+        }
+
+        internal static bool HasTargets()
+        {
+            var targets = new List<MosaicPaintingTarget>();
+            DiscoverTargets(targets, StageUtility.GetCurrentStageHandle());
+            return targets.Count != 0;
+        }
+
+        private static void DiscoverTargets(List<MosaicPaintingTarget> targets, StageHandle currentStage)
+        {
+            targets.Clear();
+            var inactiveAuthoringHashes = new HashSet<Hash128>();
 
             if (PrefabStageUtility.GetCurrentPrefabStage() == null)
             {
-                DiscoverEditorWorldTargets();
+                DiscoverEditorWorldTargets(targets);
             }
 
-            MosaicPaintingPreviewService.AddAuthoringTargets(_targets, currentStage);
-            RemoveEntityTargetsShadowedByAuthoring(_targets);
+            MosaicPaintingPreviewService.AddAuthoringTargets(targets, currentStage, inactiveAuthoringHashes);
+            RemoveEntityTargetsShadowedByAuthoring(targets, inactiveAuthoringHashes);
 
-            _targets.Sort((left, right) => string.CompareOrdinal(left.DisplayName, right.DisplayName));
-            ValidateDuplicateHashes();
+            targets.Sort((left, right) => string.CompareOrdinal(left.DisplayName, right.DisplayName));
+            ValidateDuplicateHashes(targets);
         }
 
-        internal static void RemoveEntityTargetsShadowedByAuthoring(List<MosaicPaintingTarget> targets)
+        internal static void RemoveEntityTargetsShadowedByAuthoring(List<MosaicPaintingTarget> targets,
+            IReadOnlyCollection<Hash128> inactiveAuthoringHashes = null)
         {
             var authoringHashes = new HashSet<Hash128>();
             foreach (var target in targets)
@@ -286,10 +301,12 @@ namespace FireAlt.Mosaic.Editor
                 if (!target.IsEntityTarget) authoringHashes.Add(target.IntGridHash);
             }
 
+            if (inactiveAuthoringHashes != null) authoringHashes.UnionWith(inactiveAuthoringHashes);
+
             targets.RemoveAll(target => target.IsEntityTarget && authoringHashes.Contains(target.IntGridHash));
         }
 
-        private void DiscoverEditorWorldTargets()
+        private static void DiscoverEditorWorldTargets(List<MosaicPaintingTarget> targets)
         {
             var world = World.DefaultGameObjectInjectionWorld;
             if (world == null) return;
@@ -316,7 +333,7 @@ namespace FireAlt.Mosaic.Editor
                 {
                     if (!intGridEntities.TryGetValue(layers[i].IntGridHash, out var intGridEntity)) continue;
                     var name = entityManager.GetComponentData<IntGridData>(intGridEntity).DebugName.ToString();
-                    _targets.Add(new MosaicPaintingTarget(world, intGridEntity, terrainEntity,
+                    targets.Add(new MosaicPaintingTarget(world, intGridEntity, terrainEntity,
                         $"Terrain / Layer {i + 1} / {name}", true, i));
                 }
             }
@@ -328,14 +345,14 @@ namespace FireAlt.Mosaic.Editor
             foreach (var entity in tilemapQuery.ToEntityArray(Allocator.Temp))
             {
                 var name = entityManager.GetComponentData<IntGridData>(entity).DebugName.ToString();
-                _targets.Add(new MosaicPaintingTarget(world, entity, entity, name, false, 0));
+                targets.Add(new MosaicPaintingTarget(world, entity, entity, name, false, 0));
             }
         }
 
-        private void ValidateDuplicateHashes()
+        private static void ValidateDuplicateHashes(IReadOnlyList<MosaicPaintingTarget> targets)
         {
             var hashes = new Dictionary<Hash128, MosaicPaintingTarget>();
-            foreach (var target in _targets)
+            foreach (var target in targets)
             {
                 if (hashes.TryGetValue(target.IntGridHash, out var existing))
                 {
@@ -358,7 +375,7 @@ namespace FireAlt.Mosaic.Editor
             var hasPaintingTargets = false;
             foreach (var target in _targets)
             {
-                if (target.IsEntityTarget) continue;
+                if (!target.HasLoadedAuthoringScene) continue;
                 hasPaintingTargets = true;
 
                 var foldout = new Foldout
@@ -430,6 +447,12 @@ namespace FireAlt.Mosaic.Editor
 
         private void SelectValue(MosaicPaintingTarget target, IntGridValueDefinition value)
         {
+            if (!target.IsPaintable)
+            {
+                ValidateSelection();
+                return;
+            }
+
             if (_selectedTargetId == target.Id && _selectedValue == value.value)
             {
                 _selectedTargetId = null;
@@ -486,7 +509,7 @@ namespace FireAlt.Mosaic.Editor
             if (Event.current.type != EventType.Repaint) return;
 
             if (_showBounds) DrawRenderBounds();
-            if (_showIntGridColors) DrawRawCells();
+            if (_showIntGridColors) DrawRawCells(sceneView);
         }
 
         private void DrawRenderBounds()
@@ -534,14 +557,24 @@ namespace FireAlt.Mosaic.Editor
             return false;
         }
 
-        private void DrawRawCells()
+        private void DrawRawCells(SceneView sceneView)
         {
+            var camera = sceneView.camera;
+            if (camera == null) return;
+
+            _rawCellTargets.Clear();
+            foreach (var target in _targets)
+            {
+                if (target.IsValid) _rawCellTargets.Add(target);
+            }
+
+            _rawCellTargets.Sort((left, right) => CompareRawCellTargets(left, right, camera));
+
             var previousZTest = Handles.zTest;
             Handles.zTest = CompareFunction.LessEqual;
 
-            foreach (var target in _targets)
+            foreach (var target in _rawCellTargets)
             {
-                if (!target.IsValid) continue;
                 foreach (var cell in target.Cells)
                 {
                     var color = target.TryGetValueDefinition(cell.Value, out var definition)
@@ -557,6 +590,18 @@ namespace FireAlt.Mosaic.Editor
             }
 
             Handles.zTest = previousZTest;
+        }
+
+        internal static int CompareRawCellTargets(MosaicPaintingTarget left, MosaicPaintingTarget right, Camera camera)
+        {
+            var leftOffset = left.WorldPosition - camera.transform.position;
+            var rightOffset = right.WorldPosition - camera.transform.position;
+            var leftDistance = camera.orthographic ? Vector3.Dot(leftOffset, camera.transform.forward)
+                : leftOffset.sqrMagnitude;
+            var rightDistance = camera.orthographic ? Vector3.Dot(rightOffset, camera.transform.forward)
+                : rightOffset.sqrMagnitude;
+            var comparison = rightDistance.CompareTo(leftDistance);
+            return comparison != 0 ? comparison : string.CompareOrdinal(left.Id, right.Id);
         }
 
         private void OnPaintingChanged()

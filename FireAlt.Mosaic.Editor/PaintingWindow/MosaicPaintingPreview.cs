@@ -70,7 +70,7 @@ namespace FireAlt.Mosaic.Editor
             _world = world;
         }
 
-        public void SetVisibility(IReadOnlyList<MosaicPaintingTarget> targets, bool showIntGridColors)
+        public void SetVisibility(IReadOnlyCollection<MosaicPaintingVisibilityTarget> targets, bool showIntGridColors)
         {
             var world = World.DefaultGameObjectInjectionWorld;
             if (world == null || !world.IsCreated || (world.Flags & WorldFlags.Editor) == 0) return;
@@ -102,8 +102,6 @@ namespace FireAlt.Mosaic.Editor
 
             foreach (var target in targets)
             {
-                if (!target.IsValid) continue;
-
                 for (var i = 0; i < rendererEntities.Length; i++)
                 {
                     if (rendererData[i].MeshHash == target.RendererHash)
