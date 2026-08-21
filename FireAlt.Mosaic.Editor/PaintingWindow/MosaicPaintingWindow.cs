@@ -27,9 +27,12 @@ namespace FireAlt.Mosaic.Editor
     {
         private const string SELECTED_CLASS = "mosaic-paint-value--selected";
         private static readonly Vector3[] CellCorners = new Vector3[4];
+        private static readonly Comparison<RawCell> RawCellComparison = CompareRawCells;
 
         private readonly List<MosaicPaintingTarget> _targets = new();
-        private readonly List<MosaicPaintingTarget> _rawCellTargets = new();
+        private readonly List<RawCell> _rawCells = new();
+        private readonly List<LinkedTilemapLayers> _linkedComponents = new();
+        private readonly List<MosaicPaintingSelection> _selections = new();
         private readonly List<Button> _valueButtons = new();
 
         private MosaicPaintingShortcutContext _shortcutContext;
@@ -42,8 +45,7 @@ namespace FireAlt.Mosaic.Editor
         private bool _refreshQueued;
         private bool _selectFirstValue;
         private StageHandle _stage;
-        private string _selectedTargetId;
-        private short _selectedValue;
+        private string _selectedSelectionId;
 
         internal static MosaicPaintingWindow ActiveWindow { get; private set; }
 
@@ -235,14 +237,12 @@ namespace FireAlt.Mosaic.Editor
 
         private void SelectFirstValue()
         {
-            foreach (var target in _targets)
+            foreach (var selection in _selections)
             {
-                if (!target.IsPaintable || target.Values.Count == 0) continue;
+                if (!selection.IsValid) continue;
 
-                var value = target.Values[0];
-                _selectedTargetId = target.Id;
-                _selectedValue = value.value;
-                MosaicPaintingSession.Select(target, value);
+                _selectedSelectionId = selection.Id;
+                MosaicPaintingSession.Select(selection);
                 RefreshButtonSelection();
                 return;
             }
@@ -250,10 +250,13 @@ namespace FireAlt.Mosaic.Editor
 
         private void ValidateSelection()
         {
-            if (TryFindSelectedTarget(out var target) && target.IsPaintable) return;
+            if (TryFindSelectedSelection(out var selection) && selection.IsValid)
+            {
+                MosaicPaintingSession.Select(selection);
+                return;
+            }
 
-            _selectedTargetId = null;
-            _selectedValue = 0;
+            _selectedSelectionId = null;
             MosaicPaintingSession.Clear();
             if (ToolManager.activeToolType == typeof(MosaicPaintingTool))
             {
@@ -266,13 +269,32 @@ namespace FireAlt.Mosaic.Editor
             var currentStage = StageUtility.GetCurrentStageHandle();
             _stage = currentStage;
             DiscoverTargets(_targets, currentStage);
+            DiscoverLinkedComponents(_linkedComponents, currentStage);
         }
 
         internal static bool HasTargets()
         {
             var targets = new List<MosaicPaintingTarget>();
-            DiscoverTargets(targets, StageUtility.GetCurrentStageHandle());
-            return targets.Count != 0;
+            var stage = StageUtility.GetCurrentStageHandle();
+            DiscoverTargets(targets, stage);
+            foreach (var target in targets)
+            {
+                if (target.IsValid) return true;
+            }
+
+            var targetMap = CreateTilemapTargetMap(targets);
+            var linkedComponents = new List<LinkedTilemapLayers>();
+            DiscoverLinkedComponents(linkedComponents, stage);
+            foreach (var component in linkedComponents)
+            {
+                if (component.layers == null) continue;
+                for (var i = 0; i < component.layers.Count; i++)
+                {
+                    if (MosaicPaintingSelection.Create(component, i, targetMap, stage).IsValid) return true;
+                }
+            }
+
+            return false;
         }
 
         private static void DiscoverTargets(List<MosaicPaintingTarget> targets, StageHandle currentStage)
@@ -290,6 +312,35 @@ namespace FireAlt.Mosaic.Editor
 
             targets.Sort((left, right) => string.CompareOrdinal(left.DisplayName, right.DisplayName));
             ValidateDuplicateHashes(targets);
+        }
+
+        private static void DiscoverLinkedComponents(List<LinkedTilemapLayers> components, StageHandle stage)
+        {
+            components.Clear();
+            foreach (var component in Resources.FindObjectsOfTypeAll<LinkedTilemapLayers>())
+            {
+                if (MosaicPaintingPreviewService.BelongsToStage(component, stage)) components.Add(component);
+            }
+
+            components.Sort((left, right) =>
+            {
+                var comparison = string.CompareOrdinal(left.gameObject.name, right.gameObject.name);
+                return comparison != 0 ? comparison : string.CompareOrdinal(
+                    GlobalObjectId.GetGlobalObjectIdSlow(left).ToString(),
+                    GlobalObjectId.GetGlobalObjectIdSlow(right).ToString());
+            });
+        }
+
+        private static Dictionary<TilemapAuthoring, MosaicPaintingTarget> CreateTilemapTargetMap(
+            IEnumerable<MosaicPaintingTarget> targets)
+        {
+            var result = new Dictionary<TilemapAuthoring, MosaicPaintingTarget>();
+            foreach (var target in targets)
+            {
+                if (target.Owner is TilemapAuthoring tilemap && target.IsPaintable) result[tilemap] = target;
+            }
+
+            return result;
         }
 
         internal static void RemoveEntityTargetsShadowedByAuthoring(List<MosaicPaintingTarget> targets,
@@ -370,34 +421,84 @@ namespace FireAlt.Mosaic.Editor
         private void BuildPalette()
         {
             _palette.Clear();
+            _selections.Clear();
             _valueButtons.Clear();
 
             var hasPaintingTargets = false;
+            var terrainTargets = new Dictionary<TilemapTerrainAuthoring, List<MosaicPaintingTarget>>();
             foreach (var target in _targets)
             {
                 if (!target.HasLoadedAuthoringScene) continue;
                 hasPaintingTargets = true;
 
-                var foldout = new Foldout
+                if (target.Owner is TilemapTerrainAuthoring terrain)
                 {
-                    text = target.DisplayName,
-                    value = true,
-                };
-                foldout.AddToClassList("mosaic-paint-group");
+                    if (!terrainTargets.TryGetValue(terrain, out var layers))
+                    {
+                        layers = new List<MosaicPaintingTarget>();
+                        terrainTargets.Add(terrain, layers);
+                    }
 
-                if (!target.IsValid)
-                {
-                    foldout.Add(new HelpBox(target.AdditionalValidationMessage, HelpBoxMessageType.Error));
-                    _palette.Add(foldout);
+                    layers.Add(target);
                     continue;
                 }
 
-                foreach (var value in target.Values)
+                _palette.Add(CreateTargetFoldout(target, target.DisplayName));
+            }
+
+            var terrainOwners = new List<TilemapTerrainAuthoring>(terrainTargets.Keys);
+            terrainOwners.Sort((left, right) => string.CompareOrdinal(left.name, right.name));
+            foreach (var terrain in terrainOwners)
+            {
+                var terrainFoldout = new Foldout
                 {
-                    foldout.Add(CreateValueButton(target, value));
+                    text = terrain.name,
+                    value = true,
+                    userData = terrain,
+                };
+                terrainFoldout.AddToClassList("mosaic-paint-terrain");
+                terrainFoldout.AddToClassList("mosaic-paint-group");
+
+                var layers = terrainTargets[terrain];
+                layers.Sort((left, right) => left.LayerIndex.CompareTo(right.LayerIndex));
+                foreach (var target in layers)
+                {
+                    var layerName = $"Layer {target.LayerIndex + 1} / {target.IntGrid?.name ?? "Missing IntGrid"}";
+                    terrainFoldout.Add(CreateTargetFoldout(target, layerName));
                 }
 
-                _palette.Add(foldout);
+                _palette.Add(terrainFoldout);
+            }
+
+            var tilemapTargets = CreateTilemapTargetMap(_targets);
+            foreach (var component in _linkedComponents)
+            {
+                hasPaintingTargets = true;
+                var linkedFoldout = new Foldout
+                {
+                    text = component.gameObject.name,
+                    value = true,
+                    userData = component,
+                };
+                linkedFoldout.AddToClassList("mosaic-paint-linked");
+                linkedFoldout.AddToClassList("mosaic-paint-group");
+
+                var linkedLayers = component.layers ?? new List<LinkedLayer>();
+                for (var i = 0; i < linkedLayers.Count; i++)
+                {
+                    var selection = MosaicPaintingSelection.Create(component, i, tilemapTargets, _stage);
+                    _selections.Add(selection);
+                    var button = CreateValueButton(selection);
+                    button.SetEnabled(selection.IsValid);
+                    if (!selection.IsValid) button.tooltip = selection.ValidationMessage;
+                    linkedFoldout.Add(button);
+                    if (!selection.IsValid)
+                    {
+                        linkedFoldout.Add(new HelpBox(selection.ValidationMessage, HelpBoxMessageType.Error));
+                    }
+                }
+
+                _palette.Add(linkedFoldout);
             }
 
             if (!hasPaintingTargets)
@@ -408,35 +509,63 @@ namespace FireAlt.Mosaic.Editor
             }
         }
 
-        private Button CreateValueButton(MosaicPaintingTarget target, IntGridValueDefinition value)
+        private Foldout CreateTargetFoldout(MosaicPaintingTarget target, string text)
         {
-            var button = new Button(() => SelectValue(target, value));
-            button.AddToClassList("mosaic-paint-value");
-            button.userData = (target.Id, value.value);
+            var foldout = new Foldout
+            {
+                text = text,
+                value = true,
+                userData = target,
+            };
+            foldout.AddToClassList("mosaic-paint-group");
 
-            var normalColor = Color.Lerp(new Color(0.12f, 0.12f, 0.12f, 1f), value.color, 0.32f);
+            if (!target.IsValid)
+            {
+                foldout.Add(new HelpBox(target.AdditionalValidationMessage, HelpBoxMessageType.Error));
+                return foldout;
+            }
+
+            foreach (var value in target.Values)
+            {
+                var selection = MosaicPaintingSelection.Create(target, value, _stage);
+                _selections.Add(selection);
+                foldout.Add(CreateValueButton(selection));
+            }
+
+            return foldout;
+        }
+
+        private Button CreateValueButton(MosaicPaintingSelection selection)
+        {
+            var button = new Button(() => SelectValue(selection));
+            button.AddToClassList("mosaic-paint-value");
+            button.userData = selection.Id;
+
+            var color = selection.Color;
+            color.a = 1f;
+            var normalColor = Color.Lerp(new Color(0.12f, 0.12f, 0.12f, 1f), color, 0.32f);
             button.style.backgroundColor = normalColor;
 
             var accent = new VisualElement();
             accent.AddToClassList("mosaic-paint-value__accent");
-            accent.style.backgroundColor = value.color;
+            accent.style.backgroundColor = color;
             button.Add(accent);
 
             var preview = new Image
             {
-                image = value.texture,
+                image = selection.Icon,
                 scaleMode = ScaleMode.ScaleToFit,
             };
             preview.AddToClassList("mosaic-paint-value__preview");
-            if (value.texture == null) preview.style.backgroundColor = value.color;
+            if (selection.Icon == null) preview.style.backgroundColor = color;
             button.Add(preview);
 
-            var label = new Label(string.IsNullOrWhiteSpace(value.name) ? value.value.ToString() : value.name);
+            var label = new Label(selection.Name);
             label.AddToClassList("mosaic-paint-value__label");
-            label.style.color = Color.Lerp(Color.white, value.color, 0.35f);
+            label.style.color = Color.Lerp(Color.white, color, 0.35f);
             button.Add(label);
 
-            if (_selectedTargetId == target.Id && _selectedValue == value.value)
+            if (_selectedSelectionId == selection.Id)
             {
                 button.AddToClassList(SELECTED_CLASS);
             }
@@ -445,18 +574,17 @@ namespace FireAlt.Mosaic.Editor
             return button;
         }
 
-        private void SelectValue(MosaicPaintingTarget target, IntGridValueDefinition value)
+        private void SelectValue(MosaicPaintingSelection selection)
         {
-            if (!target.IsPaintable)
+            if (!selection.IsValid)
             {
                 ValidateSelection();
                 return;
             }
 
-            if (_selectedTargetId == target.Id && _selectedValue == value.value)
+            if (_selectedSelectionId == selection.Id)
             {
-                _selectedTargetId = null;
-                _selectedValue = 0;
+                _selectedSelectionId = null;
                 MosaicPaintingSession.Clear();
                 if (ToolManager.activeToolType == typeof(MosaicPaintingTool))
                 {
@@ -468,9 +596,8 @@ namespace FireAlt.Mosaic.Editor
                 return;
             }
 
-            _selectedTargetId = target.Id;
-            _selectedValue = value.value;
-            MosaicPaintingSession.Select(target, value);
+            _selectedSelectionId = selection.Id;
+            MosaicPaintingSession.Select(selection);
             RefreshButtonSelection();
             SceneView.RepaintAll();
         }
@@ -480,8 +607,7 @@ namespace FireAlt.Mosaic.Editor
             foreach (var button in _valueButtons)
             {
                 button.RemoveFromClassList(SELECTED_CLASS);
-                if (button.userData is ValueTuple<string, short> data
-                    && data.Item1 == _selectedTargetId && data.Item2 == _selectedValue)
+                if (button.userData is string id && id == _selectedSelectionId)
                 {
                     button.AddToClassList(SELECTED_CLASS);
                 }
@@ -562,69 +688,86 @@ namespace FireAlt.Mosaic.Editor
             var camera = sceneView.camera;
             if (camera == null) return;
 
-            _rawCellTargets.Clear();
+            _rawCells.Clear();
+            var order = 0;
+            var cameraPosition = camera.transform.position;
+            var cameraForward = camera.transform.forward;
             foreach (var target in _targets)
             {
-                if (target.IsValid) _rawCellTargets.Add(target);
+                if (!target.IsValid) continue;
+                foreach (var cell in target.Cells)
+                {
+                    _rawCells.Add(new RawCell(target, cell, cameraPosition, cameraForward, order++));
+                }
             }
 
-            _rawCellTargets.Sort((left, right) => CompareRawCellTargets(left, right, camera));
+            _rawCells.Sort(RawCellComparison);
 
             var previousZTest = Handles.zTest;
             Handles.zTest = CompareFunction.LessEqual;
 
-            foreach (var target in _rawCellTargets)
+            foreach (var rawCell in _rawCells)
             {
-                foreach (var cell in target.Cells)
-                {
-                    var color = target.TryGetValueDefinition(cell.Value, out var definition)
-                        ? definition.color
-                        : Color.magenta;
-                    var fill = color;
-                    fill.a = 0.55f;
-                    color.a = 0.9f;
+                var color = rawCell.Target.TryGetValueDefinition(rawCell.Cell.Value, out var definition)
+                    ? definition.color
+                    : Color.magenta;
+                var fill = color;
+                fill.a = 0.55f;
+                color.a = 0.9f;
 
-                    target.GetCellCorners(cell.Position, CellCorners);
-                    Handles.DrawSolidRectangleWithOutline(CellCorners, fill, color);
-                }
+                rawCell.Target.GetCellCorners(rawCell.Cell.Position, CellCorners);
+                Handles.DrawSolidRectangleWithOutline(CellCorners, fill, color);
             }
 
             Handles.zTest = previousZTest;
         }
 
-        internal static int CompareRawCellTargets(MosaicPaintingTarget left, MosaicPaintingTarget right, Camera camera)
+        internal static int CompareRawCells(RawCell left, RawCell right)
         {
-            var leftOffset = left.WorldPosition - camera.transform.position;
-            var rightOffset = right.WorldPosition - camera.transform.position;
-            var leftDistance = camera.orthographic ? Vector3.Dot(leftOffset, camera.transform.forward)
-                : leftOffset.sqrMagnitude;
-            var rightDistance = camera.orthographic ? Vector3.Dot(rightOffset, camera.transform.forward)
-                : rightOffset.sqrMagnitude;
-            var comparison = rightDistance.CompareTo(leftDistance);
-            return comparison != 0 ? comparison : string.CompareOrdinal(left.Id, right.Id);
+            var comparison = right.Depth.CompareTo(left.Depth);
+            return comparison != 0 ? comparison : left.Order.CompareTo(right.Order);
+        }
+
+        internal readonly struct RawCell
+        {
+            public RawCell(MosaicPaintingTarget target, SerializedIntGridCell cell, Vector3 cameraPosition,
+                Vector3 cameraForward, int order)
+            {
+                Target = target;
+                Cell = cell;
+                Order = order;
+                Depth = Vector3.Dot(target.GetCellCenter(cell.Position) - cameraPosition, cameraForward);
+            }
+
+            public MosaicPaintingTarget Target { get; }
+
+            public SerializedIntGridCell Cell { get; }
+
+            public float Depth { get; }
+
+            public int Order { get; }
         }
 
         private void OnPaintingChanged()
         {
             if (!MosaicPaintingSession.IsPainting)
             {
-                _selectedTargetId = null;
-                _selectedValue = 0;
+                _selectedSelectionId = null;
             }
 
             RefreshButtonSelection();
         }
 
-        private bool TryFindSelectedTarget(out MosaicPaintingTarget target)
+        private bool TryFindSelectedSelection(out MosaicPaintingSelection selection)
         {
-            foreach (var candidate in _targets)
+            foreach (var candidate in _selections)
             {
-                if (candidate.Id != _selectedTargetId) continue;
-                target = candidate;
+                if (candidate.Id != _selectedSelectionId) continue;
+                selection = candidate;
                 return true;
             }
 
-            target = null;
+            selection = null;
             return false;
         }
 

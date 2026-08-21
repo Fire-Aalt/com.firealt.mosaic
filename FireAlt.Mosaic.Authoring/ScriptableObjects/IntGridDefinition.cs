@@ -78,6 +78,7 @@ namespace FireAlt.Mosaic.Authoring
     {
         public short value = -1;
         public string name;
+        [ColorUsage(false)]
         public Color color;
         public Texture texture;
 

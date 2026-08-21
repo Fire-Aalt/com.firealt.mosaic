@@ -248,12 +248,12 @@ namespace FireAlt.Mosaic.Tests
 
         [TestCase(false)]
         [TestCase(true)]
-        public void PaintingWindow_RawTargetsSortBackToFront(bool orthographic)
+        public void PaintingWindow_RawCellsSortBackToFront(bool orthographic)
         {
             var far = new MosaicPaintingTarget(CreateTilemap("Far").GetComponent<TilemapAuthoring>());
             var near = new MosaicPaintingTarget(CreateTilemap("Near").GetComponent<TilemapAuthoring>());
             far.Owner.transform.position = Vector3.zero;
-            near.Owner.transform.position = new Vector3(0f, 2f, 0f);
+            near.Owner.transform.position = new Vector3(10f, 2f, 0f);
 
             var cameraObject = new GameObject("Sorting Camera", typeof(Camera));
             try
@@ -262,8 +262,15 @@ namespace FireAlt.Mosaic.Tests
                 camera.orthographic = orthographic;
                 camera.transform.SetPositionAndRotation(new Vector3(0f, 10f, 0f), Quaternion.Euler(90f, 0f, 0f));
 
-                Assert.Less(MosaicPaintingWindow.CompareRawCellTargets(far, near, camera), 0);
-                Assert.Greater(MosaicPaintingWindow.CompareRawCellTargets(near, far, camera), 0);
+                var cameraPosition = camera.transform.position;
+                var cameraForward = camera.transform.forward;
+                var farCell = new MosaicPaintingWindow.RawCell(
+                    far, new SerializedIntGridCell(Vector2Int.zero, 1), cameraPosition, cameraForward, 0);
+                var nearCell = new MosaicPaintingWindow.RawCell(
+                    near, new SerializedIntGridCell(new Vector2Int(-10, 0), 1), cameraPosition, cameraForward, 1);
+
+                Assert.Less(MosaicPaintingWindow.CompareRawCells(farCell, nearCell), 0);
+                Assert.Greater(MosaicPaintingWindow.CompareRawCells(nearCell, farCell), 0);
             }
             finally
             {

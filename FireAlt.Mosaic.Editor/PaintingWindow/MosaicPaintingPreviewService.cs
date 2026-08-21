@@ -19,6 +19,7 @@ namespace FireAlt.Mosaic.Editor
         private static readonly List<MosaicPaintingTarget> Targets = new();
         private static readonly HashSet<MosaicPaintingVisibilityTarget> VisibilityTargets = new();
         private static readonly HashSet<Hash128> PendingSubSceneLoads = new();
+        private static readonly HashSet<int> LinkedConfigurationUndoGroups = new();
         private static readonly List<Hash128> CompletedSubSceneLoads = new();
         private static readonly MosaicPaintingPreview Preview = new();
         private static readonly MosaicPaintingPreviewInvalidation Invalidation = new();
@@ -38,7 +39,7 @@ namespace FireAlt.Mosaic.Editor
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
             ObjectChangeEvents.changesPublished += OnObjectChanges;
             Undo.postprocessModifications += OnPostprocessModifications;
-            Undo.undoRedoPerformed += QueueRefresh;
+            Undo.undoRedoEvent += OnUndoRedo;
             EditorSceneManager.sceneOpened += OnSceneOpened;
             EditorSceneManager.sceneClosed += OnSceneClosed;
             AssemblyReloadEvents.beforeAssemblyReload += Preview.Dispose;
@@ -152,7 +153,7 @@ namespace FireAlt.Mosaic.Editor
             _rebuildQueued = false;
             Targets.Clear();
             AddAuthoringTargets(Targets, _stage);
-            Invalidation.Reset(Targets);
+            Invalidation.Reset(Targets, _stage);
             if (rebuild) Preview.Rebuild(Targets);
             TrackClosedSubSceneLoads();
             RequestPreviewUpdates();
@@ -217,6 +218,14 @@ namespace FireAlt.Mosaic.Editor
             {
                 var property = modification.currentValue;
                 var target = property.target;
+                if (target is LinkedTilemapLayers
+                    || target is GameObject gameObject && gameObject.GetComponent<LinkedTilemapLayers>() != null)
+                {
+                    LinkedConfigurationUndoGroups.Add(Undo.GetCurrentGroup());
+                    QueueTargetRefresh();
+                    break;
+                }
+
                 if (target is Transform || !Invalidation.IsRelevant(target)) continue;
                 if (MosaicPaintingTarget.IsPaintedCellProperty(target, property.propertyPath)) continue;
 
@@ -228,6 +237,12 @@ namespace FireAlt.Mosaic.Editor
             }
 
             return modifications;
+        }
+
+        private static void OnUndoRedo(in UndoRedoInfo info)
+        {
+            if (LinkedConfigurationUndoGroups.Contains(info.undoGroup)) QueueTargetRefresh();
+            else QueueRefresh();
         }
 
         private static void OnSceneOpened(Scene scene, OpenSceneMode mode)
@@ -367,7 +382,7 @@ namespace FireAlt.Mosaic.Editor
             }
         }
 
-        private static bool BelongsToStage(Component component, StageHandle stage)
+        internal static bool BelongsToStage(Component component, StageHandle stage)
         {
             return component != null && component.gameObject.scene.IsValid() && component.gameObject.scene.isLoaded
                    && StageUtility.GetStageHandle(component.gameObject) == stage;

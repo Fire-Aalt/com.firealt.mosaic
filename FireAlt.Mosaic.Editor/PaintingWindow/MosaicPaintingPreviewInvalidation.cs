@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using FireAlt.Mosaic.Authoring;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 
 namespace FireAlt.Mosaic.Editor
@@ -10,7 +11,7 @@ namespace FireAlt.Mosaic.Editor
         private readonly HashSet<EntityId> _trackedHierarchy = new();
         private readonly List<GameObject> _roots = new();
 
-        internal void Reset(IReadOnlyList<MosaicPaintingTarget> targets)
+        internal void Reset(IReadOnlyList<MosaicPaintingTarget> targets, StageHandle stage)
         {
             _trackedHierarchy.Clear();
             _roots.Clear();
@@ -19,19 +20,28 @@ namespace FireAlt.Mosaic.Editor
             {
                 if (target.IsEntityTarget) continue;
 
-                var root = target.Grid != null ? target.Grid.gameObject : target.Owner?.gameObject;
-                if (root == null || _roots.Contains(root)) continue;
-                _roots.Add(root);
+                TrackRoot(target.Grid != null ? target.Grid.gameObject : target.Owner?.gameObject);
+            }
 
-                foreach (var transform in root.GetComponentsInChildren<Transform>(true))
-                {
-                    _trackedHierarchy.Add(transform.gameObject.GetEntityId());
-                }
+            foreach (var linked in Resources.FindObjectsOfTypeAll<LinkedTilemapLayers>())
+            {
+                if (MosaicPaintingPreviewService.BelongsToStage(linked, stage)) TrackRoot(linked.gameObject);
+            }
+        }
 
-                for (var parent = root.transform.parent; parent != null; parent = parent.parent)
-                {
-                    _trackedHierarchy.Add(parent.gameObject.GetEntityId());
-                }
+        private void TrackRoot(GameObject root)
+        {
+            if (root == null || _roots.Contains(root)) return;
+            _roots.Add(root);
+
+            foreach (var transform in root.GetComponentsInChildren<Transform>(true))
+            {
+                _trackedHierarchy.Add(transform.gameObject.GetEntityId());
+            }
+
+            for (var parent = root.transform.parent; parent != null; parent = parent.parent)
+            {
+                _trackedHierarchy.Add(parent.gameObject.GetEntityId());
             }
         }
 
@@ -61,7 +71,8 @@ namespace FireAlt.Mosaic.Editor
 
             return gameObject.GetComponentInChildren<GridAuthoring>(true) != null
                    || gameObject.GetComponentInChildren<TilemapAuthoring>(true) != null
-                   || gameObject.GetComponentInChildren<TilemapTerrainAuthoring>(true) != null;
+                   || gameObject.GetComponentInChildren<TilemapTerrainAuthoring>(true) != null
+                   || gameObject.GetComponentInChildren<LinkedTilemapLayers>(true) != null;
         }
     }
 }

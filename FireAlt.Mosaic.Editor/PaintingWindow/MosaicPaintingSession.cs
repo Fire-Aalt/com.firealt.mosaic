@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using FireAlt.Mosaic.Authoring;
 using UnityEditor.EditorTools;
 using UnityEngine;
 
@@ -17,11 +16,13 @@ namespace FireAlt.Mosaic.Editor
 
         public static event Action<MosaicPaintingTarget, IReadOnlyCollection<Vector2Int>, short> CellsChanged;
 
-        public static MosaicPaintingTarget Target { get; private set; }
+        public static MosaicPaintingSelection Selection { get; private set; }
 
-        public static short Value { get; private set; }
+        public static MosaicPaintingTarget Target => Selection?.Anchor;
 
-        public static Color Color { get; private set; }
+        public static short Value => Selection?.PrimaryValue ?? 0;
+
+        public static Color Color => Selection?.Color ?? Color.white;
 
         public static int BrushSize
         {
@@ -31,27 +32,24 @@ namespace FireAlt.Mosaic.Editor
 
         public static int BrushRadius => _brushSize - 1;
 
-        public static bool IsPainting => Target != null && Value > 0;
+        public static bool IsPainting => Selection != null;
 
-        public static void Select(MosaicPaintingTarget target, IntGridValueDefinition value)
+        public static void Select(MosaicPaintingSelection selection)
         {
-            if (target == null || !target.IsPaintable)
+            if (selection == null || !selection.IsValid)
             {
                 Clear();
                 return;
             }
 
-            Target = target;
-            Value = value.value;
-            Color = value.color;
+            Selection = selection;
             if (ToolManager.activeToolType != typeof(MosaicPaintingTool)) ToolManager.SetActiveTool<MosaicPaintingTool>();
             Changed?.Invoke();
         }
 
         public static void Clear()
         {
-            Target = null;
-            Value = 0;
+            Selection = null;
             Changed?.Invoke();
         }
 
@@ -60,9 +58,10 @@ namespace FireAlt.Mosaic.Editor
             Changed?.Invoke();
         }
 
-        public static void NotifyCellsChanged(IReadOnlyCollection<Vector2Int> positions, short value)
+        public static void NotifyCellsChanged(MosaicPaintingTarget target,
+            IReadOnlyCollection<Vector2Int> positions, short value)
         {
-            CellsChanged?.Invoke(Target, positions, value);
+            CellsChanged?.Invoke(target, positions, value);
         }
     }
 }

@@ -193,8 +193,6 @@ namespace FireAlt.Mosaic.Editor
             }
         }
 
-        public Vector3 WorldPosition => GetLocalToWorldMatrix().GetPosition();
-
         public MosaicPaintingVisibilityTarget VisibilityTarget => new(IntGridHash, RendererHash);
 
         public bool TryGetValueDefinition(short value, out IntGridValueDefinition definition)
@@ -267,6 +265,12 @@ namespace FireAlt.Mosaic.Editor
 
             var normal = Vector3.Cross(corners[1] - corners[0], corners[3] - corners[0]).normalized * normalOffset;
             for (var i = 0; i < corners.Length; i++) corners[i] += normal;
+        }
+
+        public Vector3 GetCellCenter(Vector2Int cell)
+        {
+            var center = new float2(cell.x, cell.y) + PaintedCellCenterOffset;
+            return GetLocalToWorldMatrix().MultiplyPoint(MosaicUtils.ToWorldSpace(center, GetTilemapTransform()));
         }
 
         private float PaintedCellCenterOffset => IsDualGrid ? 0f : 0.5f;

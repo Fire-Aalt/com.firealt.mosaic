@@ -29,7 +29,7 @@ namespace FireAlt.Mosaic.Editor
         private bool _strokeActive;
         private bool _erase;
         private Vector2Int? _previousCell;
-        private MosaicPaintingTarget.PaintStroke _paintStroke;
+        private MosaicPaintingSelectionStroke _paintStroke;
 
         public override GUIContent toolbarIcon => _toolbarIcon;
 
@@ -41,11 +41,12 @@ namespace FireAlt.Mosaic.Editor
             _shortcutContext = new MosaicPaintingToolShortcutContext();
             ShortcutManager.RegisterContext(_shortcutContext);
             MosaicPaintingPreviewService.Refreshed += RefreshAvailability;
-            RefreshAvailability();
+            EditorApplication.delayCall += RefreshAvailability;
         }
 
         private void OnDisable()
         {
+            EditorApplication.delayCall -= RefreshAvailability;
             EditorApplication.delayCall -= OpenPaintingWindow;
             EditorApplication.delayCall -= ExitPainting;
             MosaicPaintingPreviewService.Refreshed -= RefreshAvailability;
@@ -107,8 +108,9 @@ namespace FireAlt.Mosaic.Editor
                 return;
             }
 
-            var target = MosaicPaintingSession.Target;
-            if (target == null || !target.IsPaintable)
+            var selection = MosaicPaintingSession.Selection;
+            var target = selection?.Anchor;
+            if (selection == null || !selection.IsValid || target == null)
             {
                 EndStroke();
                 MosaicPaintingSession.Clear();
@@ -148,8 +150,14 @@ namespace FireAlt.Mosaic.Editor
                     Undo.SetCurrentGroupName(_erase ? "Erase Mosaic IntGrid" : "Paint Mosaic IntGrid");
                     GUIUtility.hotControl = _controlId;
                     GUIUtility.keyboardControl = 0;
-                    var value = _erase ? (short)0 : MosaicPaintingSession.Value;
-                    _paintStroke = target.BeginStroke(value);
+                    if (!selection.TryBeginStroke(_erase, out _paintStroke))
+                    {
+                        EndStroke();
+                        MosaicPaintingSession.Clear();
+                        currentEvent.Use();
+                        break;
+                    }
+
                     _strokeActive = true;
                     _previousCell = cell;
                     ApplyBrush(cell);
@@ -239,10 +247,7 @@ namespace FireAlt.Mosaic.Editor
 
         private void ApplyCells()
         {
-            if (_paintStroke == null || !_paintStroke.SetCells(_brushCells)) return;
-
-            var value = _erase ? (short)0 : MosaicPaintingSession.Value;
-            MosaicPaintingSession.NotifyCellsChanged(_brushCells, value);
+            _paintStroke?.SetCells(_brushCells);
         }
 
         private void DrawBrush(MosaicPaintingTarget target, Vector2Int center)
