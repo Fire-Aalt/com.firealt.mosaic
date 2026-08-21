@@ -7,6 +7,10 @@ namespace FireAlt.Mosaic.Authoring
 {
     public class LinkedTilemapLayers : MonoBehaviour
     {
+        [Tooltip("Hide the individual IntGrid value entries for Tilemaps referenced by this component " +
+                 "from the Mosaic Painting palette. Linked layer entries remain available.")]
+        public bool hideRawTargetValues;
+
         public List<LinkedLayer> layers = new();
 
         private void OnValidate()

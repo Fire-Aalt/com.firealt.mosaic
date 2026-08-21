@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using FireAlt.Mosaic.Authoring;
 using FireAlt.Mosaic.Data;
 using FireAlt.Mosaic.Editor;
@@ -12,6 +13,7 @@ using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
+using EntityHash128 = Unity.Entities.Hash128;
 using Object = UnityEngine.Object;
 
 namespace FireAlt.Mosaic.Tests
@@ -303,13 +305,26 @@ namespace FireAlt.Mosaic.Tests
                 window.CreateGUI();
                 var foldouts = window.rootVisualElement.Query<Foldout>().ToList();
                 var terrainFoldout = foldouts.Single(foldout => ReferenceEquals(foldout.userData, terrain));
-                Assert.AreEqual(2, terrainFoldout.Query<Foldout>().ToList()
-                    .Count(foldout => foldout.userData is MosaicPaintingTarget));
+                Assert.IsTrue(terrainFoldout.ClassListContains("mosaic-paint-group--top-level"));
+                var terrainLayerFoldouts = terrainFoldout.Query<Foldout>().ToList()
+                    .Where(foldout => foldout.userData is MosaicPaintingTarget).ToList();
+                Assert.AreEqual(2, terrainLayerFoldouts.Count);
+                Assert.IsTrue(terrainLayerFoldouts.All(foldout =>
+                    foldout.ClassListContains("mosaic-paint-group--nested")));
 
                 var linkedFoldouts = foldouts.Where(foldout => foldout.ClassListContains("mosaic-paint-linked"))
                     .ToList();
                 Assert.AreEqual(new[] { "Alpha Links", "Zulu Links" },
                     linkedFoldouts.Select(foldout => foldout.text).ToArray());
+                Assert.IsTrue(linkedFoldouts.All(foldout =>
+                    foldout.ClassListContains("mosaic-paint-group--top-level")));
+
+                var tilemapFoldout = foldouts.Single(foldout =>
+                    foldout.userData is MosaicPaintingTarget target && ReferenceEquals(target.Owner, tilemap));
+                Assert.IsTrue(tilemapFoldout.ClassListContains("mosaic-paint-group--top-level"));
+                Assert.IsTrue(window.rootVisualElement.ClassListContains(EditorGUIUtility.isProSkin
+                    ? "mosaic-paint-theme--dark"
+                    : "mosaic-paint-theme--light"));
 
                 var alphaButton = linkedFoldouts[0].Query<Button>(className: "mosaic-paint-value").First();
                 Assert.AreEqual("Linked Paint", alphaButton.Q<Label>().text);
@@ -333,6 +348,45 @@ namespace FireAlt.Mosaic.Tests
                 Object.DestroyImmediate(window);
             }
         }
+
+        [Test]
+        public void PaintingWindow_HideRawTargetValuesFiltersOnlyAffectedTilemaps()
+        {
+            var defaultTarget = CreateTilemap("Default Target");
+            var hiddenTarget = CreateTilemap("Hidden Target");
+            var unrelatedTarget = CreateTilemap("Unrelated Target");
+            hiddenTarget.intGrid = CreateIntGrid("Hidden IntGrid", Color.red, Color.blue);
+            unrelatedTarget.intGrid = CreateIntGrid("Unrelated IntGrid", Color.red, Color.blue);
+            var defaultLinked = CreateLinked("Default Links", (defaultTarget, 1));
+            var hiddenLinked = CreateLinked("Hidden Links", (hiddenTarget, 2));
+            hiddenLinked.hideRawTargetValues = true;
+
+            var window = ScriptableObject.CreateInstance<MosaicPaintingWindow>();
+            try
+            {
+                window.CreateGUI();
+                var foldouts = window.rootVisualElement.Query<Foldout>().ToList();
+                var rawOwners = foldouts.Where(foldout => foldout.userData is MosaicPaintingTarget)
+                    .Select(foldout => ((MosaicPaintingTarget)foldout.userData).Owner).ToList();
+
+                Assert.IsFalse(defaultLinked.hideRawTargetValues);
+                Assert.Contains(defaultTarget, rawOwners);
+                Assert.IsFalse(rawOwners.Contains(hiddenTarget));
+                Assert.Contains(unrelatedTarget, rawOwners);
+
+                var hiddenSelection = CreateSelection(hiddenLinked);
+                Assert.IsTrue(hiddenSelection.IsValid, hiddenSelection.ValidationMessage);
+                Assert.AreSame(hiddenTarget, hiddenSelection.Anchor.Owner);
+
+                var hiddenFoldout = foldouts.Single(foldout => ReferenceEquals(foldout.userData, hiddenLinked));
+                var hiddenButton = hiddenFoldout.Q<Button>(className: "mosaic-paint-value");
+                Assert.IsTrue(hiddenButton.enabledSelf, hiddenButton.tooltip);
+            }
+            finally
+            {
+                Object.DestroyImmediate(window);
+            }
+        }
         
         [Test]
         public void IntGridColorFields_DisableAlphaPicking()
@@ -350,6 +404,10 @@ namespace FireAlt.Mosaic.Tests
         {
             var intGrid = ScriptableObject.CreateInstance<IntGridDefinition>();
             intGrid.name = name;
+            var hashField = typeof(IntGridDefinition).GetField("<Hash>k__BackingField",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(hashField);
+            hashField.SetValue(intGrid, new EntityHash128((uint)_intGrids.Count + 1, 0, 0, 0));
             for (var i = 0; i < colors.Length; i++)
             {
                 intGrid.intGridValues.Add(new IntGridValueDefinition

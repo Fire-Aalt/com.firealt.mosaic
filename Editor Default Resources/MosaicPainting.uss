@@ -3,6 +3,24 @@
     --hover_color: rgba(255, 255, 255, 0.55);
 }
 
+.mosaic-paint-theme--dark {
+    --mosaic-paint-foldout-header: rgb(82, 107, 153);
+    --mosaic-paint-foldout-header-nested: rgb(62, 76, 103);
+    --mosaic-paint-foldout-header-hover: rgb(96, 124, 171);
+    --mosaic-paint-foldout-border: rgb(27, 35, 48);
+    --mosaic-paint-foldout-text: rgb(237, 243, 255);
+    --mosaic-paint-foldout-content: rgba(0, 0, 0, 0.14);
+}
+
+.mosaic-paint-theme--light {
+    --mosaic-paint-foldout-header: rgb(168, 189, 225);
+    --mosaic-paint-foldout-header-nested: rgb(205, 216, 235);
+    --mosaic-paint-foldout-header-hover: rgb(147, 175, 222);
+    --mosaic-paint-foldout-border: rgb(100, 115, 138);
+    --mosaic-paint-foldout-text: rgb(29, 42, 64);
+    --mosaic-paint-foldout-content: rgba(255, 255, 255, 0.28);
+}
+
 .mosaic-paint-controls {
     padding-left: 8px;
     padding-right: 8px;
@@ -27,6 +45,55 @@
 
 .mosaic-paint-group {
     margin-bottom: 6px;
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--mosaic-paint-foldout-border);
+}
+
+.mosaic-paint-group--nested {
+    margin-left: 8px;
+}
+
+.mosaic-paint-group > .unity-foldout__toggle {
+    height: 22px;
+    min-height: 22px;
+    margin: 0;
+    padding-left: 4px;
+    padding-right: 4px;
+    background-color: var(--mosaic-paint-foldout-header);
+    border-color: var(--mosaic-paint-foldout-border);
+    transition-property: background-color, border-color;
+    transition-duration: 0.12s;
+    transition-timing-function: ease-out;
+}
+
+.mosaic-paint-group--nested > .unity-foldout__toggle {
+    background-color: var(--mosaic-paint-foldout-header-nested);
+}
+
+.mosaic-paint-group > .unity-foldout__toggle:hover {
+    background-color: var(--mosaic-paint-foldout-header-hover);
+    border-color: var(--mosaic-paint-foldout-header-hover);
+}
+
+.mosaic-paint-group > .unity-foldout__toggle .unity-foldout__text {
+    color: var(--mosaic-paint-foldout-text);
+}
+
+.mosaic-paint-group--top-level > .unity-foldout__toggle .unity-foldout__text {
+    -unity-font-style: bold;
+}
+
+.mosaic-paint-group > .unity-foldout__toggle .unity-foldout__checkmark {
+    -unity-background-image-tint-color: var(--mosaic-paint-foldout-text);
+}
+
+.mosaic-paint-group > .unity-foldout__content {
+    margin-left: 0;
+    padding: 4px;
+    background-color: var(--mosaic-paint-foldout-content);
 }
 
 .mosaic-paint-value {

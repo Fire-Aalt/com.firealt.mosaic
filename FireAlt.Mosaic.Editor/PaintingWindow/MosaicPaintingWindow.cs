@@ -82,6 +82,8 @@ namespace FireAlt.Mosaic.Editor
         {
             var root = rootVisualElement;
             root.Clear();
+            root.EnableInClassList("mosaic-paint-theme--dark", EditorGUIUtility.isProSkin);
+            root.EnableInClassList("mosaic-paint-theme--light", !EditorGUIUtility.isProSkin);
             root.styleSheets.Add(EditorResources.PaintingStyleSheet);
 
             var toolbar = new Toolbar();
@@ -425,6 +427,7 @@ namespace FireAlt.Mosaic.Editor
             _valueButtons.Clear();
 
             var hasPaintingTargets = false;
+            var hiddenRawTargets = CollectHiddenRawTargets();
             var terrainTargets = new Dictionary<TilemapTerrainAuthoring, List<MosaicPaintingTarget>>();
             foreach (var target in _targets)
             {
@@ -443,6 +446,7 @@ namespace FireAlt.Mosaic.Editor
                     continue;
                 }
 
+                if (target.Owner is TilemapAuthoring tilemap && hiddenRawTargets.Contains(tilemap)) continue;
                 _palette.Add(CreateTargetFoldout(target, target.DisplayName));
             }
 
@@ -450,21 +454,15 @@ namespace FireAlt.Mosaic.Editor
             terrainOwners.Sort((left, right) => string.CompareOrdinal(left.name, right.name));
             foreach (var terrain in terrainOwners)
             {
-                var terrainFoldout = new Foldout
-                {
-                    text = terrain.name,
-                    value = true,
-                    userData = terrain,
-                };
+                var terrainFoldout = CreateGroupFoldout(terrain.name, terrain);
                 terrainFoldout.AddToClassList("mosaic-paint-terrain");
-                terrainFoldout.AddToClassList("mosaic-paint-group");
 
                 var layers = terrainTargets[terrain];
                 layers.Sort((left, right) => left.LayerIndex.CompareTo(right.LayerIndex));
                 foreach (var target in layers)
                 {
                     var layerName = $"Layer {target.LayerIndex + 1} / {target.IntGrid?.name ?? "Missing IntGrid"}";
-                    terrainFoldout.Add(CreateTargetFoldout(target, layerName));
+                    terrainFoldout.Add(CreateTargetFoldout(target, layerName, true));
                 }
 
                 _palette.Add(terrainFoldout);
@@ -474,14 +472,8 @@ namespace FireAlt.Mosaic.Editor
             foreach (var component in _linkedComponents)
             {
                 hasPaintingTargets = true;
-                var linkedFoldout = new Foldout
-                {
-                    text = component.gameObject.name,
-                    value = true,
-                    userData = component,
-                };
+                var linkedFoldout = CreateGroupFoldout(component.gameObject.name, component);
                 linkedFoldout.AddToClassList("mosaic-paint-linked");
-                linkedFoldout.AddToClassList("mosaic-paint-group");
 
                 var linkedLayers = component.layers ?? new List<LinkedLayer>();
                 for (var i = 0; i < linkedLayers.Count; i++)
@@ -509,15 +501,41 @@ namespace FireAlt.Mosaic.Editor
             }
         }
 
-        private Foldout CreateTargetFoldout(MosaicPaintingTarget target, string text)
+        private HashSet<TilemapAuthoring> CollectHiddenRawTargets()
+        {
+            var hiddenTargets = new HashSet<TilemapAuthoring>();
+            foreach (var component in _linkedComponents)
+            {
+                if (!component.hideRawTargetValues || component.layers == null) continue;
+                foreach (var layer in component.layers)
+                {
+                    if (layer?.Operations == null) continue;
+                    foreach (var operation in layer.Operations)
+                    {
+                        if (operation?.target != null) hiddenTargets.Add(operation.target);
+                    }
+                }
+            }
+
+            return hiddenTargets;
+        }
+
+        private static Foldout CreateGroupFoldout(string text, object userData, bool nested = false)
         {
             var foldout = new Foldout
             {
                 text = text,
                 value = true,
-                userData = target,
+                userData = userData,
             };
             foldout.AddToClassList("mosaic-paint-group");
+            foldout.AddToClassList(nested ? "mosaic-paint-group--nested" : "mosaic-paint-group--top-level");
+            return foldout;
+        }
+
+        private Foldout CreateTargetFoldout(MosaicPaintingTarget target, string text, bool nested = false)
+        {
+            var foldout = CreateGroupFoldout(text, target, nested);
 
             if (!target.IsValid)
             {
