@@ -124,17 +124,6 @@ namespace FireAlt.Mosaic.Editor
                 tooltip = "Randomize the seed used by RuleEngine and refresh the current Mosaic output",
             };
             toolbar.Add(randomize);
-
-            var spacer = new VisualElement();
-            spacer.style.flexGrow = 1f;
-            toolbar.Add(spacer);
-
-            var refresh = new ToolbarButton(QueueRefresh)
-            {
-                text = "Refresh",
-                tooltip = "Rediscover tilemaps in the current stage",
-            };
-            toolbar.Add(refresh);
             root.Add(toolbar);
 
             var brushControls = new VisualElement();

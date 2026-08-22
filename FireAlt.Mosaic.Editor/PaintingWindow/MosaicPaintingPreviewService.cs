@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using FireAlt.Core.Extensions;
 using FireAlt.Mosaic.Authoring;
 using FireAlt.Mosaic.Data;
 using Unity.Collections;
@@ -21,6 +22,7 @@ namespace FireAlt.Mosaic.Editor
 
         private static readonly List<MosaicPaintingTarget> Targets = new();
         private static readonly HashSet<MosaicPaintingVisibilityTarget> VisibilityTargets = new();
+        private static readonly List<MosaicPaintingContextVisibilityTarget> ContextPrefabVisibilityTargets = new();
         private static readonly Dictionary<Hash128, HashSet<Entity>> PendingSubSceneLoads = new();
         private static readonly HashSet<int> LinkedConfigurationUndoGroups = new();
         private static readonly List<Hash128> CompletedSubSceneLoads = new();
@@ -28,6 +30,7 @@ namespace FireAlt.Mosaic.Editor
         private static readonly MosaicPaintingPreviewInvalidation Invalidation = new();
 
         private static StageHandle _stage;
+        private static PrefabStage _prefabStage;
         private static bool _refreshQueued;
         private static bool _rebuildQueued;
         private static bool _showIntGridColors;
@@ -37,6 +40,7 @@ namespace FireAlt.Mosaic.Editor
         static MosaicPaintingPreviewService()
         {
             _stage = StageUtility.GetCurrentStageHandle();
+            _prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
             EditorApplication.projectChanged += QueueRefresh;
             EditorApplication.update += OnEditorUpdate;
             EditorApplication.playModeStateChanged += OnPlayModeChanged;
@@ -79,7 +83,7 @@ namespace FireAlt.Mosaic.Editor
                 RequestPreviewUpdates();
             }
 
-            Preview.SetVisibility(VisibilityTargets, showIntGridColors);
+            Preview.SetVisibility(VisibilityTargets, ContextPrefabVisibilityTargets, showIntGridColors);
             SceneView.RepaintAll();
         }
 
@@ -122,9 +126,11 @@ namespace FireAlt.Mosaic.Editor
             UpdatePendingSubSceneLoads();
 
             var currentStage = StageUtility.GetCurrentStageHandle();
-            if (!_stage.Equals(currentStage))
+            var currentPrefabStage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (!_stage.Equals(currentStage) || !ReferenceEquals(_prefabStage, currentPrefabStage))
             {
                 _stage = currentStage;
+                _prefabStage = currentPrefabStage;
                 PendingSubSceneLoads.Clear();
                 QueueRefresh();
             }
@@ -145,7 +151,7 @@ namespace FireAlt.Mosaic.Editor
                 foreach (var target in Targets) Preview.Reseed(target);
             }
 
-            Preview.SetVisibility(VisibilityTargets, _showIntGridColors);
+            Preview.SetVisibility(VisibilityTargets, ContextPrefabVisibilityTargets, _showIntGridColors);
             _previewUpdatesRemaining--;
             SceneView.RepaintAll();
         }
@@ -158,10 +164,42 @@ namespace FireAlt.Mosaic.Editor
             Targets.Clear();
             AddAuthoringTargets(Targets, _stage);
             Invalidation.Reset(Targets, _stage);
+            RefreshContextPrefabVisibilityTargets();
             if (rebuild) Preview.Rebuild(Targets);
+            Preview.SetVisibility(VisibilityTargets, ContextPrefabVisibilityTargets, _showIntGridColors);
             TrackClosedSubSceneLoads();
             RequestPreviewUpdates();
             Refreshed?.Invoke();
+        }
+
+        private static void RefreshContextPrefabVisibilityTargets()
+        {
+            ContextPrefabVisibilityTargets.Clear();
+            var prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (prefabStage == null || prefabStage.mode == PrefabStage.Mode.InIsolation) return;
+
+            var instance = prefabStage.openedFromInstanceObject;
+            if (instance == null || !instance.scene.isSubScene) return;
+
+            foreach (var tilemap in instance.GetComponentsInChildren<TilemapAuthoring>(true))
+            {
+                AddContextPrefabVisibilityTarget(new MosaicPaintingTarget(tilemap));
+            }
+
+            foreach (var terrain in instance.GetComponentsInChildren<TilemapTerrainAuthoring>(true))
+            {
+                for (var i = 0; i < terrain.intGridLayers.Count; i++)
+                {
+                    AddContextPrefabVisibilityTarget(new MosaicPaintingTarget(terrain, terrain.intGridLayers[i], i));
+                }
+            }
+        }
+
+        private static void AddContextPrefabVisibilityTarget(MosaicPaintingTarget target)
+        {
+            if (target.IntGridHash == default || target.RendererHash == default) return;
+            ContextPrefabVisibilityTargets.Add(new MosaicPaintingContextVisibilityTarget(
+                target.VisibilityTarget, target.Owner.gameObject.GetEntityId()));
         }
 
         private static void OnObjectChanges(ref ObjectChangeEventStream stream)

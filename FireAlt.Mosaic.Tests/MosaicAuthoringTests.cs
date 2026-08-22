@@ -262,6 +262,46 @@ namespace FireAlt.Mosaic.Tests
             Assert.IsTrue(MosaicPaintingWindow.IsSubSceneEntity(_world.EntityManager, entity, subSceneGuids));
         }
 
+        [Test]
+        public void PaintingPreview_ContextPrefabHidesOnlyMatchingSubSceneRenderer()
+        {
+            var rendererHash = new Unity.Entities.Hash128(4u, 0u, 0u, 0u);
+            var entityManager = _world.EntityManager;
+            var originatingEntityId = _gridObject.GetEntityId();
+            var subSceneRenderer = entityManager.CreateEntity();
+            entityManager.AddComponentData(subSceneRenderer, new TilemapRendererData { MeshHash = rendererHash });
+            entityManager.AddComponentData(subSceneRenderer,
+                new EntityGuid(originatingEntityId, default, 0u, 0u));
+            entityManager.AddSharedComponent(subSceneRenderer, new SceneSection
+            {
+                SceneGUID = new Unity.Entities.Hash128(5u, 0u, 0u, 0u),
+            });
+            InternalEditorRenderData.SetSceneCullingMask(entityManager, subSceneRenderer, 11);
+
+            var prefabRenderer = entityManager.CreateEntity();
+            entityManager.AddComponentData(prefabRenderer, new TilemapRendererData { MeshHash = rendererHash });
+            InternalEditorRenderData.SetSceneCullingMask(entityManager, prefabRenderer, 22);
+
+            var preview = new MosaicPaintingPreview();
+            var noTargets = new List<MosaicPaintingVisibilityTarget>();
+            var contextTargets = new List<MosaicPaintingContextVisibilityTarget>
+            {
+                new(new MosaicPaintingVisibilityTarget(rendererHash, rendererHash), originatingEntityId),
+            };
+
+            preview.SetVisibility(_world, noTargets, contextTargets, false);
+
+            Assert.AreEqual(0,
+                InternalEditorRenderData.GetSceneCullingMask(entityManager, subSceneRenderer));
+            Assert.AreEqual(22,
+                InternalEditorRenderData.GetSceneCullingMask(entityManager, prefabRenderer));
+
+            preview.SetVisibility(_world, noTargets, new List<MosaicPaintingContextVisibilityTarget>(), false);
+
+            Assert.AreEqual(11,
+                InternalEditorRenderData.GetSceneCullingMask(entityManager, subSceneRenderer));
+        }
+
         [TestCase(false)]
         [TestCase(true)]
         public void PaintingWindow_RawCellsSortBackToFront(bool orthographic)

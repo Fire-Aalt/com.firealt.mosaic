@@ -70,9 +70,15 @@ namespace FireAlt.Mosaic.Editor
             _world = world;
         }
 
-        public void SetVisibility(IReadOnlyCollection<MosaicPaintingVisibilityTarget> targets, bool showIntGridColors)
+        public void SetVisibility(IReadOnlyCollection<MosaicPaintingVisibilityTarget> targets,
+            IReadOnlyCollection<MosaicPaintingContextVisibilityTarget> contextPrefabTargets, bool showIntGridColors)
         {
-            var world = World.DefaultGameObjectInjectionWorld;
+            SetVisibility(World.DefaultGameObjectInjectionWorld, targets, contextPrefabTargets, showIntGridColors);
+        }
+
+        internal void SetVisibility(World world, IReadOnlyCollection<MosaicPaintingVisibilityTarget> targets,
+            IReadOnlyCollection<MosaicPaintingContextVisibilityTarget> contextPrefabTargets, bool showIntGridColors)
+        {
             if (world == null || !world.IsCreated || (world.Flags & WorldFlags.Editor) == 0) return;
 
             var entityManager = world.EntityManager;
@@ -80,7 +86,8 @@ namespace FireAlt.Mosaic.Editor
 
             if (_visibilityWorld != null && _visibilityWorld != world) RestoreHiddenEntities();
             _visibilityWorld = world;
-            if (showIntGridColors) _entitiesToHide.Clear();
+            var hideContextPrefab = contextPrefabTargets.Count != 0;
+            if (showIntGridColors || hideContextPrefab) _entitiesToHide.Clear();
             else RestoreHiddenEntities();
 
             var rendererQuery = new EntityQueryBuilder(Allocator.Temp)
@@ -102,38 +109,17 @@ namespace FireAlt.Mosaic.Editor
 
             foreach (var target in targets)
             {
-                for (var i = 0; i < rendererEntities.Length; i++)
-                {
-                    if (rendererData[i].MeshHash == target.RendererHash)
-                    {
-                        SetHierarchyVisibility(entityManager, rendererEntities[i], showIntGridColors);
-                    }
-                }
-
-                for (var i = 0; i < intGridEntities.Length; i++)
-                {
-                    if (intGridData[i].Hash != target.IntGridHash
-                        || !entityManager.HasBuffer<WeightedEntityElement>(intGridEntities[i]))
-                    {
-                        continue;
-                    }
-
-                    var weightedEntities = entityManager.GetBuffer<WeightedEntityElement>(intGridEntities[i])
-                        .ToNativeArray(Allocator.Temp);
-                    foreach (var weightedEntity in weightedEntities)
-                    {
-                        SetHierarchyVisibility(entityManager, weightedEntity.Value, showIntGridColors);
-                    }
-                }
-
-                if (!hasLayers || !layers.IntGridLayers.TryGetValue(target.IntGridHash, out var layer)) continue;
-                foreach (var spawnedEntity in layer.SpawnedEntities)
-                {
-                    SetHierarchyVisibility(entityManager, spawnedEntity.Value, showIntGridColors);
-                }
+                SetTargetVisibility(entityManager, target, rendererEntities, rendererData, intGridEntities,
+                    intGridData, hasLayers, layers, showIntGridColors, false);
             }
 
-            if (!showIntGridColors) return;
+            foreach (var target in contextPrefabTargets)
+            {
+                SetTargetVisibility(entityManager, target.Target, rendererEntities, rendererData, intGridEntities,
+                    intGridData, hasLayers, layers, true, true, target.OriginatingEntityId);
+            }
+
+            if (!showIntGridColors && !hideContextPrefab) return;
 
             _entitiesToRestore.Clear();
             foreach (var hiddenEntity in _hiddenEntities.Keys)
@@ -148,6 +134,53 @@ namespace FireAlt.Mosaic.Editor
             }
 
             foreach (var entity in _entitiesToHide) HideEntity(entityManager, entity);
+        }
+
+        private void SetTargetVisibility(EntityManager entityManager, MosaicPaintingVisibilityTarget target,
+            NativeArray<Entity> rendererEntities, NativeArray<TilemapRendererData> rendererData,
+            NativeArray<Entity> intGridEntities, NativeArray<IntGridData> intGridData, bool hasLayers,
+            TilemapIntGridSingleton layers, bool hidden, bool subSceneOnly, EntityId originatingEntityId = default)
+        {
+            for (var i = 0; i < rendererEntities.Length; i++)
+            {
+                if (rendererData[i].MeshHash == target.RendererHash)
+                {
+                    SetHierarchyVisibility(entityManager, rendererEntities[i], hidden, subSceneOnly,
+                        originatingEntityId);
+                }
+            }
+
+            var matchingIntGrid = !subSceneOnly;
+            for (var i = 0; i < intGridEntities.Length; i++)
+            {
+                if (intGridData[i].Hash != target.IntGridHash
+                    || subSceneOnly && !IsMatchingSubSceneEntity(entityManager, intGridEntities[i],
+                        originatingEntityId))
+                {
+                    continue;
+                }
+
+                matchingIntGrid = true;
+                if (!entityManager.HasBuffer<WeightedEntityElement>(intGridEntities[i])) continue;
+
+                var weightedEntities = entityManager.GetBuffer<WeightedEntityElement>(intGridEntities[i])
+                    .ToNativeArray(Allocator.Temp);
+                foreach (var weightedEntity in weightedEntities)
+                {
+                    SetHierarchyVisibility(entityManager, weightedEntity.Value, hidden, subSceneOnly);
+                }
+            }
+
+            if (!matchingIntGrid || !hasLayers
+                                 || !layers.IntGridLayers.TryGetValue(target.IntGridHash, out var layer))
+            {
+                return;
+            }
+
+            foreach (var spawnedEntity in layer.SpawnedEntities)
+            {
+                SetHierarchyVisibility(entityManager, spawnedEntity.Value, hidden, subSceneOnly);
+            }
         }
 
         public void Reseed(MosaicPaintingTarget target)
@@ -229,9 +262,14 @@ namespace FireAlt.Mosaic.Editor
             return true;
         }
 
-        private void SetHierarchyVisibility(EntityManager entityManager, Entity hierarchyRoot, bool hidden)
+        private void SetHierarchyVisibility(EntityManager entityManager, Entity hierarchyRoot, bool hidden,
+            bool subSceneOnly = false, EntityId originatingEntityId = default)
         {
-            if (!entityManager.Exists(hierarchyRoot)) return;
+            if (!entityManager.Exists(hierarchyRoot)
+                || subSceneOnly && !IsMatchingSubSceneEntity(entityManager, hierarchyRoot, originatingEntityId))
+            {
+                return;
+            }
 
             SetEntityVisibility(entityManager, hierarchyRoot, hidden);
             if (entityManager.TryGetBuffer<LinkedEntityGroup>(hierarchyRoot, out var leg))
@@ -244,6 +282,15 @@ namespace FireAlt.Mosaic.Editor
                     }
                 }
             }
+        }
+
+        private static bool IsMatchingSubSceneEntity(EntityManager entityManager, Entity entity,
+            EntityId originatingEntityId)
+        {
+            if (!entityManager.HasComponent<SceneSection>(entity)) return false;
+            if (originatingEntityId.Equals(default(EntityId))) return true;
+            return entityManager.HasComponent<EntityGuid>(entity)
+                   && entityManager.GetComponentData<EntityGuid>(entity).OriginatingEntityId == originatingEntityId;
         }
 
         private void SetEntityVisibility(EntityManager entityManager, Entity entity, bool hidden)

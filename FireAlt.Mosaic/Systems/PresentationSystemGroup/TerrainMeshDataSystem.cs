@@ -164,6 +164,7 @@ namespace FireAlt.Mosaic
             
             private void Execute(in TerrainData terrainData, in DynamicBuffer<TilemapTerrainLayerElement> layers, Entity entity)
             {
+                var created = false;
                 if (Terrains.TryGetValue(terrainData.TerrainHash, out var existing)
                     && existing.TerrainEntity != entity)
                 {
@@ -175,6 +176,13 @@ namespace FireAlt.Mosaic
                 {
                     var terrain = new Singleton.Terrain(entity, 256, Allocator.Persistent);
                     Terrains.Add(terrainData.TerrainHash, terrain);
+                    created = true;
+                }
+
+                if (created)
+                {
+                    HashesToUpdate.Add(terrainData.TerrainHash);
+                    return;
                 }
                 
                 foreach (var layer in layers)

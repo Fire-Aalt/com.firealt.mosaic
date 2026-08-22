@@ -42,6 +42,20 @@ namespace FireAlt.Mosaic.Editor
         }
     }
 
+    internal readonly struct MosaicPaintingContextVisibilityTarget
+    {
+        public MosaicPaintingContextVisibilityTarget(MosaicPaintingVisibilityTarget target,
+            EntityId originatingEntityId)
+        {
+            Target = target;
+            OriginatingEntityId = originatingEntityId;
+        }
+
+        public MosaicPaintingVisibilityTarget Target { get; }
+
+        public EntityId OriginatingEntityId { get; }
+    }
+
     internal sealed class MosaicPaintingTarget
     {
         private const string PAINTED_CELLS = "_paintedCells";

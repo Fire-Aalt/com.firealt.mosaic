@@ -142,6 +142,7 @@ namespace FireAlt.Mosaic
             
 	        private void Execute(in IntGridData intGridData, in TilemapRendererData tilemapRendererData, Entity entity)
 	        {
+		        var created = false;
 		        if (Tilemaps.TryGetValue(tilemapRendererData.MeshHash, out var existing)
 		            && existing.IntGridEntity != entity)
 		        {
@@ -151,16 +152,17 @@ namespace FireAlt.Mosaic
 
 		        if (!Tilemaps.ContainsKey(tilemapRendererData.MeshHash))
 		        {
-			        var tilemap = new Singleton.IntGrid(entity, 256, Allocator.Persistent);
+		        	var tilemap = new Singleton.IntGrid(entity, 256, Allocator.Persistent);
                     
-			        Tilemaps.Add(tilemapRendererData.MeshHash, tilemap);
+		        	Tilemaps.Add(tilemapRendererData.MeshHash, tilemap);
+		        	created = true;
 		        }
                 
 		        ref var dataLayer = ref IntGridLayers.GetValueAsRef(intGridData.Hash);
 		        
-		        if (!dataLayer.RefreshedPositions.IsEmpty || CullingBoundsChanged || dataLayer.Cleared)
+		        if (created || !dataLayer.RefreshedPositions.IsEmpty || CullingBoundsChanged || dataLayer.Cleared)
 		        {
-			        HashesToUpdate.Add(tilemapRendererData.MeshHash);
+		        	HashesToUpdate.Add(tilemapRendererData.MeshHash);
 		        }
 	        }
         }
