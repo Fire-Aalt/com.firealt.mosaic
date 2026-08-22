@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using FireAlt.Mosaic.Authoring;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -8,12 +9,10 @@ namespace FireAlt.Mosaic.Editor
 {
     internal sealed class MosaicPaintingStroke : IDisposable
     {
-        private const string POSITION = "_position";
-        private const string VALUE = "_value";
-
         private readonly MosaicPaintingTarget _target;
-        private readonly SerializedObject _serializedObject;
-        private readonly SerializedProperty _cells;
+        private readonly List<SerializedIntGridCell> _cells;
+        private readonly Dictionary<Vector2Int, int> _cellIndices;
+        private readonly List<Vector2Int> _changedCells = new();
         private readonly short _value;
         private bool _changed;
 
@@ -21,51 +20,36 @@ namespace FireAlt.Mosaic.Editor
         {
             _target = target;
             _value = value;
-            if (!target.IsPaintable || target.Owner == null) return;
+            if (!target.TryGetMutableCells(out var cells)) return;
 
-            _serializedObject = new SerializedObject(target.Owner);
-            _serializedObject.Update();
-            _cells = target.FindCellsProperty(_serializedObject);
-            if (_cells != null)
+            _cells = cells;
+            _cellIndices = new Dictionary<Vector2Int, int>(_cells.Count);
+            for (var i = 0; i < _cells.Count; i++)
             {
-                Undo.RecordObject(target.Owner, value == 0 ? "Erase Mosaic IntGrid" : "Paint Mosaic IntGrid");
+                _cellIndices.Add(_cells[i].Position, i);
             }
         }
 
+        public IReadOnlyList<Vector2Int> ChangedCells => _changedCells;
+
         public bool SetCells(IEnumerable<Vector2Int> positions)
         {
-            if (_cells == null) return false;
+            _changedCells.Clear();
+            if (_cells == null || _target.Owner == null) return false;
 
-            var changed = false;
             foreach (var position in positions)
             {
-                var index = FindIndex(position, out var exists);
                 if (_value == 0)
                 {
-                    if (!exists) continue;
-                    _cells.DeleteArrayElementAtIndex(index);
-                }
-                else if (exists)
-                {
-                    var valueProperty = _cells.GetArrayElementAtIndex(index).FindPropertyRelative(VALUE);
-                    if (valueProperty.intValue == _value) continue;
-                    valueProperty.intValue = _value;
+                    EraseCell(position);
                 }
                 else
                 {
-                    _cells.InsertArrayElementAtIndex(index);
-                    var cell = _cells.GetArrayElementAtIndex(index);
-                    cell.FindPropertyRelative(POSITION).vector2IntValue = position;
-                    cell.FindPropertyRelative(VALUE).intValue = _value;
+                    PaintCell(position);
                 }
-
-                changed = true;
             }
 
-            if (!changed) return false;
-            _serializedObject.ApplyModifiedProperties();
-            _changed = true;
-            return true;
+            return _changedCells.Count != 0;
         }
 
         public void Dispose()
@@ -84,33 +68,49 @@ namespace FireAlt.Mosaic.Editor
             }
         }
 
-        private int FindIndex(Vector2Int position, out bool exists)
+        private void PaintCell(Vector2Int position)
         {
-            var min = 0;
-            var max = _cells.arraySize - 1;
-            while (min <= max)
+            if (_cellIndices.TryGetValue(position, out var index))
             {
-                var index = (min + max) / 2;
-                var candidate = _cells.GetArrayElementAtIndex(index).FindPropertyRelative(POSITION).vector2IntValue;
-                var comparison = Compare(candidate, position);
-                if (comparison == 0)
-                {
-                    exists = true;
-                    return index;
-                }
-
-                if (comparison < 0) min = index + 1;
-                else max = index - 1;
+                if (_cells[index].Value == _value) return;
+                RecordUndo();
+                _cells[index] = new SerializedIntGridCell(position, _value);
+            }
+            else
+            {
+                RecordUndo();
+                _cellIndices.Add(position, _cells.Count);
+                _cells.Add(new SerializedIntGridCell(position, _value));
             }
 
-            exists = false;
-            return min;
+            _changedCells.Add(position);
         }
 
-        private static int Compare(Vector2Int left, Vector2Int right)
+        private void EraseCell(Vector2Int position)
         {
-            var y = left.y.CompareTo(right.y);
-            return y != 0 ? y : left.x.CompareTo(right.x);
+            if (!_cellIndices.TryGetValue(position, out var index)) return;
+
+            RecordUndo();
+            var lastIndex = _cells.Count - 1;
+            if (index != lastIndex)
+            {
+                var movedCell = _cells[lastIndex];
+                _cells[index] = movedCell;
+                _cellIndices[movedCell.Position] = index;
+            }
+
+            _cells.RemoveAt(lastIndex);
+            _cellIndices.Remove(position);
+            _changedCells.Add(position);
+        }
+
+        private void RecordUndo()
+        {
+            if (_changed) return;
+
+            Undo.RegisterCompleteObjectUndo(_target.Owner,
+                _value == 0 ? "Erase Mosaic IntGrid" : "Paint Mosaic IntGrid");
+            _changed = true;
         }
     }
 }

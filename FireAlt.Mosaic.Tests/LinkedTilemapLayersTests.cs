@@ -151,24 +151,29 @@ namespace FireAlt.Mosaic.Tests
         {
             var first = CreateTilemap("First");
             var second = CreateTilemap("Second");
-            var position = new Vector2Int(8, 9);
+            var start = new Vector2Int(8, 9);
+            var end = new Vector2Int(9, 9);
             var selection = CreateSelection(CreateLinked("Linked", (first, 1), (second, 2)));
 
             Undo.IncrementCurrentGroup();
             var undoGroup = Undo.GetCurrentGroup();
             Undo.SetCurrentGroupName("Paint Linked Mosaic Layers");
             Assert.IsTrue(selection.TryBeginStroke(false, out var stroke));
-            using (stroke) Assert.IsTrue(stroke.SetCells(new[] { position }));
+            using (stroke)
+            {
+                Assert.IsTrue(stroke.SetCells(new[] { start }));
+                Assert.IsTrue(stroke.SetCells(new[] { start, end }));
+            }
             Undo.CollapseUndoOperations(undoGroup);
 
-            AssertCell(first, position, 1);
-            AssertCell(second, position, 2);
+            AssertCells(first, 1, start, end);
+            AssertCells(second, 2, start, end);
             Undo.PerformUndo();
             Assert.IsEmpty(first.PaintedCells);
             Assert.IsEmpty(second.PaintedCells);
             Undo.PerformRedo();
-            AssertCell(first, position, 1);
-            AssertCell(second, position, 2);
+            AssertCells(first, 1, start, end);
+            AssertCells(second, 2, start, end);
         }
 
         [TestCase(InvalidConfiguration.Empty)]
@@ -629,6 +634,13 @@ namespace FireAlt.Mosaic.Tests
             Assert.AreEqual(1, target.PaintedCells.Count);
             Assert.AreEqual(position, target.PaintedCells[0].Position);
             Assert.AreEqual(value, target.PaintedCells[0].Value);
+        }
+
+        private static void AssertCells(TilemapAuthoring target, short value, params Vector2Int[] positions)
+        {
+            Assert.AreEqual(positions.Length, target.PaintedCells.Count);
+            CollectionAssert.AreEquivalent(positions, target.PaintedCells.Select(cell => cell.Position).ToArray());
+            Assert.IsTrue(target.PaintedCells.All(cell => cell.Value == value));
         }
     }
 }

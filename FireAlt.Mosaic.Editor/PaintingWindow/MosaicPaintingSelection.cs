@@ -286,7 +286,8 @@ namespace FireAlt.Mosaic.Editor
             {
                 if (!_strokes[i].SetCells(positions)) continue;
                 changed = true;
-                MosaicPaintingController.NotifyCellsChanged(_operations[i].Target, positions, _values[i]);
+                MosaicPaintingController.NotifyCellsChanged(
+                    _operations[i].Target, _strokes[i].ChangedCells, _values[i]);
             }
 
             return changed;

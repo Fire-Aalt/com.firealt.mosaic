@@ -138,12 +138,15 @@ namespace FireAlt.Mosaic.Pipeline.Editor
                 using (var stroke = target.BeginStroke(intGridValue))
                 {
                     changed = stroke.SetCells(positions);
+                    if (changed)
+                    {
+                        MosaicPaintingController.NotifyCellsChanged(target, stroke.ChangedCells, intGridValue);
+                    }
                 }
             }
 
             if (changed)
             {
-                MosaicPaintingController.NotifyCellsChanged(target, positions, intGridValue);
                 MosaicPaintingController.NotifyChanged();
             }
 

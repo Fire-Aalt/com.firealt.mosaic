@@ -94,7 +94,6 @@ namespace FireAlt.Mosaic.Editor
     {
         private const string PAINTED_CELLS = "_paintedCells";
         private const string PAINTED_LAYERS = "_paintedLayers";
-        private const string INT_GRID = "_intGrid";
         private const string CELLS = "_cells";
         private readonly List<IntGridValueDefinition> _entityValues = new();
         private readonly List<SerializedIntGridCell> _entityCells = new();
@@ -380,23 +379,29 @@ namespace FireAlt.Mosaic.Editor
             return y != 0 ? y : left.x.CompareTo(right.x);
         }
 
-        internal SerializedProperty FindCellsProperty(SerializedObject serializedObject)
+        internal bool TryGetMutableCells(out List<SerializedIntGridCell> cells)
         {
-            if (Owner is TilemapAuthoring) return serializedObject.FindProperty(PAINTED_CELLS);
+            cells = null;
+            if (!IsPaintable) return false;
 
-            var layers = serializedObject.FindProperty(PAINTED_LAYERS);
-            if (layers == null) return null;
-
-            for (var i = 0; i < layers.arraySize; i++)
+            if (Owner is TilemapAuthoring tilemap)
             {
-                var layer = layers.GetArrayElementAtIndex(i);
-                if (layer.FindPropertyRelative(INT_GRID).objectReferenceValue == IntGrid)
+                cells = tilemap.MutablePaintedCells;
+                return true;
+            }
+
+            if (Owner is not TilemapTerrainAuthoring terrain) return false;
+
+            foreach (var layer in terrain.MutablePaintedLayers)
+            {
+                if (layer.IntGrid == IntGrid)
                 {
-                    return layer.FindPropertyRelative(CELLS);
+                    cells = layer.MutableCells;
+                    return true;
                 }
             }
 
-            return null;
+            return false;
         }
 
         internal static bool IsPaintedCellProperty(UnityEngine.Object target, string propertyPath)

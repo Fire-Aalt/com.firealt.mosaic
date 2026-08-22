@@ -5,7 +5,7 @@ using UnityEngine;
 namespace FireAlt.Mosaic.Authoring
 {
     [Serializable]
-    public struct SerializedIntGridCell : IComparable<SerializedIntGridCell>
+    public struct SerializedIntGridCell
     {
         [SerializeField] private Vector2Int _position;
         [SerializeField] private short _value;
@@ -19,12 +19,6 @@ namespace FireAlt.Mosaic.Authoring
         public Vector2Int Position => _position;
 
         public short Value => _value;
-
-        public int CompareTo(SerializedIntGridCell other)
-        {
-            var y = _position.y.CompareTo(other._position.y);
-            return y != 0 ? y : _position.x.CompareTo(other._position.x);
-        }
     }
 
     [Serializable]
