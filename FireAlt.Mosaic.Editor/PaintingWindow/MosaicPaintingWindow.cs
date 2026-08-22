@@ -44,6 +44,7 @@ namespace FireAlt.Mosaic.Editor
         private bool _showBounds;
         private bool _refreshQueued;
         private bool _selectFirstValue;
+        private int _snapshotRevision;
         private StageHandle _stage;
 
         internal static MosaicPaintingWindow ActiveWindow { get; private set; }
@@ -77,7 +78,7 @@ namespace FireAlt.Mosaic.Editor
             ActiveWindow?.ToggleDetails();
         }
 
-        private static void ExitPainting(KeyDownEvent evt)
+        internal static void ExitPainting(KeyDownEvent evt)
         {
             if (evt.keyCode != KeyCode.Escape || !MosaicPaintingController.IsPainting) return;
 
@@ -89,6 +90,8 @@ namespace FireAlt.Mosaic.Editor
         {
             var root = rootVisualElement;
             root.Clear();
+            root.UnregisterCallback<KeyDownEvent>(ExitPainting, TrickleDown.TrickleDown);
+            root.RegisterCallback<KeyDownEvent>(ExitPainting, TrickleDown.TrickleDown);
             root.EnableInClassList("mosaic-paint-theme--dark", EditorGUIUtility.isProSkin);
             root.EnableInClassList("mosaic-paint-theme--light", !EditorGUIUtility.isProSkin);
             root.styleSheets.Add(EditorResources.PaintingStyleSheet);
@@ -162,12 +165,10 @@ namespace FireAlt.Mosaic.Editor
             MosaicPaintingController.OpenWindow();
             _shortcutContext = new MosaicPaintingShortcutContext();
             ShortcutManager.RegisterContext(_shortcutContext);
-            rootVisualElement.RegisterCallback<KeyDownEvent>(ExitPainting, TrickleDown.TrickleDown);
 
             EditorApplication.update += OnEditorUpdate;
             SceneView.duringSceneGui += DuringSceneGui;
-            MosaicPaintingController.SnapshotChanged += QueueRefresh;
-            MosaicPaintingController.SnapshotChanged += OnPaintingChanged;
+            MosaicPaintingController.SnapshotChanged += OnSnapshotChanged;
 
             QueueRefresh();
         }
@@ -178,8 +179,7 @@ namespace FireAlt.Mosaic.Editor
 
             EditorApplication.update -= OnEditorUpdate;
             SceneView.duringSceneGui -= DuringSceneGui;
-            MosaicPaintingController.SnapshotChanged -= QueueRefresh;
-            MosaicPaintingController.SnapshotChanged -= OnPaintingChanged;
+            MosaicPaintingController.SnapshotChanged -= OnSnapshotChanged;
             rootVisualElement.UnregisterCallback<KeyDownEvent>(ExitPainting, TrickleDown.TrickleDown);
 
             if (_shortcutContext != null) ShortcutManager.UnregisterContext(_shortcutContext);
@@ -212,6 +212,7 @@ namespace FireAlt.Mosaic.Editor
 
             DiscoverTargets();
             BuildPalette();
+            _snapshotRevision = MosaicPaintingController.SnapshotRevision;
 
             if (_selectFirstValue)
             {
@@ -660,9 +661,16 @@ namespace FireAlt.Mosaic.Editor
             public int Order { get; }
         }
 
-        private void OnPaintingChanged()
+        private void OnSnapshotChanged()
         {
-            RefreshButtonSelection();
+            if (_snapshotRevision == MosaicPaintingController.SnapshotRevision)
+            {
+                RefreshButtonSelection();
+            }
+            else
+            {
+                QueueRefresh();
+            }
         }
 
         private void QueueRefresh()

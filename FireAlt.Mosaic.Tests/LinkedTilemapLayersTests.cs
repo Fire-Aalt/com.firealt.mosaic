@@ -275,6 +275,59 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
+        public void PaintingWindow_SelectionChangeKeepsExistingButtonForTransition()
+        {
+            var tilemap = CreateTilemap("Animated Selection");
+            var window = ScriptableObject.CreateInstance<MosaicPaintingWindow>();
+            try
+            {
+                window.CreateGUI();
+                var targets = GetWindowList<MosaicPaintingTarget>(window, "_targets");
+                targets.Clear();
+                targets.Add(new MosaicPaintingTarget(tilemap));
+                GetWindowList<LinkedTilemapLayers>(window, "_linkedComponents").Clear();
+                InvokeBuildPalette(window);
+
+                var button = window.rootVisualElement.Q<Button>(className: "mosaic-paint-value");
+                var selection = GetWindowList<MosaicPaintingSelection>(window, "_selections").First();
+                var refreshQueued = typeof(MosaicPaintingWindow).GetField("_refreshQueued",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                Assert.IsNotNull(button);
+                Assert.IsNotNull(refreshQueued);
+                refreshQueued.SetValue(window, false);
+
+                MosaicPaintingController.Select(selection);
+
+                Assert.AreSame(button, window.rootVisualElement.Q<Button>(className: "mosaic-paint-value"));
+                Assert.IsTrue(button.ClassListContains("mosaic-paint-value--selected"));
+                Assert.IsFalse((bool)refreshQueued.GetValue(window),
+                    "Selection must update the existing button instead of rebuilding the palette.");
+            }
+            finally
+            {
+                MosaicPaintingTool.ExitPainting();
+                Object.DestroyImmediate(window);
+            }
+        }
+
+        [Test]
+        public void PaintingWindow_EscapeHandlerClearsSelection()
+        {
+            var tilemap = CreateTilemap("Escape Selection");
+            var selection = MosaicPaintingSelection.Create(new MosaicPaintingTarget(tilemap),
+                _intGrid.intGridValues[0], StageUtility.GetCurrentStageHandle());
+            MosaicPaintingController.Select(selection);
+            Assert.IsTrue(MosaicPaintingController.IsPainting);
+
+            using var evt = KeyDownEvent.GetPooled('\0', KeyCode.Escape, EventModifiers.None);
+            MosaicPaintingWindow.ExitPainting(evt);
+
+            Assert.IsFalse(MosaicPaintingController.IsPainting);
+            Assert.IsNull(MosaicPaintingController.Selection);
+            Assert.IsFalse(MosaicPaintingController.SelectedId.HasValue);
+        }
+
+        [Test]
         public void PaintingWindow_GroupsTerrainAndPresentsLinkedButtonsAlphabetically()
         {
             EnterPrefabIsolation();

@@ -30,7 +30,9 @@ namespace FireAlt.Mosaic.Editor
         private static readonly HashSet<MosaicPaintingVisibilityTarget> NextVisibilityTargets = new();
         private static readonly List<MosaicPaintingVisibilityTarget> ContextPrefabVisibilityTargets = new();
         private static readonly Dictionary<Hash128, HashSet<Entity>> PendingSubSceneLoads = new();
+        private static readonly Dictionary<Hash128, List<MosaicPaintingTarget>> PendingOpenSubSceneTargets = new();
         private static readonly List<Hash128> CompletedSubSceneLoads = new();
+        private static readonly List<Hash128> CompletedOpenSubScenes = new();
         private static readonly MosaicPaintingPreview Preview = new();
         private static readonly MosaicPaintingPreviewInvalidation Invalidation = new();
 
@@ -44,6 +46,8 @@ namespace FireAlt.Mosaic.Editor
         private static MosaicPaintingSelectionId? _selectedId;
         private static bool _previewUpdatePending;
         private static uint _previewWorldVersion;
+
+        internal static int SnapshotRevision { get; private set; }
 
         static MosaicPaintingController()
         {
@@ -192,6 +196,15 @@ namespace FireAlt.Mosaic.Editor
                 if (target.IsValid) NextVisibilityTargets.Add(target.VisibilityTarget);
             }
 
+            // Unity can retain an outgoing anonymous renderer generation while an opened SubScene is replaced.
+            // Raw IntGrid mode must hide every exact renderer entity in the affected SceneSection, otherwise the
+            // outgoing original tilemap remains visible underneath the IntGrid overlay.
+            if (showIntGridColors)
+            {
+                AddSubSceneRendererVisibilityTargets(
+                    World.DefaultGameObjectInjectionWorld, targets, NextVisibilityTargets);
+            }
+
             if (PendingSubSceneLoads.Count == 0)
             {
                 visibilityChanged = !VisibilityTargets.SetEquals(NextVisibilityTargets);
@@ -216,6 +229,67 @@ namespace FireAlt.Mosaic.Editor
             SceneView.RepaintAll();
         }
 
+        internal static void AddSubSceneRendererVisibilityTargets(World world,
+            IReadOnlyList<MosaicPaintingTarget> targets, ISet<MosaicPaintingVisibilityTarget> visibilityTargets)
+        {
+            if (world == null || !world.IsCreated) return;
+
+            var entityManager = world.EntityManager;
+            var sceneGuids = new HashSet<Hash128>();
+            foreach (var target in targets)
+            {
+                var binding = target.RuntimeBinding;
+                if (!binding.IsCreated || binding.World != world || !entityManager.Exists(binding.RendererEntity)
+                    || !entityManager.HasComponent<SceneSection>(binding.RendererEntity))
+                {
+                    continue;
+                }
+
+                sceneGuids.Add(entityManager.GetSharedComponent<SceneSection>(binding.RendererEntity).SceneGUID);
+            }
+
+            if (sceneGuids.Count == 0) return;
+
+            var query = new EntityQueryBuilder(Allocator.Temp)
+                .WithAll<TilemapRendererData, SceneSection>()
+                .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
+                .Build(entityManager);
+            foreach (var rendererEntity in query.ToEntityArray(Allocator.Temp))
+            {
+                var sceneGuid = entityManager.GetSharedComponent<SceneSection>(rendererEntity).SceneGUID;
+                if (!sceneGuids.Contains(sceneGuid)) continue;
+
+                if (entityManager.HasComponent<IntGridData>(rendererEntity))
+                {
+                    AddVisibilityTarget(world, rendererEntity, rendererEntity, visibilityTargets);
+                    continue;
+                }
+
+                if (!entityManager.HasBuffer<TilemapTerrainLayerElement>(rendererEntity)) continue;
+                foreach (var layer in entityManager.GetBuffer<TilemapTerrainLayerElement>(rendererEntity, true))
+                {
+                    AddVisibilityTarget(world, layer.IntGridEntity, rendererEntity, visibilityTargets);
+                }
+            }
+            query.Dispose();
+        }
+
+        private static void AddVisibilityTarget(World world, Entity intGridEntity, Entity rendererEntity,
+            ISet<MosaicPaintingVisibilityTarget> visibilityTargets)
+        {
+            var entityManager = world.EntityManager;
+            if (!entityManager.Exists(intGridEntity) || !entityManager.HasComponent<IntGridData>(intGridEntity))
+            {
+                return;
+            }
+
+            var intGridHash = entityManager.GetComponentData<IntGridData>(intGridEntity).Hash;
+            var rendererHash = entityManager.GetComponentData<TilemapRendererData>(rendererEntity).MeshHash;
+            var binding = new MosaicPaintingRuntimeBinding(
+                world, intGridEntity, rendererEntity, intGridHash, rendererHash);
+            if (binding.IsCreated) visibilityTargets.Add(new MosaicPaintingVisibilityTarget(binding));
+        }
+
         internal static void RandomizeRuleEngineSeed(IReadOnlyList<MosaicPaintingTarget> targets)
         {
             if (MosaicPaintingPreview.RandomizeRuleEngineSeed(World.DefaultGameObjectInjectionWorld, targets) == 0)
@@ -238,6 +312,7 @@ namespace FireAlt.Mosaic.Editor
                 _stage = currentStage;
                 _prefabStage = currentPrefabStage;
                 PendingSubSceneLoads.Clear();
+                PendingOpenSubSceneTargets.Clear();
                 StopPainting();
                 QueueRefresh();
             }
@@ -279,9 +354,12 @@ namespace FireAlt.Mosaic.Editor
             ResolveSnapshotSelection();
             Preview.SetVisibility(VisibilityTargets, ContextPrefabVisibilityTargets, _showIntGridColors);
             TrackClosedSubSceneLoads();
-            _previewUpdatePending = _windowOpen && (rebuild || pendingBindings)
+            UpdatePendingOpenSubSceneTargets();
+            _previewUpdatePending = _windowOpen
+                                    && (rebuild || pendingBindings || PendingOpenSubSceneTargets.Count != 0)
                                     || PendingSubSceneLoads.Count != 0;
             if (_previewUpdatePending) RequestPreviewUpdates();
+            SnapshotRevision++;
             SnapshotChanged?.Invoke();
         }
 
@@ -446,21 +524,24 @@ namespace FireAlt.Mosaic.Editor
 
         private static void OnSceneOpened(Scene scene, OpenSceneMode mode)
         {
-            if (!scene.isSubScene)
-            {
-                QueueRefresh();
-                return;
-            }
-
             foreach (var subScene in Resources.FindObjectsOfTypeAll<SubScene>())
             {
-                if (AssetDatabase.GetAssetPath(subScene.SceneAsset) == scene.path)
-                {
-                    PendingSubSceneLoads.Remove(subScene.SceneGUID);
-                }
+                if (!IsSubSceneAssetPath(scene.path, AssetDatabase.GetAssetPath(subScene.SceneAsset))) continue;
+                PendingSubSceneLoads.Remove(subScene.SceneGUID);
+                var openedTargets = CollectAuthoringTargets(scene);
+                if (openedTargets.Count == 0) PendingOpenSubSceneTargets.Remove(subScene.SceneGUID);
+                else PendingOpenSubSceneTargets[subScene.SceneGUID] = openedTargets;
             }
 
-            QueueTargetRefresh();
+            // OpenScene invokes sceneOpened before SubSceneInspectorUtility.SetSceneAsSubScene can mark the scene,
+            // so scene.isSubScene is false here for that common workflow. Match the owning SubScene asset path,
+            // then retain its exact authoring targets until their replacement ECS bindings are published.
+            QueueRefresh();
+        }
+
+        internal static bool IsSubSceneAssetPath(string openedScenePath, string subSceneAssetPath)
+        {
+            return !string.IsNullOrEmpty(openedScenePath) && openedScenePath == subSceneAssetPath;
         }
 
         private static void OnSceneClosing(Scene scene, bool removingScene)
@@ -475,6 +556,7 @@ namespace FireAlt.Mosaic.Editor
                     continue;
                 }
 
+                PendingOpenSubSceneTargets.Remove(subScene.SceneGUID);
                 PendingSubSceneLoads[subScene.SceneGUID] = CollectMosaicRenderers(subScene.SceneGUID);
                 return;
             }
@@ -500,6 +582,7 @@ namespace FireAlt.Mosaic.Editor
                 {
                     PendingSubSceneLoads.Add(subScene.SceneGUID, CollectMosaicRenderers(subScene.SceneGUID));
                 }
+                PendingOpenSubSceneTargets.Remove(subScene.SceneGUID);
                 QueueTargetRefresh();
                 EditorApplication.QueuePlayerLoopUpdate();
                 return;
@@ -522,6 +605,7 @@ namespace FireAlt.Mosaic.Editor
             {
                 Preview.Dispose();
                 PendingSubSceneLoads.Clear();
+                PendingOpenSubSceneTargets.Clear();
                 _previewUpdatePending = false;
                 ClearSelection();
             }
@@ -613,6 +697,71 @@ namespace FireAlt.Mosaic.Editor
                     PendingSubSceneLoads.Add(subScene.SceneGUID, null);
                 }
             }
+        }
+
+        private static List<MosaicPaintingTarget> CollectAuthoringTargets(Scene scene)
+        {
+            var targets = new List<MosaicPaintingTarget>();
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                foreach (var tilemap in root.GetComponentsInChildren<TilemapAuthoring>(true))
+                {
+                    targets.Add(new MosaicPaintingTarget(tilemap));
+                }
+
+                foreach (var terrain in root.GetComponentsInChildren<TilemapTerrainAuthoring>(true))
+                {
+                    for (var i = 0; i < terrain.intGridLayers.Count; i++)
+                    {
+                        targets.Add(new MosaicPaintingTarget(terrain, terrain.intGridLayers[i], i));
+                    }
+                }
+            }
+
+            return targets;
+        }
+
+        private static void UpdatePendingOpenSubSceneTargets()
+        {
+            if (PendingOpenSubSceneTargets.Count == 0) return;
+
+            CompletedOpenSubScenes.Clear();
+            foreach (var pending in PendingOpenSubSceneTargets)
+            {
+                if (AreOpenSubSceneTargetsReady(pending.Value, Targets))
+                {
+                    CompletedOpenSubScenes.Add(pending.Key);
+                }
+            }
+
+            foreach (var sceneGuid in CompletedOpenSubScenes) PendingOpenSubSceneTargets.Remove(sceneGuid);
+        }
+
+        internal static bool AreOpenSubSceneTargetsReady(IReadOnlyList<MosaicPaintingTarget> openedTargets,
+            IReadOnlyList<MosaicPaintingTarget> publishedTargets)
+        {
+            foreach (var openedTarget in openedTargets)
+            {
+                if (!openedTarget.IsPaintable) continue;
+
+                var ready = false;
+                foreach (var publishedTarget in publishedTargets)
+                {
+                    if (publishedTarget.IsEntityTarget || !publishedTarget.IsPaintable
+                                                       || !publishedTarget.RuntimeBinding.IsCreated
+                                                       || !publishedTarget.Id.Equals(openedTarget.Id))
+                    {
+                        continue;
+                    }
+
+                    ready = true;
+                    break;
+                }
+
+                if (!ready) return false;
+            }
+
+            return true;
         }
 
         private static HashSet<Entity> CollectMosaicRenderers(Hash128 sceneGuid)

@@ -328,6 +328,64 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
+        public void PaintingController_OpenedSubSceneWaitsForPublishedRuntimeBinding()
+        {
+            var tilemap = CreateTilemap("Opened Tilemap").GetComponent<TilemapAuthoring>();
+            var openedTarget = new MosaicPaintingTarget(tilemap);
+            var entity = _world.EntityManager.CreateEntity();
+            var intGridHash = new Unity.Entities.Hash128(51u, 0u, 0u, 0u);
+            var rendererHash = new Unity.Entities.Hash128(52u, 0u, 0u, 0u);
+            var binding = new MosaicPaintingRuntimeBinding(
+                _world, entity, entity, intGridHash, rendererHash);
+            var boundTarget = new MosaicPaintingTarget(tilemap, binding);
+
+            Assert.IsFalse(MosaicPaintingController.AreOpenSubSceneTargetsReady(
+                new[] { openedTarget }, System.Array.Empty<MosaicPaintingTarget>()));
+            Assert.IsFalse(MosaicPaintingController.AreOpenSubSceneTargetsReady(
+                new[] { openedTarget }, new[] { openedTarget }),
+                "An authoring candidate without its runtime binding must keep the transition pending.");
+            Assert.IsTrue(MosaicPaintingController.AreOpenSubSceneTargetsReady(
+                new[] { openedTarget }, new[] { boundTarget }));
+        }
+
+        [Test]
+        public void PaintingController_RecognizesSubSceneBeforeUnityMarksOpenedScene()
+        {
+            const string SUB_SCENE_PATH = "Assets/Scenes/Gameplay/Gameplay_Settings.unity";
+
+            Assert.IsTrue(MosaicPaintingController.IsSubSceneAssetPath(SUB_SCENE_PATH, SUB_SCENE_PATH),
+                "sceneOpened must recognize the asset path before Unity marks Scene.isSubScene.");
+            Assert.IsFalse(MosaicPaintingController.IsSubSceneAssetPath(
+                "Assets/Scenes/Gameplay.unity", SUB_SCENE_PATH));
+        }
+
+        [Test]
+        public void PaintingController_RawVisibilityIncludesOutgoingSubSceneRenderers()
+        {
+            var sceneGuid = new Unity.Entities.Hash128(61u, 0u, 0u, 0u);
+            var current = CreateEntityPaintingTarget(float3.zero);
+            _world.EntityManager.AddSharedComponent(current.RuntimeBinding.RendererEntity,
+                new SceneSection { SceneGUID = sceneGuid });
+            var outgoing = CreateEntityPaintingTarget(new float3(1f),
+                new Unity.Entities.Hash128(62u, 0u, 0u, 0u));
+            _world.EntityManager.AddSharedComponent(outgoing.RuntimeBinding.RendererEntity,
+                new SceneSection { SceneGUID = sceneGuid });
+            var unrelated = CreateEntityPaintingTarget(new float3(2f),
+                new Unity.Entities.Hash128(63u, 0u, 0u, 0u));
+            _world.EntityManager.AddSharedComponent(unrelated.RuntimeBinding.RendererEntity,
+                new SceneSection { SceneGUID = new Unity.Entities.Hash128(64u, 0u, 0u, 0u) });
+            var visibilityTargets = new HashSet<MosaicPaintingVisibilityTarget>();
+
+            MosaicPaintingController.AddSubSceneRendererVisibilityTargets(
+                _world, new[] { current }, visibilityTargets);
+
+            var renderers = visibilityTargets.Select(target => target.Binding.RendererEntity).ToArray();
+            CollectionAssert.Contains(renderers, current.RuntimeBinding.RendererEntity);
+            CollectionAssert.Contains(renderers, outgoing.RuntimeBinding.RendererEntity);
+            CollectionAssert.DoesNotContain(renderers, unrelated.RuntimeBinding.RendererEntity);
+        }
+
+        [Test]
         public void PaintingCatalog_PrimaryEntityBindingUsesGameObjectIdentity()
         {
             var tilemap = CreateTilemap("Shared Primary Entity").GetComponent<TilemapAuthoring>();
