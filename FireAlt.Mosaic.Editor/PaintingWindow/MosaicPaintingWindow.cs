@@ -79,6 +79,14 @@ namespace FireAlt.Mosaic.Editor
             ActiveWindow?.ToggleDetails();
         }
 
+        private static void ExitPainting(KeyDownEvent evt)
+        {
+            if (evt.keyCode != KeyCode.Escape || !MosaicPaintingSession.IsPainting) return;
+
+            evt.StopImmediatePropagation();
+            MosaicPaintingTool.ExitPainting();
+        }
+
         public void CreateGUI()
         {
             var root = rootVisualElement;
@@ -166,6 +174,7 @@ namespace FireAlt.Mosaic.Editor
             ActiveWindow = this;
             _shortcutContext = new MosaicPaintingShortcutContext();
             ShortcutManager.RegisterContext(_shortcutContext);
+            rootVisualElement.RegisterCallback<KeyDownEvent>(ExitPainting, TrickleDown.TrickleDown);
 
             EditorApplication.update += OnEditorUpdate;
             SceneView.duringSceneGui += DuringSceneGui;
@@ -185,6 +194,7 @@ namespace FireAlt.Mosaic.Editor
             EditorApplication.playModeStateChanged -= OnPlayModeChanged;
             MosaicPaintingPreviewService.Refreshed -= QueueRefresh;
             MosaicPaintingSession.Changed -= OnPaintingChanged;
+            rootVisualElement.UnregisterCallback<KeyDownEvent>(ExitPainting, TrickleDown.TrickleDown);
 
             if (_shortcutContext != null) ShortcutManager.UnregisterContext(_shortcutContext);
             _shortcutContext = null;
