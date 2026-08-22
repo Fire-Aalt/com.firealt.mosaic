@@ -124,6 +124,7 @@ namespace FireAlt.Mosaic
             state.Dependency = new FindHashesToUpdateJob
             {
 	            IntGridLayers = dataSingleton.IntGridLayers,
+	            IntGridDataLookup = SystemAPI.GetComponentLookup<IntGridData>(true),
 	            HashesToUpdate = singleton.HashesToUpdate,
 	            CullingBoundsChanged = cullingBoundsChanged,
 	            Terrains = singleton.Terrains
@@ -133,6 +134,7 @@ namespace FireAlt.Mosaic
             {
 	            TerrainDataLookup = terrainDataLookup,
 	            TerrainLayersBufferLookup = SystemAPI.GetBufferLookup<TilemapTerrainLayerElement>(true),
+	            IntGridDataLookup = SystemAPI.GetComponentLookup<IntGridData>(true),
 	            IntGridLayers = dataSingleton.IntGridLayers,
 	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
 	            Terrains = singleton.Terrains,
@@ -157,41 +159,46 @@ namespace FireAlt.Mosaic
         {
             [ReadOnly]
             public NativeHashMap<Hash128, TilemapIntGridSingleton.IntGridLayer> IntGridLayers;
+            [ReadOnly]
+            public ComponentLookup<IntGridData> IntGridDataLookup;
             
             public bool CullingBoundsChanged;
             public NativeList<Hash128> HashesToUpdate;
             public NativeHashMap<Hash128, Singleton.Terrain> Terrains;
             
-            private void Execute(in TerrainData terrainData, in DynamicBuffer<TilemapTerrainLayerElement> layers, Entity entity)
+            private void Execute(in TilemapRendererData rendererData,
+                in DynamicBuffer<TilemapTerrainLayerElement> layers, Entity entity)
             {
+                var terrainHash = rendererData.MeshHash;
                 var created = false;
-                if (Terrains.TryGetValue(terrainData.TerrainHash, out var existing)
+                if (Terrains.TryGetValue(terrainHash, out var existing)
                     && existing.TerrainEntity != entity)
                 {
                     existing.Dispose();
-                    Terrains.Remove(terrainData.TerrainHash);
+                    Terrains.Remove(terrainHash);
                 }
 
-                if (!Terrains.ContainsKey(terrainData.TerrainHash))
+                if (!Terrains.ContainsKey(terrainHash))
                 {
                     var terrain = new Singleton.Terrain(entity, 256, Allocator.Persistent);
-                    Terrains.Add(terrainData.TerrainHash, terrain);
+                    Terrains.Add(terrainHash, terrain);
                     created = true;
                 }
 
                 if (created)
                 {
-                    HashesToUpdate.Add(terrainData.TerrainHash);
+                    HashesToUpdate.Add(terrainHash);
                     return;
                 }
                 
                 foreach (var layer in layers)
                 {
-                    ref var dataLayer = ref IntGridLayers.GetValueAsRef(layer.IntGridHash);
+                    var intGridHash = IntGridDataLookup[layer.IntGridEntity].Hash;
+                    ref var dataLayer = ref IntGridLayers.GetValueAsRef(intGridHash);
                     
                     if (!dataLayer.RefreshedPositions.IsEmpty || CullingBoundsChanged || dataLayer.Cleared)
                     {
-                        HashesToUpdate.Add(terrainData.TerrainHash);
+                        HashesToUpdate.Add(terrainHash);
                         return;
                     }
                 }
@@ -206,6 +213,8 @@ namespace FireAlt.Mosaic
 	        public ComponentLookup<TerrainData> TerrainDataLookup;
             [ReadOnly]
             public BufferLookup<TilemapTerrainLayerElement> TerrainLayersBufferLookup;
+            [ReadOnly]
+            public ComponentLookup<IntGridData> IntGridDataLookup;
             
             [ReadOnly]
             public NativeArray<Hash128> HashesToUpdate;
@@ -220,14 +229,15 @@ namespace FireAlt.Mosaic
             public void Execute(int index)
             {
                 ref var terrainData = ref Terrains.GetValueAsRef(HashesToUpdate[index]);
-                var terrainLayersBuffer = TerrainLayersBufferLookup[terrainData.TerrainEntity].Reinterpret<Hash128>();
+                var terrainLayersBuffer = TerrainLayersBufferLookup[terrainData.TerrainEntity];
                 var maxLayersBlend = TerrainDataLookup[terrainData.TerrainEntity].MaxLayersBlend;
                 
                 terrainData.RawTilesToBlend.Clear();
                 
                 for (int layerIndex = terrainLayersBuffer.Length - 1; layerIndex >= 0; layerIndex--)
                 {
-                    var intGridLayer = IntGridLayers[terrainLayersBuffer[layerIndex]];
+                    var intGridHash = IntGridDataLookup[terrainLayersBuffer[layerIndex].IntGridEntity].Hash;
+                    var intGridLayer = IntGridLayers[intGridHash];
 
                     foreach (var kvp in intGridLayer.RenderedSprites)
                     {

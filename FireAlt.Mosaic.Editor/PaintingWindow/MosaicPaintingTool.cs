@@ -31,7 +31,7 @@ namespace FireAlt.Mosaic.Editor
         private void OnEnable()
         {
             _toolbarIcon = new GUIContent(EditorResources.MosaicPaintingToolIcon, "Paint Mosaic IntGrid values");
-            MosaicPaintingPreviewService.Refreshed += RefreshAvailability;
+            MosaicPaintingController.SnapshotChanged += RefreshAvailability;
             EditorApplication.delayCall += RefreshAvailability;
         }
 
@@ -40,7 +40,7 @@ namespace FireAlt.Mosaic.Editor
             EditorApplication.delayCall -= RefreshAvailability;
             EditorApplication.delayCall -= OpenPaintingWindow;
             EditorApplication.delayCall -= ExitPainting;
-            MosaicPaintingPreviewService.Refreshed -= RefreshAvailability;
+            MosaicPaintingController.SnapshotChanged -= RefreshAvailability;
         }
 
         public override bool IsAvailable()
@@ -50,14 +50,14 @@ namespace FireAlt.Mosaic.Editor
 
         public override void OnActivated()
         {
-            if (!MosaicPaintingSession.IsPainting)
+            if (!MosaicPaintingController.IsPainting)
             {
                 _activationPending = true;
                 EditorApplication.delayCall += OpenPaintingWindow;
             }
 
             SceneView.RepaintAll();
-            MosaicPaintingSession.NotifyChanged();
+            MosaicPaintingController.NotifyChanged();
         }
 
         public override void OnWillBeDeactivated()
@@ -66,14 +66,14 @@ namespace FireAlt.Mosaic.Editor
             _activationPending = false;
             EndStroke();
             SceneView.RepaintAll();
-            MosaicPaintingSession.Clear();
+            MosaicPaintingController.ClearSelection();
         }
 
         private void OpenPaintingWindow()
         {
             try
             {
-                if (ToolManager.activeToolType == typeof(MosaicPaintingTool) && !MosaicPaintingSession.IsPainting)
+                if (ToolManager.activeToolType == typeof(MosaicPaintingTool) && !MosaicPaintingController.IsPainting)
                 {
                     MosaicPaintingWindow.OpenAndSelectFirst();
                 }
@@ -97,12 +97,12 @@ namespace FireAlt.Mosaic.Editor
                 return;
             }
 
-            var selection = MosaicPaintingSession.Selection;
+            var selection = MosaicPaintingController.Selection;
             var target = selection?.Anchor;
             if (selection == null || !selection.IsValid || target == null)
             {
                 EndStroke();
-                MosaicPaintingSession.Clear();
+                MosaicPaintingController.ClearSelection();
                 if (_activationPending) return;
                 ToolManager.RestorePreviousPersistentTool();
                 return;
@@ -142,7 +142,7 @@ namespace FireAlt.Mosaic.Editor
                     if (!selection.TryBeginStroke(_erase, out _paintStroke))
                     {
                         EndStroke();
-                        MosaicPaintingSession.Clear();
+                        MosaicPaintingController.ClearSelection();
                         currentEvent.Use();
                         break;
                     }
@@ -223,7 +223,7 @@ namespace FireAlt.Mosaic.Editor
 
         private void AddBrushCells(Vector2Int center)
         {
-            var radius = MosaicPaintingSession.BrushRadius;
+            var radius = MosaicPaintingController.BrushRadius;
             for (var x = -radius; x <= radius; x++)
             {
                 for (var y = -radius; y <= radius; y++)
@@ -241,14 +241,14 @@ namespace FireAlt.Mosaic.Editor
 
         private void DrawBrush(MosaicPaintingTarget target, Vector2Int center)
         {
-            var fill = MosaicPaintingSession.Color;
+            var fill = MosaicPaintingController.Color;
             fill.a = 0.18f;
-            var outline = MosaicPaintingSession.Color;
+            var outline = MosaicPaintingController.Color;
             outline.a = 1f;
 
             var previousZTest = Handles.zTest;
             Handles.zTest = CompareFunction.LessEqual;
-            var radius = MosaicPaintingSession.BrushRadius;
+            var radius = MosaicPaintingController.BrushRadius;
             for (var x = -radius; x <= radius; x++)
             {
                 for (var y = -radius; y <= radius; y++)
@@ -264,13 +264,13 @@ namespace FireAlt.Mosaic.Editor
 
         internal static bool IsWithinBrushRadius(int x, int y)
         {
-            var radius = MosaicPaintingSession.BrushRadius;
+            var radius = MosaicPaintingController.BrushRadius;
             return (x * x) + (y * y) <= radius * radius;
         }
 
         internal static void ExitPainting()
         {
-            MosaicPaintingSession.Clear();
+            MosaicPaintingController.ClearSelection();
             if (ToolManager.activeToolType == typeof(MosaicPaintingTool))
             {
                 ToolManager.RestorePreviousPersistentTool();

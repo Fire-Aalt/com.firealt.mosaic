@@ -34,7 +34,7 @@ namespace FireAlt.Mosaic.Authoring
             var tilePivot = float2.zero;
             var tileSize = float2.zero;
             var refSprite = new RefSprite();
-            var runtimeHash = BakerUtils.GetHash(this, intGrid, isGlobal, 0);
+            var runtimeHash = BakerUtils.GetHash(intGrid, isGlobal);
 
             BakerUtils.AddTilemapTransform(ref commands, gridEntity, renderingData);
             BakerUtils.AddIntGridLayerData(ref commands, intGrid, runtimeHash, refSprite, false,

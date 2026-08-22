@@ -48,8 +48,8 @@ namespace FireAlt.Mosaic.Tests
         [TearDown]
         public void TearDown()
         {
-            MosaicPaintingSession.BrushSize = MosaicPaintingSession.MIN_BRUSH_SIZE;
-            MosaicPaintingSession.Clear();
+            MosaicPaintingController.BrushSize = MosaicPaintingController.MIN_BRUSH_SIZE;
+            MosaicPaintingController.ClearSelection();
             if (ToolManager.activeToolType == typeof(MosaicPaintingTool)) ToolManager.RestorePreviousPersistentTool();
             if (_prefabPath == null)
             {
@@ -239,38 +239,22 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
-        public void LinkedLayer_IncrementalEventsReportChangedTargetsAndAppliedValues()
+        public void LinkedLayer_IncrementalStrokeUpdatesOnlyChangedCells()
         {
             var painted = CreateTilemap("Painted");
             var removed = CreateTilemap("Removed");
             var position = new Vector2Int(1, -4);
             Assert.IsTrue(new MosaicPaintingTarget(removed).SetCell(position, 1));
             var selection = CreateSelection(CreateLinked("Linked", (painted, 2), (removed, 0)));
-            var changes = new List<(MosaicPaintingTarget Target, short Value)>();
-            void OnCellsChanged(MosaicPaintingTarget target, IReadOnlyCollection<Vector2Int> positions, short value)
+            Assert.IsTrue(selection.TryBeginStroke(false, out var stroke));
+            using (stroke)
             {
-                Assert.Contains(position, positions.ToList());
-                changes.Add((target, value));
+                Assert.IsTrue(stroke.SetCells(new[] { position }));
+                Assert.IsFalse(stroke.SetCells(new[] { position }));
             }
 
-            MosaicPaintingSession.CellsChanged += OnCellsChanged;
-            try
-            {
-                Assert.IsTrue(selection.TryBeginStroke(false, out var stroke));
-                using (stroke)
-                {
-                    Assert.IsTrue(stroke.SetCells(new[] { position }));
-                    Assert.IsFalse(stroke.SetCells(new[] { position }));
-                }
-            }
-            finally
-            {
-                MosaicPaintingSession.CellsChanged -= OnCellsChanged;
-            }
-
-            Assert.AreEqual(2, changes.Count);
-            Assert.AreSame(painted, changes.Single(change => change.Value == 2).Target.Owner);
-            Assert.AreSame(removed, changes.Single(change => change.Value == 0).Target.Owner);
+            AssertCell(painted, position, 2);
+            Assert.IsEmpty(removed.PaintedCells);
         }
 
         [Test]
@@ -282,12 +266,12 @@ namespace FireAlt.Mosaic.Tests
             var original = CreateSelection(linked);
             var refreshed = CreateSelection(linked);
 
-            MosaicPaintingSession.Select(original);
-            Assert.AreSame(original, MosaicPaintingSession.Selection);
+            MosaicPaintingController.Select(original);
+            Assert.AreSame(original, MosaicPaintingController.Selection);
             Assert.AreEqual(original.Id, refreshed.Id);
-            MosaicPaintingSession.Select(refreshed);
-            Assert.AreSame(refreshed, MosaicPaintingSession.Selection);
-            Assert.AreSame(first, MosaicPaintingSession.Target.Owner);
+            MosaicPaintingController.Select(refreshed);
+            Assert.AreSame(refreshed, MosaicPaintingController.Selection);
+            Assert.AreSame(first, MosaicPaintingController.Target.Owner);
         }
 
         [Test]
@@ -315,6 +299,16 @@ namespace FireAlt.Mosaic.Tests
             try
             {
                 window.CreateGUI();
+                var targets = GetWindowList<MosaicPaintingTarget>(window, "_targets");
+                targets.Clear();
+                targets.Add(new MosaicPaintingTarget(terrain, terrain.intGridLayers[0], 0));
+                targets.Add(new MosaicPaintingTarget(terrain, terrain.intGridLayers[1], 1));
+                targets.Add(new MosaicPaintingTarget(tilemap));
+                var linkedComponents = GetWindowList<LinkedTilemapLayers>(window, "_linkedComponents");
+                linkedComponents.Clear();
+                linkedComponents.Add(alpha);
+                linkedComponents.Add(zulu);
+                InvokeBuildPalette(window);
                 var foldouts = window.rootVisualElement.Query<Foldout>().ToList();
                 var terrainFoldout = foldouts.Single(foldout => ReferenceEquals(foldout.userData, terrain));
                 Assert.IsTrue(terrainFoldout.ClassListContains("mosaic-paint-group--top-level"));
@@ -349,9 +343,9 @@ namespace FireAlt.Mosaic.Tests
                 Assert.AreEqual(Color.cyan, zuluButton
                     .Q<VisualElement>(className: "mosaic-paint-value__accent").style.backgroundColor.value);
 
-                MosaicPaintingSession.BrushSize = 3;
-                Assert.AreEqual(3, MosaicPaintingSession.BrushSize);
-                Assert.AreEqual(2, MosaicPaintingSession.BrushRadius);
+                MosaicPaintingController.BrushSize = 3;
+                Assert.AreEqual(3, MosaicPaintingController.BrushSize);
+                Assert.AreEqual(2, MosaicPaintingController.BrushRadius);
                 Assert.IsTrue(MosaicPaintingTool.IsWithinBrushRadius(2, 0));
                 Assert.IsFalse(MosaicPaintingTool.IsWithinBrushRadius(2, 2));
             }
@@ -370,10 +364,10 @@ namespace FireAlt.Mosaic.Tests
             var linked = CreateLinked("Outside Linked", (tilemap, 1));
             var stage = StageUtility.GetCurrentStageHandle();
 
-            Assert.IsFalse(MosaicPaintingPreviewService.IsAllowedAuthoringLocation(tilemap, stage));
-            Assert.IsFalse(MosaicPaintingPreviewService.IsAllowedAuthoringLocation(
+            Assert.IsFalse(MosaicPaintingController.IsAllowedAuthoringLocation(tilemap, stage));
+            Assert.IsFalse(MosaicPaintingController.IsAllowedAuthoringLocation(
                 terrainObject.GetComponent<TilemapTerrainAuthoring>(), stage));
-            Assert.IsFalse(MosaicPaintingPreviewService.IsAllowedAuthoringLocation(linked, stage));
+            Assert.IsFalse(MosaicPaintingController.IsAllowedAuthoringLocation(linked, stage));
         }
 
         [Test]
@@ -393,6 +387,16 @@ namespace FireAlt.Mosaic.Tests
             try
             {
                 window.CreateGUI();
+                var targets = GetWindowList<MosaicPaintingTarget>(window, "_targets");
+                targets.Clear();
+                targets.Add(new MosaicPaintingTarget(defaultTarget));
+                targets.Add(new MosaicPaintingTarget(hiddenTarget));
+                targets.Add(new MosaicPaintingTarget(unrelatedTarget));
+                var linkedComponents = GetWindowList<LinkedTilemapLayers>(window, "_linkedComponents");
+                linkedComponents.Clear();
+                linkedComponents.Add(defaultLinked);
+                linkedComponents.Add(hiddenLinked);
+                InvokeBuildPalette(window);
                 var foldouts = window.rootVisualElement.Query<Foldout>().ToList();
                 var rawOwners = foldouts.Where(foldout => foldout.userData is MosaicPaintingTarget)
                     .Select(foldout => ((MosaicPaintingTarget)foldout.userData).Owner).ToList();
@@ -415,6 +419,33 @@ namespace FireAlt.Mosaic.Tests
                 Object.DestroyImmediate(window);
             }
         }
+
+        [Test]
+        public void PaintingWindow_PendingTargetAndDependentLinkedLayerAreHidden()
+        {
+            EnterPrefabIsolation();
+            var tilemap = CreateTilemap("Pending Target");
+            var linked = CreateLinked("Pending Links", (tilemap, 1));
+            var window = ScriptableObject.CreateInstance<MosaicPaintingWindow>();
+            try
+            {
+                window.CreateGUI();
+                var targets = GetWindowList<MosaicPaintingTarget>(window, "_targets");
+                targets.Clear();
+                var linkedComponents = GetWindowList<LinkedTilemapLayers>(window, "_linkedComponents");
+                linkedComponents.Clear();
+                linkedComponents.Add(linked);
+                InvokeBuildPalette(window);
+
+                var foldouts = window.rootVisualElement.Query<Foldout>().ToList();
+                Assert.IsFalse(foldouts.Any(foldout => ReferenceEquals(foldout.userData, linked)));
+                Assert.IsFalse(foldouts.Any(foldout => foldout.userData is MosaicPaintingTarget));
+            }
+            finally
+            {
+                Object.DestroyImmediate(window);
+            }
+        }
         
         [Test]
         public void IntGridColorFields_DisableAlphaPicking()
@@ -426,6 +457,48 @@ namespace FireAlt.Mosaic.Tests
 
             Assert.IsFalse(linkedColor.showAlpha);
             Assert.IsFalse(valueColor.showAlpha);
+        }
+
+        [Test]
+        public void PaintingWindow_CtrlHTogglesRawIntGridVisibility()
+        {
+            var window = ScriptableObject.CreateInstance<MosaicPaintingWindow>();
+            try
+            {
+                window.CreateGUI();
+                var toggle = typeof(MosaicPaintingWindow).GetMethod("ToggleDetails",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+                var showField = typeof(MosaicPaintingWindow).GetField("_showIntGridColors",
+                    BindingFlags.Instance | BindingFlags.NonPublic);
+
+                Assert.IsNotNull(toggle);
+                Assert.IsNotNull(showField);
+                Assert.IsFalse((bool)showField.GetValue(window));
+                toggle.Invoke(window, null);
+                Assert.IsTrue((bool)showField.GetValue(window));
+                toggle.Invoke(window, null);
+                Assert.IsFalse((bool)showField.GetValue(window));
+            }
+            finally
+            {
+                Object.DestroyImmediate(window);
+            }
+        }
+
+        private static List<T> GetWindowList<T>(MosaicPaintingWindow window, string fieldName)
+        {
+            var field = typeof(MosaicPaintingWindow).GetField(fieldName,
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(field);
+            return (List<T>)field.GetValue(window);
+        }
+
+        private static void InvokeBuildPalette(MosaicPaintingWindow window)
+        {
+            var method = typeof(MosaicPaintingWindow).GetMethod("BuildPalette",
+                BindingFlags.Instance | BindingFlags.NonPublic);
+            Assert.IsNotNull(method);
+            method.Invoke(window, null);
         }
 
         private IntGridDefinition CreateIntGrid(string name, params Color[] colors)

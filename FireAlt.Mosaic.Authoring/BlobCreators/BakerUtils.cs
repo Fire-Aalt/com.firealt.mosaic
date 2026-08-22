@@ -6,7 +6,6 @@ using FireAlt.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
-using UnityEditor;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 
@@ -177,14 +176,9 @@ namespace FireAlt.Mosaic.Authoring
             }
         }
         
-        public static Hash128 GetHash(UnityEngine.Object owner, IntGridDefinition intGrid, bool isGlobal,
-            int layerIndex)
+        public static Hash128 GetHash(IntGridDefinition intGrid, bool isGlobal)
         {
-            if (intGrid == null) return default;
-            if (isGlobal) return intGrid.Hash;
-
-            var ownerId = GlobalObjectId.GetGlobalObjectIdSlow(owner);
-            return UnityEngine.Hash128.Compute($"{ownerId}:{intGrid.Hash}:{layerIndex}");
+            return intGrid != null && isGlobal ? intGrid.Hash : default;
         } 
     }
 }

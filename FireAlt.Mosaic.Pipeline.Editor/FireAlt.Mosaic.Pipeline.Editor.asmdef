@@ -1,0 +1,37 @@
+{
+    "name": "FireAlt.Mosaic.Pipeline.Editor",
+    "rootNamespace": "FireAlt.Mosaic.Pipeline.Editor",
+    "references": [
+        "FireAlt.Mosaic.Authoring",
+        "FireAlt.Mosaic.Data",
+        "FireAlt.Mosaic.Editor",
+        "Unity.Collections",
+        "Unity.Entities",
+        "Unity.Entities.Graphics",
+        "Unity.Mathematics",
+        "Unity.Mathematics.Extensions",
+        "Unity.Pipeline",
+        "Unity.Pipeline.Editor",
+        "Unity.Scenes",
+        "Unity.Transforms"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "FIREALT_MOSAIC_PIPELINE"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.pipeline",
+            "expression": "",
+            "define": "FIREALT_MOSAIC_PIPELINE"
+        }
+    ],
+    "noEngineReferences": false
+}

@@ -3,55 +3,89 @@ using System.Collections.Generic;
 using FireAlt.Core.Editor;
 using FireAlt.Mosaic.Authoring;
 using FireAlt.Mosaic.Data;
-using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
 using Hash128 = Unity.Entities.Hash128;
 
 namespace FireAlt.Mosaic.Editor
 {
-    internal readonly struct MosaicPaintingVisibilityTarget : IEquatable<MosaicPaintingVisibilityTarget>
+    internal readonly struct MosaicPaintingTargetId : IEquatable<MosaicPaintingTargetId>
     {
-        public MosaicPaintingVisibilityTarget(Hash128 intGridHash, Hash128 rendererHash)
+        public MosaicPaintingTargetId(EntityId gameObjectId, EntityId authoringId, int layerIndex)
         {
+            GameObjectId = gameObjectId;
+            AuthoringId = authoringId;
+            LayerIndex = layerIndex;
+        }
+
+        public EntityId GameObjectId { get; }
+
+        public EntityId AuthoringId { get; }
+
+        public int LayerIndex { get; }
+
+        public bool Equals(MosaicPaintingTargetId other)
+        {
+            return GameObjectId.Equals(other.GameObjectId) && AuthoringId.Equals(other.AuthoringId)
+                && LayerIndex == other.LayerIndex;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is MosaicPaintingTargetId other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hashCode = GameObjectId.GetHashCode();
+                hashCode = (hashCode * 397) ^ AuthoringId.GetHashCode();
+                return (hashCode * 397) ^ LayerIndex;
+            }
+        }
+    }
+
+    internal readonly struct MosaicPaintingRuntimeBinding
+    {
+        public MosaicPaintingRuntimeBinding(World world, Entity intGridEntity, Entity rendererEntity,
+            Hash128 intGridHash, Hash128 rendererHash)
+        {
+            World = world;
+            IntGridEntity = intGridEntity;
+            RendererEntity = rendererEntity;
             IntGridHash = intGridHash;
             RendererHash = rendererHash;
         }
+
+        public World World { get; }
+
+        public Entity IntGridEntity { get; }
+
+        public Entity RendererEntity { get; }
 
         public Hash128 IntGridHash { get; }
 
         public Hash128 RendererHash { get; }
 
-        public bool Equals(MosaicPaintingVisibilityTarget other)
-        {
-            return IntGridHash.Equals(other.IntGridHash) && RendererHash.Equals(other.RendererHash);
-        }
-
-        public override bool Equals(object obj)
-        {
-            return obj is MosaicPaintingVisibilityTarget other && Equals(other);
-        }
-
-        public override int GetHashCode()
-        {
-            return (IntGridHash.GetHashCode() * 397) ^ RendererHash.GetHashCode();
-        }
+        public bool IsCreated => World != null && World.IsCreated && IntGridEntity != Entity.Null
+                                 && RendererEntity != Entity.Null && IntGridHash != default
+                                 && RendererHash != default;
     }
 
-    internal readonly struct MosaicPaintingContextVisibilityTarget
+    internal readonly struct MosaicPaintingVisibilityTarget
     {
-        public MosaicPaintingContextVisibilityTarget(MosaicPaintingVisibilityTarget target,
-            EntityId originatingEntityId)
+        public MosaicPaintingVisibilityTarget(MosaicPaintingRuntimeBinding binding,
+            EntityId originatingEntityId = default)
         {
-            Target = target;
+            Binding = binding;
             OriginatingEntityId = originatingEntityId;
         }
 
-        public MosaicPaintingVisibilityTarget Target { get; }
+        public MosaicPaintingRuntimeBinding Binding { get; }
 
         public EntityId OriginatingEntityId { get; }
     }
@@ -62,31 +96,27 @@ namespace FireAlt.Mosaic.Editor
         private const string PAINTED_LAYERS = "_paintedLayers";
         private const string INT_GRID = "_intGrid";
         private const string CELLS = "_cells";
-        private const string POSITION = "_position";
-        private const string VALUE = "_value";
-
         private readonly List<IntGridValueDefinition> _entityValues = new();
         private readonly List<SerializedIntGridCell> _entityCells = new();
-        private readonly World _world;
-        private readonly Entity _intGridEntity;
-        private readonly Entity _rendererEntity;
-        private readonly Hash128 _intGridHash;
-        private readonly Hash128 _rendererHash;
+        private readonly MosaicPaintingRuntimeBinding _binding;
         private readonly string _displayName;
         private readonly bool _isTerrain;
 
-        public MosaicPaintingTarget(TilemapAuthoring owner)
+        public MosaicPaintingTarget(TilemapAuthoring owner, MosaicPaintingRuntimeBinding binding = default)
         {
             Owner = owner;
+            _binding = binding;
             IntGrid = owner.intGrid;
             LayerIndex = 0;
             Grid = owner.GetComponentInParent<GridAuthoring>();
             SceneCullingMask = owner.gameObject.sceneCullingMask;
         }
 
-        public MosaicPaintingTarget(TilemapTerrainAuthoring owner, IntGridDefinition intGrid, int layerIndex)
+        public MosaicPaintingTarget(TilemapTerrainAuthoring owner, IntGridDefinition intGrid, int layerIndex,
+            MosaicPaintingRuntimeBinding binding = default)
         {
             Owner = owner;
+            _binding = binding;
             IntGrid = intGrid;
             LayerIndex = layerIndex;
             Grid = owner.GetComponentInParent<GridAuthoring>();
@@ -96,17 +126,15 @@ namespace FireAlt.Mosaic.Editor
         public MosaicPaintingTarget(World world, Entity intGridEntity, Entity rendererEntity,
             string displayName, bool isTerrain, int layerIndex)
         {
-            _world = world;
-            _intGridEntity = intGridEntity;
-            _rendererEntity = rendererEntity;
             _displayName = displayName;
             _isTerrain = isTerrain;
             LayerIndex = layerIndex;
 
             var entityManager = world.EntityManager;
             var intGridData = entityManager.GetComponentData<IntGridData>(intGridEntity);
-            _intGridHash = intGridData.Hash;
-            _rendererHash = entityManager.GetComponentData<TilemapRendererData>(rendererEntity).MeshHash;
+            var rendererHash = entityManager.GetComponentData<TilemapRendererData>(rendererEntity).MeshHash;
+            _binding = new MosaicPaintingRuntimeBinding(world, intGridEntity, rendererEntity,
+                intGridData.Hash, rendererHash);
             SceneCullingMask = InternalEditorRenderData.GetSceneCullingMask(entityManager, rendererEntity);
 
             foreach (var value in entityManager.GetBuffer<IntGridValueElement>(intGridEntity))
@@ -124,7 +152,7 @@ namespace FireAlt.Mosaic.Editor
             if (singletonQuery.IsEmpty) return;
 
             var layers = singletonQuery.GetSingleton<TilemapIntGridSingleton>().IntGridLayers;
-            if (!layers.TryGetValue(_intGridHash, out var layer)) return;
+            if (!layers.TryGetValue(_binding.IntGridHash, out var layer)) return;
             foreach (var cell in layer.IntGrid)
             {
                 _entityCells.Add(new SerializedIntGridCell(new Vector2Int(cell.Key.x, cell.Key.y), cell.Value));
@@ -141,11 +169,11 @@ namespace FireAlt.Mosaic.Editor
 
         public int LayerIndex { get; }
 
-        public bool IsTerrain => _world != null ? _isTerrain : Owner is TilemapTerrainAuthoring;
+        public bool IsTerrain => Owner == null ? _isTerrain : Owner is TilemapTerrainAuthoring;
 
-        public bool IsSubScene => _world != null || Owner != null && Owner.gameObject.scene.isSubScene;
+        public bool IsSubScene => Owner == null || Owner.gameObject.scene.isSubScene;
 
-        public bool IsEntityTarget => _world != null;
+        public bool IsEntityTarget => Owner == null;
 
         public bool HasLoadedAuthoringScene => !IsEntityTarget && Owner != null
             && Owner.gameObject.scene.IsValid() && Owner.gameObject.scene.isLoaded;
@@ -154,29 +182,28 @@ namespace FireAlt.Mosaic.Editor
 
         public ulong SceneCullingMask { get; }
 
-        public Hash128 IntGridHash => _world != null ? _intGridHash : Owner switch
-        {
-            TilemapAuthoring tilemap => BakerUtils.GetHash(tilemap, IntGrid, tilemap.isGlobal, 0),
-            TilemapTerrainAuthoring terrain => BakerUtils.GetHash(terrain, IntGrid, terrain.isGlobal, LayerIndex),
-            _ => default,
-        };
+        public Hash128 IntGridHash => _binding.IntGridHash;
 
-        public Hash128 RendererHash => _world != null ? _rendererHash
-            : Owner is TilemapTerrainAuthoring terrain && terrain.intGridLayers.Count != 0
-                ? BakerUtils.GetHash(terrain, terrain.intGridLayers[0], terrain.isGlobal, 0)
-                : IntGridHash;
+        public Hash128 RendererHash => _binding.RendererHash;
 
-        public string Id => _world != null
-            ? $"{_world.SequenceNumber}:{_intGridEntity.Index}:{_intGridEntity.Version}"
-            : $"{GlobalObjectId.GetGlobalObjectIdSlow(Owner)}:{LayerIndex}";
+        public MosaicPaintingTargetId Id => new(GameObjectSourceId, SourceId, LayerIndex);
 
-        public string DisplayName => _world != null ? _displayName : IsTerrain
+        public EntityId SourceId => Owner != null ? Owner.GetEntityId() : TryGetEntityGuid(out var guid)
+            ? guid.OriginatingSubEntityId
+            : default;
+
+        public EntityId GameObjectSourceId => Owner != null ? Owner.gameObject.GetEntityId()
+            : TryGetEntityGuid(out var guid) ? guid.OriginatingEntityId : default;
+
+        public MosaicPaintingRuntimeBinding RuntimeBinding => _binding;
+
+        public string DisplayName => IsEntityTarget ? _displayName : IsTerrain
             ? $"{Owner.name} / Layer {LayerIndex + 1} / {IntGrid?.name ?? "Missing IntGrid"}"
             : $"{Owner.name} / {IntGrid?.name ?? "Missing IntGrid"}";
 
         public string AdditionalValidationMessage { get; set; }
 
-        public bool IsValid => (_world != null ? IsEntityValid() : IsAuthoringValid()) 
+        public bool IsValid => (IsEntityTarget ? IsEntityValid() : IsAuthoringValid()) 
                                && string.IsNullOrEmpty(AdditionalValidationMessage);
 
         private RenderingData RenderingData => Owner switch
@@ -186,7 +213,7 @@ namespace FireAlt.Mosaic.Editor
             _ => null,
         };
 
-        public IReadOnlyList<IntGridValueDefinition> Values => _world != null
+        public IReadOnlyList<IntGridValueDefinition> Values => IsEntityTarget
             ? _entityValues
             : IntGrid != null ? IntGrid.intGridValues : Array.Empty<IntGridValueDefinition>();
 
@@ -194,7 +221,7 @@ namespace FireAlt.Mosaic.Editor
         {
             get
             {
-                if (_world != null) return _entityCells;
+                if (IsEntityTarget) return _entityCells;
                 if (Owner is TilemapAuthoring tilemap) return tilemap.PaintedCells;
                 if (Owner is not TilemapTerrainAuthoring terrain) return Array.Empty<SerializedIntGridCell>();
 
@@ -207,7 +234,7 @@ namespace FireAlt.Mosaic.Editor
             }
         }
 
-        public MosaicPaintingVisibilityTarget VisibilityTarget => new(IntGridHash, RendererHash);
+        public MosaicPaintingVisibilityTarget VisibilityTarget => new(_binding);
 
         public bool TryGetValueDefinition(short value, out IntGridValueDefinition definition)
         {
@@ -235,9 +262,9 @@ namespace FireAlt.Mosaic.Editor
             return stroke.SetCells(positions);
         }
 
-        internal PaintStroke BeginStroke(short value)
+        internal MosaicPaintingStroke BeginStroke(short value)
         {
-            return new PaintStroke(this, value);
+            return new MosaicPaintingStroke(this, value);
         }
 
         public bool TryGetCell(Vector2 mousePosition, out Vector2Int cell)
@@ -289,8 +316,8 @@ namespace FireAlt.Mosaic.Editor
 
         private float PaintedCellCenterOffset => IsDualGrid ? 0f : 0.5f;
 
-        private bool IsDualGrid => _world != null
-            ? _world.EntityManager.GetComponentData<IntGridData>(_intGridEntity).DualGrid
+        private bool IsDualGrid => IsEntityTarget
+            ? _binding.World.EntityManager.GetComponentData<IntGridData>(_binding.IntGridEntity).DualGrid
             : IntGrid.useDualGrid;
 
         private bool IsAuthoringValid()
@@ -301,18 +328,35 @@ namespace FireAlt.Mosaic.Editor
 
         private bool IsEntityValid()
         {
-            if (!_world.IsCreated) return false;
-            var entityManager = _world.EntityManager;
-            return entityManager.Exists(_intGridEntity) && entityManager.Exists(_rendererEntity)
-                   && entityManager.HasComponent<IntGridData>(_intGridEntity)
-                   && entityManager.HasComponent<TilemapTransform>(_intGridEntity)
-                   && entityManager.HasComponent<TilemapRendererData>(_rendererEntity)
-                   && entityManager.HasComponent<LocalToWorld>(_rendererEntity) && _entityValues.Count != 0;
+            if (!_binding.IsCreated) return false;
+            var entityManager = _binding.World.EntityManager;
+            return entityManager.Exists(_binding.IntGridEntity) && entityManager.Exists(_binding.RendererEntity)
+                   && entityManager.HasComponent<IntGridData>(_binding.IntGridEntity)
+                   && entityManager.HasComponent<TilemapTransform>(_binding.IntGridEntity)
+                   && entityManager.HasComponent<TilemapRendererData>(_binding.RendererEntity)
+                   && entityManager.HasComponent<LocalToWorld>(_binding.RendererEntity) && _entityValues.Count != 0;
+        }
+
+        private bool TryGetEntityGuid(out EntityGuid guid)
+        {
+            var entityManager = _binding.World.EntityManager;
+            if (entityManager.Exists(_binding.RendererEntity)
+                && entityManager.HasComponent<EntityGuid>(_binding.RendererEntity))
+            {
+                guid = entityManager.GetComponentData<EntityGuid>(_binding.RendererEntity);
+                return true;
+            }
+
+            guid = default;
+            return false;
         }
 
         private TilemapTransform GetTilemapTransform()
         {
-            if (_world != null) return _world.EntityManager.GetComponentData<TilemapTransform>(_intGridEntity);
+            if (IsEntityTarget)
+            {
+                return _binding.World.EntityManager.GetComponentData<TilemapTransform>(_binding.IntGridEntity);
+            }
 
             return new TilemapTransform
             {
@@ -324,9 +368,9 @@ namespace FireAlt.Mosaic.Editor
 
         private Matrix4x4 GetLocalToWorldMatrix()
         {
-            if (_world == null) return Owner.transform.localToWorldMatrix;
+            if (!IsEntityTarget) return Owner.transform.localToWorldMatrix;
 
-            var value = _world.EntityManager.GetComponentData<LocalToWorld>(_rendererEntity).Value;
+            var value = _binding.World.EntityManager.GetComponentData<LocalToWorld>(_binding.RendererEntity).Value;
             return new Matrix4x4(value.c0, value.c1, value.c2, value.c3);
         }
 
@@ -336,7 +380,7 @@ namespace FireAlt.Mosaic.Editor
             return y != 0 ? y : left.x.CompareTo(right.x);
         }
 
-        private SerializedProperty FindCellsProperty(SerializedObject serializedObject)
+        internal SerializedProperty FindCellsProperty(SerializedObject serializedObject)
         {
             if (Owner is TilemapAuthoring) return serializedObject.FindProperty(PAINTED_CELLS);
 
@@ -373,103 +417,5 @@ namespace FireAlt.Mosaic.Editor
                    || propertyPath.Contains($".{CELLS}.", StringComparison.Ordinal);
         }
 
-        internal sealed class PaintStroke : IDisposable
-        {
-            private readonly MosaicPaintingTarget _target;
-            private readonly SerializedObject _serializedObject;
-            private readonly SerializedProperty _cells;
-            private readonly short _value;
-            private bool _changed;
-
-            public PaintStroke(MosaicPaintingTarget target, short value)
-            {
-                _target = target;
-                _value = value;
-                if (!target.IsPaintable) return;
-                if (target.Owner == null) return;
-
-                _serializedObject = new SerializedObject(target.Owner);
-                _serializedObject.Update();
-                _cells = target.FindCellsProperty(_serializedObject);
-                if (_cells != null)
-                {
-                    Undo.RecordObject(target.Owner, value == 0 ? "Erase Mosaic IntGrid" : "Paint Mosaic IntGrid");
-                }
-            }
-
-            public bool SetCells(IEnumerable<Vector2Int> positions)
-            {
-                if (_cells == null) return false;
-
-                var changed = false;
-                foreach (var position in positions)
-                {
-                    var index = FindIndex(position, out var exists);
-                    if (_value == 0)
-                    {
-                        if (!exists) continue;
-                        _cells.DeleteArrayElementAtIndex(index);
-                    }
-                    else if (exists)
-                    {
-                        var valueProperty = _cells.GetArrayElementAtIndex(index).FindPropertyRelative(VALUE);
-                        if (valueProperty.intValue == _value) continue;
-                        valueProperty.intValue = _value;
-                    }
-                    else
-                    {
-                        _cells.InsertArrayElementAtIndex(index);
-                        var cell = _cells.GetArrayElementAtIndex(index);
-                        cell.FindPropertyRelative(POSITION).vector2IntValue = position;
-                        cell.FindPropertyRelative(VALUE).intValue = _value;
-                    }
-
-                    changed = true;
-                }
-
-                if (!changed) return false;
-                _serializedObject.ApplyModifiedProperties();
-                _changed = true;
-                return true;
-            }
-
-            public void Dispose()
-            {
-                if (!_changed || _target.Owner == null) return;
-
-                if (PrefabUtility.IsPartOfPrefabInstance(_target.Owner))
-                {
-                    PrefabUtility.RecordPrefabInstancePropertyModifications(_target.Owner);
-                }
-                EditorUtility.SetDirty(_target.Owner);
-                if (_target.Owner.gameObject.scene.IsValid())
-                {
-                    EditorSceneManager.MarkSceneDirty(_target.Owner.gameObject.scene);
-                }
-            }
-
-            private int FindIndex(Vector2Int position, out bool exists)
-            {
-                var min = 0;
-                var max = _cells.arraySize - 1;
-                while (min <= max)
-                {
-                    var index = (min + max) / 2;
-                    var candidate = _cells.GetArrayElementAtIndex(index).FindPropertyRelative(POSITION).vector2IntValue;
-                    var comparison = Compare(candidate, position);
-                    if (comparison == 0)
-                    {
-                        exists = true;
-                        return index;
-                    }
-
-                    if (comparison < 0) min = index + 1;
-                    else max = index - 1;
-                }
-
-                exists = false;
-                return min;
-            }
-        }
     }
 }

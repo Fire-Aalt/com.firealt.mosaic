@@ -17,8 +17,12 @@ namespace FireAlt.Mosaic
     [UpdateInGroup(typeof(RuntimeBakingSystemGroup), OrderLast = true)]
     public partial class MosaicInitializationSystem : SystemBase
     {
+        private const uint LOCAL_HASH_NAMESPACE_A = 0x4D4F5341;
+        private const uint LOCAL_HASH_NAMESPACE_B = 0x4C4F434C;
+
         protected override void OnUpdate()
         {
+            AssignRuntimeHashes(EntityManager);
             CleanupRenderers();
             var staleHashes = new NativeHashSet<Hash128>(
                 SystemAPI.GetSingleton<TilemapIntGridSingleton>().IntGridLayers.Count + 1, WorldUpdateAllocator);
@@ -38,6 +42,55 @@ namespace FireAlt.Mosaic
             {
                 GridDataLookup = SystemAPI.GetComponentLookup<GridData>(true)
             }.Schedule(Dependency);
+        }
+
+        internal static void AssignRuntimeHashes(EntityManager entityManager)
+        {
+            var intGridQuery = new EntityQueryBuilder(Allocator.Temp)
+                .WithAll<IntGridData>()
+                .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
+                .Build(entityManager);
+            foreach (var entity in intGridQuery.ToEntityArray(Allocator.Temp))
+            {
+                var intGridData = entityManager.GetComponentData<IntGridData>(entity);
+                if (intGridData.Hash != default) continue;
+
+                intGridData.Hash = CreateRuntimeHash(entity);
+                entityManager.SetComponentData(entity, intGridData);
+            }
+            intGridQuery.Dispose();
+
+            var rendererQuery = new EntityQueryBuilder(Allocator.Temp)
+                .WithAll<TilemapRendererData>()
+                .Build(entityManager);
+            foreach (var entity in rendererQuery.ToEntityArray(Allocator.Temp))
+            {
+                var rendererData = entityManager.GetComponentData<TilemapRendererData>(entity);
+                if (rendererData.MeshHash != default) continue;
+
+                if (entityManager.HasComponent<IntGridData>(entity))
+                {
+                    rendererData.MeshHash = entityManager.GetComponentData<IntGridData>(entity).Hash;
+                }
+                else if (entityManager.HasBuffer<TilemapTerrainLayerElement>(entity))
+                {
+                    var layers = entityManager.GetBuffer<TilemapTerrainLayerElement>(entity, true);
+                    if (!layers.IsEmpty && entityManager.HasComponent<IntGridData>(layers[0].IntGridEntity))
+                    {
+                        rendererData.MeshHash =
+                            entityManager.GetComponentData<IntGridData>(layers[0].IntGridEntity).Hash;
+                    }
+                }
+
+                if (rendererData.MeshHash != default) entityManager.SetComponentData(entity, rendererData);
+            }
+            rendererQuery.Dispose();
+        }
+
+        internal static Hash128 CreateRuntimeHash(Entity entity)
+        {
+            return new Hash128((uint)entity.Index, (uint)entity.Version,
+                LOCAL_HASH_NAMESPACE_A, LOCAL_HASH_NAMESPACE_B);
         }
 
         private void CleanupRenderers()
@@ -91,6 +144,20 @@ namespace FireAlt.Mosaic
             {
                 var entity = entities[i];
                 var renderingData = rendererData[i];
+                var material = runtimeMaterials[i].Value.Value;
+                if (material == null)
+                {
+                    // Domain reload destroys generated RuntimeMaterials while their disabled lookup survives.
+                    // Re-enable the lookup and keep Mosaic pending until RuntimeMaterialSystem recreates it.
+                    if (EntityManager.HasComponent<RuntimeMaterialLookup>(entity))
+                    {
+                        EntityManager.SetComponentEnabled<RuntimeMaterialLookup>(entity, true);
+                    }
+
+                    EntityManager.SetComponentEnabled<MosaicRendererInitialized>(entity, false);
+                    continue;
+                }
+
                 var isTerrain = EntityManager.HasComponent<Data.TerrainData>(entity);
 
                 if (EntityManager.HasComponent<MosaicRendererCleanup>(entity))
@@ -133,7 +200,6 @@ namespace FireAlt.Mosaic
                 }
 
                 var mesh = presentationData.GetOrCreateMesh(renderingData.MeshHash);
-                var material = runtimeMaterials[i].Value.Value;
                 if (isTerrain)
                 {
                     if (!presentationData.TerrainMap.TryGetValue(renderingData.MeshHash, out var terrainRenderingData))
@@ -237,7 +303,10 @@ namespace FireAlt.Mosaic
 
             foreach (var layer in EntityManager.GetBuffer<TilemapTerrainLayerElement>(entity))
             {
-                staleHashes.Add(layer.IntGridHash);
+                if (EntityManager.HasComponent<IntGridData>(layer.IntGridEntity))
+                {
+                    staleHashes.Add(EntityManager.GetComponentData<IntGridData>(layer.IntGridEntity).Hash);
+                }
             }
         }
 

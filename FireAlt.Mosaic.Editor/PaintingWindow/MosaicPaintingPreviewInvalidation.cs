@@ -25,7 +25,7 @@ namespace FireAlt.Mosaic.Editor
 
             foreach (var linked in Resources.FindObjectsOfTypeAll<LinkedTilemapLayers>())
             {
-                if (MosaicPaintingPreviewService.BelongsToStage(linked, stage)) TrackRoot(linked.gameObject);
+                if (MosaicPaintingController.BelongsToStage(linked, stage)) TrackRoot(linked.gameObject);
             }
         }
 

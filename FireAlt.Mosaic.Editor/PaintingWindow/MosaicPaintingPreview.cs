@@ -56,7 +56,6 @@ namespace FireAlt.Mosaic.Editor
                 .Select(target => target.Grid.gameObject).Distinct().ToArray();
             if (roots.Length == 0) return;
 
-            DisposeLegacyEntities(world.EntityManager, roots);
             var entities = EditorBakingWorld.BakeInto(roots, world);
             var entityManager = world.EntityManager;
             foreach (var entity in entities)
@@ -71,13 +70,13 @@ namespace FireAlt.Mosaic.Editor
         }
 
         public void SetVisibility(IReadOnlyCollection<MosaicPaintingVisibilityTarget> targets,
-            IReadOnlyCollection<MosaicPaintingContextVisibilityTarget> contextPrefabTargets, bool showIntGridColors)
+            IReadOnlyCollection<MosaicPaintingVisibilityTarget> contextPrefabTargets, bool showIntGridColors)
         {
             SetVisibility(World.DefaultGameObjectInjectionWorld, targets, contextPrefabTargets, showIntGridColors);
         }
 
         internal void SetVisibility(World world, IReadOnlyCollection<MosaicPaintingVisibilityTarget> targets,
-            IReadOnlyCollection<MosaicPaintingContextVisibilityTarget> contextPrefabTargets, bool showIntGridColors)
+            IReadOnlyCollection<MosaicPaintingVisibilityTarget> contextPrefabTargets, bool showIntGridColors)
         {
             if (world == null || !world.IsCreated || (world.Flags & WorldFlags.Editor) == 0) return;
 
@@ -90,33 +89,17 @@ namespace FireAlt.Mosaic.Editor
             if (showIntGridColors || hideContextPrefab) _entitiesToHide.Clear();
             else RestoreHiddenEntities();
 
-            var rendererQuery = new EntityQueryBuilder(Allocator.Temp)
-                .WithAll<TilemapRendererData>()
-                .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
-                .Build(entityManager);
-            var rendererEntities = rendererQuery.ToEntityArray(Allocator.Temp);
-            var rendererData = rendererQuery.ToComponentDataArray<TilemapRendererData>(Allocator.Temp);
-
-            var intGridQuery = new EntityQueryBuilder(Allocator.Temp)
-                .WithAll<IntGridData>()
-                .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
-                .Build(entityManager);
-            var intGridEntities = intGridQuery.ToEntityArray(Allocator.Temp);
-            var intGridData = intGridQuery.ToComponentDataArray<IntGridData>(Allocator.Temp);
-
             var hasLayers = entityManager.TryGetUnmanagedSingleton<TilemapIntGridSingleton>(out var intGridSingleton);
             var layers = hasLayers ? intGridSingleton : default;
 
             foreach (var target in targets)
             {
-                SetTargetVisibility(entityManager, target, rendererEntities, rendererData, intGridEntities,
-                    intGridData, hasLayers, layers, showIntGridColors, false);
+                SetTargetVisibility(entityManager, target, hasLayers, layers, showIntGridColors, false);
             }
 
             foreach (var target in contextPrefabTargets)
             {
-                SetTargetVisibility(entityManager, target.Target, rendererEntities, rendererData, intGridEntities,
-                    intGridData, hasLayers, layers, true, true, target.OriginatingEntityId);
+                SetTargetVisibility(entityManager, target, hasLayers, layers, true, true);
             }
 
             if (!showIntGridColors && !hideContextPrefab) return;
@@ -137,33 +120,22 @@ namespace FireAlt.Mosaic.Editor
         }
 
         private void SetTargetVisibility(EntityManager entityManager, MosaicPaintingVisibilityTarget target,
-            NativeArray<Entity> rendererEntities, NativeArray<TilemapRendererData> rendererData,
-            NativeArray<Entity> intGridEntities, NativeArray<IntGridData> intGridData, bool hasLayers,
-            TilemapIntGridSingleton layers, bool hidden, bool subSceneOnly, EntityId originatingEntityId = default)
+            bool hasLayers, TilemapIntGridSingleton layers, bool hidden, bool subSceneOnly)
         {
-            for (var i = 0; i < rendererEntities.Length; i++)
+            var binding = target.Binding;
+            if (!binding.IsCreated || !binding.World.EntityManager.Equals(entityManager)) return;
+
+            SetHierarchyVisibility(entityManager, binding.RendererEntity, hidden, subSceneOnly,
+                target.OriginatingEntityId);
+            if (!entityManager.Exists(binding.IntGridEntity)
+                || !entityManager.HasComponent<IntGridData>(binding.IntGridEntity))
             {
-                if (rendererData[i].MeshHash == target.RendererHash)
-                {
-                    SetHierarchyVisibility(entityManager, rendererEntities[i], hidden, subSceneOnly,
-                        originatingEntityId);
-                }
+                return;
             }
 
-            var matchingIntGrid = !subSceneOnly;
-            for (var i = 0; i < intGridEntities.Length; i++)
+            if (entityManager.HasBuffer<WeightedEntityElement>(binding.IntGridEntity))
             {
-                if (intGridData[i].Hash != target.IntGridHash
-                    || subSceneOnly && !IsMatchingSubSceneEntity(entityManager, intGridEntities[i],
-                        originatingEntityId))
-                {
-                    continue;
-                }
-
-                matchingIntGrid = true;
-                if (!entityManager.HasBuffer<WeightedEntityElement>(intGridEntities[i])) continue;
-
-                var weightedEntities = entityManager.GetBuffer<WeightedEntityElement>(intGridEntities[i])
+                var weightedEntities = entityManager.GetBuffer<WeightedEntityElement>(binding.IntGridEntity)
                     .ToNativeArray(Allocator.Temp);
                 foreach (var weightedEntity in weightedEntities)
                 {
@@ -171,8 +143,8 @@ namespace FireAlt.Mosaic.Editor
                 }
             }
 
-            if (!matchingIntGrid || !hasLayers
-                                 || !layers.IntGridLayers.TryGetValue(target.IntGridHash, out var layer))
+            var intGridHash = entityManager.GetComponentData<IntGridData>(binding.IntGridEntity).Hash;
+            if (!hasLayers || !layers.IntGridLayers.TryGetValue(intGridHash, out var layer))
             {
                 return;
             }
@@ -191,8 +163,8 @@ namespace FireAlt.Mosaic.Editor
 
         internal static void Reseed(World world, MosaicPaintingTarget target)
         {
-            if (!TryGetLayers(world, out var layers) || !layers.ContainsKey(target.IntGridHash)) return;
-            ref var layer = ref layers.GetValueAsRef(target.IntGridHash);
+            if (!TryGetCurrentLayer(world, target, out var layers, out var intGridHash)) return;
+            ref var layer = ref layers.GetValueAsRef(intGridHash);
 
             var previousPositions = new NativeList<int2>(layer.IntGrid.Count, Allocator.Temp);
             foreach (var cell in layer.IntGrid) previousPositions.Add(cell.Key);
@@ -232,8 +204,8 @@ namespace FireAlt.Mosaic.Editor
         internal static void Apply(World world, MosaicPaintingTarget target,
             IReadOnlyCollection<Vector2Int> positions, short value)
         {
-            if (!TryGetLayers(world, out var layers) || !layers.ContainsKey(target.IntGridHash)) return;
-            ref var layer = ref layers.GetValueAsRef(target.IntGridHash);
+            if (!TryGetCurrentLayer(world, target, out var layers, out var intGridHash)) return;
+            ref var layer = ref layers.GetValueAsRef(intGridHash);
 
             foreach (var position in positions)
             {
@@ -260,6 +232,23 @@ namespace FireAlt.Mosaic.Editor
             
             layers = singleton.IntGridLayers;
             return true;
+        }
+
+        private static bool TryGetCurrentLayer(World world, MosaicPaintingTarget target,
+            out NativeHashMap<Hash128, TilemapIntGridSingleton.IntGridLayer> layers, out Hash128 intGridHash)
+        {
+            intGridHash = default;
+            var binding = target.RuntimeBinding;
+            if (!binding.IsCreated || binding.World != world || !world.EntityManager.Exists(binding.IntGridEntity)
+                || !world.EntityManager.HasComponent<IntGridData>(binding.IntGridEntity)
+                || !TryGetLayers(world, out layers))
+            {
+                layers = default;
+                return false;
+            }
+
+            intGridHash = world.EntityManager.GetComponentData<IntGridData>(binding.IntGridEntity).Hash;
+            return intGridHash != default && layers.ContainsKey(intGridHash);
         }
 
         private void SetHierarchyVisibility(EntityManager entityManager, Entity hierarchyRoot, bool hidden,
@@ -366,13 +355,14 @@ namespace FireAlt.Mosaic.Editor
 
                 foreach (var entity in entities)
                 {
-                    if (entityManager.HasComponent<TilemapRendererData>(entity)
-                        && entityManager.GetComponentData<TilemapRendererData>(entity).MeshHash == target.RendererHash
-                        && !entityManager.HasComponent<HybridEntitySync>(entity))
-                    {
-                        entityManager.AddComponentData(entity, new HybridEntitySync(target.Owner));
-                        break;
-                    }
+                    if (!entityManager.HasComponent<TilemapRendererData>(entity)
+                        || !entityManager.HasComponent<EntityGuid>(entity)
+                        || entityManager.GetComponentData<EntityGuid>(entity).OriginatingEntityId
+                        != target.GameObjectSourceId
+                        || entityManager.HasComponent<HybridEntitySync>(entity)) continue;
+
+                    entityManager.AddComponentData(entity, new HybridEntitySync(target.Owner));
+                    break;
                 }
             }
 
@@ -401,31 +391,6 @@ namespace FireAlt.Mosaic.Editor
             var source = EditorUtility.EntityIdToObject(
                 entityManager.GetComponentData<EntityGuid>(entity).OriginatingEntityId) as GameObject;
             return source == null ? fallback : source.sceneCullingMask;
-        }
-
-        private static void DisposeLegacyEntities(EntityManager entityManager, IReadOnlyList<GameObject> roots)
-        {
-            var query = new EntityQueryBuilder(Allocator.Temp)
-                .WithAll<EntityGuid>()
-                .WithOptions(EntityQueryOptions.IncludeDisabledEntities | EntityQueryOptions.IncludePrefab)
-                .Build(entityManager);
-            var entities = query.ToEntityArray(Allocator.Temp);
-            foreach (var entity in entities)
-            {
-                if (!entityManager.Exists(entity)) continue;
-                var source = EditorUtility.EntityIdToObject(
-                    entityManager.GetComponentData<EntityGuid>(entity).OriginatingEntityId) as GameObject;
-                if (source == null) continue;
-
-                foreach (var root in roots)
-                {
-                    if (source == root || source.transform.IsChildOf(root.transform))
-                    {
-                        entityManager.DestroyEntity(entity);
-                        break;
-                    }
-                }
-            }
         }
 
         private void DisposeInjectedEntities(World world)

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using FireAlt.Core.Extensions;
 using FireAlt.Mosaic.Authoring;
 using FireAlt.Mosaic.Data;
 using UnityEditor;
@@ -8,6 +9,57 @@ using UnityEngine;
 
 namespace FireAlt.Mosaic.Editor
 {
+    internal readonly struct MosaicPaintingSelectionId : IEquatable<MosaicPaintingSelectionId>
+    {
+        public MosaicPaintingSelectionId(EntityId sourceId, int targetLayerIndex, int itemIndex, bool linked)
+        {
+            SourceId = sourceId;
+            TargetLayerIndex = targetLayerIndex;
+            ItemIndex = itemIndex;
+            Linked = linked;
+        }
+
+        public EntityId SourceId { get; }
+
+        public int TargetLayerIndex { get; }
+
+        public int ItemIndex { get; }
+
+        public bool Linked { get; }
+
+        public bool Equals(MosaicPaintingSelectionId other)
+        {
+            return SourceId.Equals(other.SourceId) && TargetLayerIndex == other.TargetLayerIndex
+                                                   && ItemIndex == other.ItemIndex && Linked == other.Linked;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is MosaicPaintingSelectionId other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hashCode = SourceId.GetHashCode();
+                hashCode = (hashCode * 397) ^ TargetLayerIndex;
+                hashCode = (hashCode * 397) ^ ItemIndex;
+                return (hashCode * 397) ^ Linked.GetHashCode();
+            }
+        }
+
+        public static bool operator ==(MosaicPaintingSelectionId left, MosaicPaintingSelectionId right)
+        {
+            return left.Equals(right);
+        }
+
+        public static bool operator !=(MosaicPaintingSelectionId left, MosaicPaintingSelectionId right)
+        {
+            return !left.Equals(right);
+        }
+    }
+
     internal readonly struct MosaicPaintingOperation
     {
         public MosaicPaintingOperation(MosaicPaintingTarget target, short value)
@@ -28,7 +80,7 @@ namespace FireAlt.Mosaic.Editor
         private readonly int _linkedLayerIndex;
         private readonly StageHandle _stage;
 
-        private MosaicPaintingSelection(string id, string name, Color color, Texture icon,
+        private MosaicPaintingSelection(MosaicPaintingSelectionId id, string name, Color color, Texture icon,
             List<MosaicPaintingOperation> operations, StageHandle stage, string validationMessage,
             LinkedTilemapLayers linkedOwner = null, int linkedLayerIndex = -1)
         {
@@ -43,7 +95,7 @@ namespace FireAlt.Mosaic.Editor
             _linkedLayerIndex = linkedLayerIndex;
         }
 
-        public string Id { get; }
+        public MosaicPaintingSelectionId Id { get; }
 
         public string Name { get; }
 
@@ -67,14 +119,16 @@ namespace FireAlt.Mosaic.Editor
             var name = string.IsNullOrWhiteSpace(value.name) ? value.value.ToString() : value.name;
             var operations = new List<MosaicPaintingOperation> { new(target, value.value) };
             var validation = ValidateTarget(target, value.value, stage, 0);
-            return new MosaicPaintingSelection($"{target.Id}:{value.value}", name, value.color, value.texture,
+            var valueIndex = IndexOf(target.Values, value);
+            var id = new MosaicPaintingSelectionId(target.SourceId, target.LayerIndex, valueIndex, false);
+            return new MosaicPaintingSelection(id, name, value.color, value.texture,
                 operations, stage, validation);
         }
 
         internal static MosaicPaintingSelection Create(LinkedTilemapLayers owner, int layerIndex,
             IReadOnlyDictionary<TilemapAuthoring, MosaicPaintingTarget> targets, StageHandle stage)
         {
-            var id = $"{GlobalObjectId.GetGlobalObjectIdSlow(owner)}:{layerIndex}";
+            var id = new MosaicPaintingSelectionId(owner.GetEntityId(), 0, layerIndex, true);
             var layer = owner?.layers != null && layerIndex >= 0 && layerIndex < owner.layers.Count
                 ? owner.layers[layerIndex]
                 : null;
@@ -106,7 +160,7 @@ namespace FireAlt.Mosaic.Editor
                     : "The painting selection has no operation.";
             }
 
-            if (!MosaicPaintingPreviewService.BelongsToStage(_linkedOwner, _stage))
+            if (!MosaicPaintingController.BelongsToStage(_linkedOwner, _stage))
             {
                 return "The linked-layer component is not loaded in the current stage.";
             }
@@ -144,7 +198,7 @@ namespace FireAlt.Mosaic.Editor
             IReadOnlyDictionary<TilemapAuthoring, MosaicPaintingTarget> targets, StageHandle stage,
             List<MosaicPaintingOperation> operations)
         {
-            if (owner == null || !MosaicPaintingPreviewService.BelongsToStage(owner, stage))
+            if (owner == null || !MosaicPaintingController.BelongsToStage(owner, stage))
             {
                 return "The linked-layer component is not loaded in the current stage.";
             }
@@ -178,7 +232,7 @@ namespace FireAlt.Mosaic.Editor
             int operationIndex)
         {
             if (target?.Owner is not TilemapAuthoring tilemap || !target.IsPaintable
-                || !MosaicPaintingPreviewService.BelongsToStage(tilemap, stage))
+                || !MosaicPaintingController.BelongsToStage(tilemap, stage))
             {
                 return $"Operation {operationIndex + 1} target must be loaded and paintable in the current stage.";
             }
@@ -193,18 +247,28 @@ namespace FireAlt.Mosaic.Editor
 
             return $"Operation {operationIndex + 1} value {value} is not declared by the target IntGridDefinition.";
         }
+
+        private static int IndexOf(IReadOnlyList<IntGridValueDefinition> values, IntGridValueDefinition value)
+        {
+            for (var i = 0; i < values.Count; i++)
+            {
+                if (ReferenceEquals(values[i], value)) return i;
+            }
+
+            return -1;
+        }
     }
 
     internal sealed class MosaicPaintingSelectionStroke : IDisposable
     {
         private readonly IReadOnlyList<MosaicPaintingOperation> _operations;
-        private readonly MosaicPaintingTarget.PaintStroke[] _strokes;
+        private readonly MosaicPaintingStroke[] _strokes;
         private readonly short[] _values;
 
         public MosaicPaintingSelectionStroke(IReadOnlyList<MosaicPaintingOperation> operations, bool erase)
         {
             _operations = operations;
-            _strokes = new MosaicPaintingTarget.PaintStroke[operations.Count];
+            _strokes = new MosaicPaintingStroke[operations.Count];
             _values = new short[operations.Count];
             for (var i = 0; i < operations.Count; i++)
             {
@@ -222,7 +286,7 @@ namespace FireAlt.Mosaic.Editor
             {
                 if (!_strokes[i].SetCells(positions)) continue;
                 changed = true;
-                MosaicPaintingSession.NotifyCellsChanged(_operations[i].Target, positions, _values[i]);
+                MosaicPaintingController.NotifyCellsChanged(_operations[i].Target, positions, _values[i]);
             }
 
             return changed;

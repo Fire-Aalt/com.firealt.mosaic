@@ -14,6 +14,7 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.UIElements;
 using Unity.Transforms;
 
 namespace FireAlt.Mosaic.Tests
@@ -140,6 +141,92 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
+        public void BakerHash_LocalIsAlwaysPendingAndGlobalIsStable()
+        {
+            var globalHash = new Unity.Entities.Hash128(11u, 12u, 13u, 14u);
+            typeof(IntGridDefinition).GetField("<Hash>k__BackingField",
+                BindingFlags.Instance | BindingFlags.NonPublic)?.SetValue(_intGrid, globalHash);
+
+            Assert.AreEqual(default(Unity.Entities.Hash128), BakerUtils.GetHash(_intGrid, false));
+            Assert.AreEqual(default(Unity.Entities.Hash128), BakerUtils.GetHash(_intGrid, false));
+            Assert.AreEqual(globalHash, BakerUtils.GetHash(_intGrid, true));
+        }
+
+        [Test]
+        public void TerrainBake_StoresOrderedIntGridEntityReferences()
+        {
+            var second = ScriptableObject.CreateInstance<IntGridDefinition>();
+            second.name = "Second IntGrid";
+            var terrainObject = new GameObject("Terrain", typeof(TilemapTerrainAuthoring));
+            terrainObject.transform.SetParent(_gridObject.transform);
+            var terrain = terrainObject.GetComponent<TilemapTerrainAuthoring>();
+            terrain.isGlobal = false;
+            terrain.renderingData.material = _material;
+            terrain.intGridLayers.Add(_intGrid);
+            terrain.intGridLayers.Add(second);
+
+            try
+            {
+                var entities = EditorBakingWorld.BakeInto(new[] { _gridObject }, _world);
+                var terrainEntity = FindEntity<FireAlt.Mosaic.Data.TerrainData>(entities);
+                var layers = _world.EntityManager.GetBuffer<TilemapTerrainLayerElement>(terrainEntity);
+
+                Assert.AreEqual(2, layers.Length);
+                Assert.AreEqual(_intGrid.name,
+                    _world.EntityManager.GetComponentData<IntGridData>(layers[0].IntGridEntity).DebugName.ToString());
+                Assert.AreEqual(second.name,
+                    _world.EntityManager.GetComponentData<IntGridData>(layers[1].IntGridEntity).DebugName.ToString());
+                Assert.AreEqual(default(Unity.Entities.Hash128),
+                    _world.EntityManager.GetComponentData<IntGridData>(layers[0].IntGridEntity).Hash);
+                Assert.AreEqual(default(Unity.Entities.Hash128),
+                    _world.EntityManager.GetComponentData<IntGridData>(layers[1].IntGridEntity).Hash);
+            }
+            finally
+            {
+                Object.DestroyImmediate(second);
+                Object.DestroyImmediate(terrainObject);
+            }
+        }
+
+        [Test]
+        public void Initialization_AssignsLocalAndRendererHashesFromEntityLifetime()
+        {
+            var first = _world.EntityManager.CreateEntity(typeof(IntGridData), typeof(TilemapRendererData));
+            var second = _world.EntityManager.CreateEntity(typeof(IntGridData));
+            var terrain = _world.EntityManager.CreateEntity(typeof(TilemapRendererData));
+            _world.EntityManager.AddBuffer<TilemapTerrainLayerElement>(terrain).Add(
+                new TilemapTerrainLayerElement { IntGridEntity = second });
+            var globalHash = new Unity.Entities.Hash128(21u, 22u, 23u, 24u);
+            _world.EntityManager.SetComponentData(second, new IntGridData { Hash = default });
+            var global = _world.EntityManager.CreateEntity(typeof(IntGridData), typeof(TilemapRendererData));
+            _world.EntityManager.SetComponentData(global, new IntGridData { Hash = globalHash });
+            _world.EntityManager.SetComponentData(global, new TilemapRendererData { MeshHash = globalHash });
+
+            MosaicInitializationSystem.AssignRuntimeHashes(_world.EntityManager);
+
+            var firstHash = _world.EntityManager.GetComponentData<IntGridData>(first).Hash;
+            var secondHash = _world.EntityManager.GetComponentData<IntGridData>(second).Hash;
+            Assert.AreNotEqual(default(Unity.Entities.Hash128), firstHash);
+            Assert.AreNotEqual(default(Unity.Entities.Hash128), secondHash);
+            Assert.AreNotEqual(firstHash, secondHash);
+            Assert.AreEqual(firstHash,
+                _world.EntityManager.GetComponentData<TilemapRendererData>(first).MeshHash);
+            Assert.AreEqual(secondHash,
+                _world.EntityManager.GetComponentData<TilemapRendererData>(terrain).MeshHash);
+            Assert.AreEqual(globalHash, _world.EntityManager.GetComponentData<IntGridData>(global).Hash);
+            Assert.AreEqual(globalHash,
+                _world.EntityManager.GetComponentData<TilemapRendererData>(global).MeshHash);
+
+            MosaicInitializationSystem.AssignRuntimeHashes(_world.EntityManager);
+            Assert.AreEqual(firstHash, _world.EntityManager.GetComponentData<IntGridData>(first).Hash);
+
+            _world.EntityManager.DestroyEntity(first);
+            var replacement = _world.EntityManager.CreateEntity(typeof(IntGridData), typeof(TilemapRendererData));
+            MosaicInitializationSystem.AssignRuntimeHashes(_world.EntityManager);
+            Assert.AreNotEqual(firstHash, _world.EntityManager.GetComponentData<IntGridData>(replacement).Hash);
+        }
+
+        [Test]
         public void PaintingTarget_AuthoringTargetWritesSerializedCells()
         {
             var tilemap = CreateTilemap("Authoring Tilemap").GetComponent<TilemapAuthoring>();
@@ -225,41 +312,125 @@ namespace FireAlt.Mosaic.Tests
             Assert.IsFalse(target.IsPaintable);
 
             var targets = new List<MosaicPaintingTarget>();
-            MosaicPaintingPreviewService.AddAuthoringTargets(targets, StageUtility.GetCurrentStageHandle());
+            targets.AddRange(MosaicPaintingCatalog.DiscoverAuthoringCandidates(
+                StageUtility.GetCurrentStageHandle()));
 
             Assert.IsFalse(targets.Any(target => ReferenceEquals(target.Owner, authoring)));
         }
 
         [Test]
-        public void PaintingWindow_OutsideAuthoringTargetDoesNotSuppressMatchingEntityTarget()
+        public void PaintingTarget_SourceIdentityDistinguishesDifferentAuthoringObjects()
         {
-            var tilemap = CreateTilemap("Disabled Tilemap").GetComponent<TilemapAuthoring>();
-            var hash = new MosaicPaintingTarget(tilemap).IntGridHash;
-            tilemap.enabled = false;
+            var first = CreateTilemap("First Tilemap").GetComponent<TilemapAuthoring>();
+            var second = CreateTilemap("Second Tilemap").GetComponent<TilemapAuthoring>();
 
-            var targets = new List<MosaicPaintingTarget> { CreateEntityPaintingTarget(float3.zero, hash) };
-            var inactiveHashes = new HashSet<Unity.Entities.Hash128>();
-            MosaicPaintingPreviewService.AddAuthoringTargets(
-                targets, StageUtility.GetCurrentStageHandle(), inactiveHashes);
-            MosaicPaintingWindow.RemoveEntityTargetsShadowedByAuthoring(targets, inactiveHashes);
-
-            Assert.AreEqual(1, targets.Count);
-            Assert.IsTrue(targets[0].IsEntityTarget);
+            Assert.AreNotEqual(new MosaicPaintingTarget(first).Id, new MosaicPaintingTarget(second).Id);
         }
 
         [Test]
-        public void PaintingWindow_EntityTargetRequiresActiveSubSceneGuid()
+        public void PaintingCatalog_PrimaryEntityBindingUsesGameObjectIdentity()
         {
-            var sceneGuid = new Unity.Entities.Hash128(3u, 0u, 0u, 0u);
+            var tilemap = CreateTilemap("Shared Primary Entity").GetComponent<TilemapAuthoring>();
+            var candidate = new MosaicPaintingTarget(tilemap);
             var entity = _world.EntityManager.CreateEntity();
-            _world.EntityManager.AddSharedComponent(entity, new SceneSection { SceneGUID = sceneGuid });
-            var subSceneGuids = new HashSet<Unity.Entities.Hash128>();
+            var hash = new Unity.Entities.Hash128(41u, 0u, 0u, 0u);
+            var expected = new MosaicPaintingRuntimeBinding(_world, entity, entity, hash, hash);
+            var primaryEntityId = tilemap.GetComponentInParent<GridAuthoring>().GetEntityId();
+            var bindings = new Dictionary<MosaicPaintingTargetId, MosaicPaintingRuntimeBinding>
+            {
+                [new MosaicPaintingTargetId(tilemap.gameObject.GetEntityId(), primaryEntityId, 0)] = expected,
+            };
 
-            Assert.IsFalse(MosaicPaintingWindow.IsSubSceneEntity(_world.EntityManager, entity, subSceneGuids));
+            Assert.AreNotEqual(tilemap.GetEntityId(), primaryEntityId);
+            Assert.IsTrue(MosaicPaintingCatalog.TryGetBinding(candidate, bindings, out var binding));
+            Assert.AreEqual(expected.IntGridEntity, binding.IntGridEntity);
+        }
 
-            subSceneGuids.Add(sceneGuid);
+        [TestCase(false)]
+        [TestCase(true)]
+        public void PaintingCatalog_ClosedSubSceneTargetWithoutEntityGuidIsReadOnly(bool terrain)
+        {
+            var entityManager = _world.EntityManager;
+            var sceneGuid = new Unity.Entities.Hash128(42u, 0u, 0u, 0u);
+            var intGridHash = new Unity.Entities.Hash128(43u, 0u, 0u, 0u);
+            var rendererHash = new Unity.Entities.Hash128(44u, 0u, 0u, 0u);
+            var intGridEntity = entityManager.CreateEntity();
+            var rendererEntity = terrain ? entityManager.CreateEntity() : intGridEntity;
+            var intGridData = new IntGridData { Hash = intGridHash, DebugName = "Closed IntGrid" };
+            entityManager.AddComponentData(intGridEntity, intGridData);
+            entityManager.AddComponentData(intGridEntity, new TilemapTransform { CellSize = 1f });
+            entityManager.AddBuffer<IntGridValueElement>(intGridEntity).Add(new IntGridValueElement
+            {
+                Value = 1,
+                Name = "Solid",
+                Color = Color.red,
+            });
 
-            Assert.IsTrue(MosaicPaintingWindow.IsSubSceneEntity(_world.EntityManager, entity, subSceneGuids));
+            entityManager.AddComponentData(rendererEntity, new TilemapRendererData { MeshHash = rendererHash });
+            entityManager.AddComponentData(rendererEntity, new LocalToWorld { Value = float4x4.identity });
+            entityManager.AddComponent<MosaicRendererInitialized>(rendererEntity);
+            entityManager.AddSharedComponent(rendererEntity, new SceneSection { SceneGUID = sceneGuid });
+            if (terrain)
+            {
+                entityManager.AddComponent<FireAlt.Mosaic.Data.TerrainData>(rendererEntity);
+                entityManager.AddBuffer<TilemapTerrainLayerElement>(rendererEntity)
+                    .Add(new TilemapTerrainLayerElement { IntGridEntity = intGridEntity });
+            }
+
+            var layers = new NativeHashMap<Unity.Entities.Hash128, TilemapIntGridSingleton.IntGridLayer>(
+                1, Allocator.Persistent);
+            layers.Add(intGridHash, new TilemapIntGridSingleton.IntGridLayer(
+                1, Allocator.Persistent, intGridData, terrain, intGridEntity));
+            entityManager.CreateSingleton(new TilemapIntGridSingleton { IntGridLayers = layers });
+
+            try
+            {
+                var targets = new List<MosaicPaintingTarget>();
+                MosaicPaintingCatalog.DiscoverTargets(targets, System.Array.Empty<MosaicPaintingTarget>(),
+                    _world, false, new HashSet<Unity.Entities.Hash128>());
+                Assert.IsEmpty(targets, "A Prefab-stage scope must not admit unrelated closed SubScene entities.");
+
+                MosaicPaintingCatalog.DiscoverTargets(targets, System.Array.Empty<MosaicPaintingTarget>(),
+                    _world, true, new HashSet<Unity.Entities.Hash128>());
+
+                Assert.AreEqual(1, targets.Count);
+                Assert.IsTrue(targets[0].IsValid);
+                Assert.IsTrue(targets[0].IsEntityTarget);
+                Assert.IsFalse(targets[0].IsPaintable);
+                Assert.AreEqual(terrain, targets[0].IsTerrain);
+                Assert.AreEqual(1, targets[0].Values.Count);
+                Assert.AreEqual(default(EntityId), targets[0].SourceId);
+                Assert.IsTrue(MosaicPaintingWindow.HasValidTarget(targets),
+                    "A ready closed-SubScene target must keep the Mosaic tool available.");
+
+                var window = ScriptableObject.CreateInstance<MosaicPaintingWindow>();
+                try
+                {
+                    window.CreateGUI();
+                    var targetsField = typeof(MosaicPaintingWindow).GetField("_targets",
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+                    var buildPalette = typeof(MosaicPaintingWindow).GetMethod("BuildPalette",
+                        BindingFlags.Instance | BindingFlags.NonPublic);
+                    Assert.IsNotNull(targetsField);
+                    Assert.IsNotNull(buildPalette);
+                    var windowTargets = (List<MosaicPaintingTarget>)targetsField.GetValue(window);
+                    windowTargets.Clear();
+                    windowTargets.Add(targets[0]);
+                    buildPalette.Invoke(window, null);
+                    Assert.IsNull(window.rootVisualElement.Q<Button>(className: "mosaic-paint-value"),
+                        "Closed-SubScene runtime targets must not be published as selectable paint values.");
+                }
+                finally
+                {
+                    Object.DestroyImmediate(window);
+                }
+            }
+            finally
+            {
+                var layer = layers[intGridHash];
+                layer.Dispose();
+                layers.Dispose();
+            }
         }
 
         [Test]
@@ -270,6 +441,7 @@ namespace FireAlt.Mosaic.Tests
             var originatingEntityId = _gridObject.GetEntityId();
             var subSceneRenderer = entityManager.CreateEntity();
             entityManager.AddComponentData(subSceneRenderer, new TilemapRendererData { MeshHash = rendererHash });
+            entityManager.AddComponentData(subSceneRenderer, new IntGridData { Hash = rendererHash });
             entityManager.AddComponentData(subSceneRenderer,
                 new EntityGuid(originatingEntityId, default, 0u, 0u));
             entityManager.AddSharedComponent(subSceneRenderer, new SceneSection
@@ -284,9 +456,11 @@ namespace FireAlt.Mosaic.Tests
 
             var preview = new MosaicPaintingPreview();
             var noTargets = new List<MosaicPaintingVisibilityTarget>();
-            var contextTargets = new List<MosaicPaintingContextVisibilityTarget>
+            var binding = new MosaicPaintingRuntimeBinding(
+                _world, subSceneRenderer, subSceneRenderer, rendererHash, rendererHash);
+            var contextTargets = new List<MosaicPaintingVisibilityTarget>
             {
-                new(new MosaicPaintingVisibilityTarget(rendererHash, rendererHash), originatingEntityId),
+                new(binding, originatingEntityId),
             };
 
             preview.SetVisibility(_world, noTargets, contextTargets, false);
@@ -296,7 +470,7 @@ namespace FireAlt.Mosaic.Tests
             Assert.AreEqual(22,
                 InternalEditorRenderData.GetSceneCullingMask(entityManager, prefabRenderer));
 
-            preview.SetVisibility(_world, noTargets, new List<MosaicPaintingContextVisibilityTarget>(), false);
+            preview.SetVisibility(_world, noTargets, new List<MosaicPaintingVisibilityTarget>(), false);
 
             Assert.AreEqual(11,
                 InternalEditorRenderData.GetSceneCullingMask(entityManager, subSceneRenderer));
