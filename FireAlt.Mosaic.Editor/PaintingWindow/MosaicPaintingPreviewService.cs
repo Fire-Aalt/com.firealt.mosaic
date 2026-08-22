@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using FireAlt.Mosaic.Authoring;
+using FireAlt.Mosaic.Data;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.Scenes;
+using Unity.Transforms;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -18,7 +21,7 @@ namespace FireAlt.Mosaic.Editor
 
         private static readonly List<MosaicPaintingTarget> Targets = new();
         private static readonly HashSet<MosaicPaintingVisibilityTarget> VisibilityTargets = new();
-        private static readonly HashSet<Hash128> PendingSubSceneLoads = new();
+        private static readonly Dictionary<Hash128, HashSet<Entity>> PendingSubSceneLoads = new();
         private static readonly HashSet<int> LinkedConfigurationUndoGroups = new();
         private static readonly List<Hash128> CompletedSubSceneLoads = new();
         private static readonly MosaicPaintingPreview Preview = new();
@@ -41,6 +44,7 @@ namespace FireAlt.Mosaic.Editor
             Undo.postprocessModifications += OnPostprocessModifications;
             Undo.undoRedoEvent += OnUndoRedo;
             EditorSceneManager.sceneOpened += OnSceneOpened;
+            EditorSceneManager.sceneClosing += OnSceneClosing;
             EditorSceneManager.sceneClosed += OnSceneClosed;
             AssemblyReloadEvents.beforeAssemblyReload += Preview.Dispose;
             MosaicPaintingSession.CellsChanged += OnCellsChanged;
@@ -95,7 +99,7 @@ namespace FireAlt.Mosaic.Editor
         {
             foreach (var tilemap in Resources.FindObjectsOfTypeAll<TilemapAuthoring>())
             {
-                if (!BelongsToStage(tilemap, stage)) continue;
+                if (!IsAllowedAuthoringLocation(tilemap, stage)) continue;
 
                 if (tilemap.isActiveAndEnabled) targets.Add(new MosaicPaintingTarget(tilemap));
                 else if (inactiveHashes != null) inactiveHashes.Add(new MosaicPaintingTarget(tilemap).IntGridHash);
@@ -103,7 +107,7 @@ namespace FireAlt.Mosaic.Editor
 
             foreach (var terrain in Resources.FindObjectsOfTypeAll<TilemapTerrainAuthoring>())
             {
-                if (!BelongsToStage(terrain, stage)) continue;
+                if (!IsAllowedAuthoringLocation(terrain, stage)) continue;
                 for (var i = 0; i < terrain.intGridLayers.Count; i++)
                 {
                     var target = new MosaicPaintingTarget(terrain, terrain.intGridLayers[i], i);
@@ -264,6 +268,23 @@ namespace FireAlt.Mosaic.Editor
             QueueTargetRefresh();
         }
 
+        private static void OnSceneClosing(Scene scene, bool removingScene)
+        {
+            if (!scene.isSubScene) return;
+
+            foreach (var subScene in Resources.FindObjectsOfTypeAll<SubScene>())
+            {
+                if (!subScene.isActiveAndEnabled || !subScene.AutoLoadScene
+                    || AssetDatabase.GetAssetPath(subScene.SceneAsset) != scene.path)
+                {
+                    continue;
+                }
+
+                PendingSubSceneLoads[subScene.SceneGUID] = CollectMosaicRenderers(subScene.SceneGUID);
+                return;
+            }
+        }
+
         private static void OnSceneClosed(Scene scene)
         {
             if (!scene.isSubScene)
@@ -280,7 +301,10 @@ namespace FireAlt.Mosaic.Editor
                     continue;
                 }
 
-                PendingSubSceneLoads.Add(subScene.SceneGUID);
+                if (!PendingSubSceneLoads.ContainsKey(subScene.SceneGUID))
+                {
+                    PendingSubSceneLoads.Add(subScene.SceneGUID, CollectMosaicRenderers(subScene.SceneGUID));
+                }
                 QueueTargetRefresh();
                 EditorApplication.QueuePlayerLoopUpdate();
                 return;
@@ -341,13 +365,20 @@ namespace FireAlt.Mosaic.Editor
             if (world == null || !world.IsCreated) return;
 
             CompletedSubSceneLoads.Clear();
-            foreach (var sceneGuid in PendingSubSceneLoads)
+            foreach (var pending in PendingSubSceneLoads)
             {
+                var sceneGuid = pending.Key;
                 var sceneEntity = SceneSystem.GetSceneEntity(world.Unmanaged, sceneGuid);
-                if (world.EntityManager.Exists(sceneEntity) && SceneSystem.IsSceneLoaded(world.Unmanaged, sceneEntity))
+                var waitingForReplacement = pending.Value != null && pending.Value.Count != 0;
+                if (!world.EntityManager.Exists(sceneEntity)
+                    || !SceneSystem.IsSceneLoaded(world.Unmanaged, sceneEntity)
+                    || HasOutgoingRenderers(world.EntityManager, sceneGuid, pending.Value)
+                    || waitingForReplacement && !HasMosaicRenderer(world.EntityManager, sceneGuid))
                 {
-                    CompletedSubSceneLoads.Add(sceneGuid);
+                    continue;
                 }
+
+                CompletedSubSceneLoads.Add(sceneGuid);
             }
 
             foreach (var sceneGuid in CompletedSubSceneLoads) PendingSubSceneLoads.Remove(sceneGuid);
@@ -378,14 +409,87 @@ namespace FireAlt.Mosaic.Editor
                     }
                 }
 
-                PendingSubSceneLoads.Add(subScene.SceneGUID);
+                if (!PendingSubSceneLoads.ContainsKey(subScene.SceneGUID))
+                {
+                    PendingSubSceneLoads.Add(subScene.SceneGUID, null);
+                }
             }
+        }
+
+        private static HashSet<Entity> CollectMosaicRenderers(Hash128 sceneGuid)
+        {
+            var result = new HashSet<Entity>();
+            var world = World.DefaultGameObjectInjectionWorld;
+            if (world == null || !world.IsCreated) return result;
+
+            var entityManager = world.EntityManager;
+            var query = new EntityQueryBuilder(Allocator.Temp)
+                .WithAll<TilemapRendererData, SceneSection>()
+                .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
+                .Build(entityManager);
+            foreach (var entity in query.ToEntityArray(Allocator.Temp))
+            {
+                if (entityManager.GetSharedComponent<SceneSection>(entity).SceneGUID == sceneGuid)
+                {
+                    result.Add(entity);
+                }
+            }
+
+            return result;
+        }
+
+        private static bool HasOutgoingRenderers(EntityManager entityManager, Hash128 sceneGuid,
+            IReadOnlyCollection<Entity> outgoingRenderers)
+        {
+            if (outgoingRenderers == null) return false;
+            foreach (var entity in outgoingRenderers)
+            {
+                if (!entityManager.Exists(entity) || MosaicInitializationSystem.IsStaleSceneEntity(entityManager, entity)
+                                                  || !entityManager.HasComponent<SceneSection>(entity))
+                {
+                    continue;
+                }
+
+                if (entityManager.GetSharedComponent<SceneSection>(entity).SceneGUID == sceneGuid) return true;
+            }
+
+            return false;
+        }
+
+        private static bool HasMosaicRenderer(EntityManager entityManager, Hash128 sceneGuid)
+        {
+            var query = new EntityQueryBuilder(Allocator.Temp)
+                .WithAll<TilemapRendererData, SceneSection, LocalToWorld>()
+                .WithOptions(EntityQueryOptions.IgnoreComponentEnabledState)
+                .Build(entityManager);
+            foreach (var entity in query.ToEntityArray(Allocator.Temp))
+            {
+                if (!MosaicInitializationSystem.IsStaleSceneEntity(entityManager, entity)
+                    && entityManager.GetSharedComponent<SceneSection>(entity).SceneGUID == sceneGuid)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         internal static bool BelongsToStage(Component component, StageHandle stage)
         {
             return component != null && component.gameObject.scene.IsValid() && component.gameObject.scene.isLoaded
                    && StageUtility.GetStageHandle(component.gameObject) == stage;
+        }
+
+        internal static bool IsAllowedAuthoringLocation(Component component, StageHandle stage)
+        {
+            if (!BelongsToStage(component, stage)) return false;
+
+            var prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (prefabStage == null) return component.gameObject.scene.isSubScene;
+            if (prefabStage.mode == PrefabStage.Mode.InIsolation) return true;
+
+            var contextObject = prefabStage.openedFromInstanceObject;
+            return contextObject != null && contextObject.scene.isSubScene;
         }
     }
 }

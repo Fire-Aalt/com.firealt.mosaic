@@ -33,6 +33,7 @@ namespace FireAlt.Mosaic.Tests
         private GameObject _gridObject;
         private IntGridDefinition _intGrid;
         private Material _material;
+        private string _prefabPath;
 
         [SetUp]
         public void SetUp()
@@ -50,10 +51,20 @@ namespace FireAlt.Mosaic.Tests
             MosaicPaintingSession.BrushSize = MosaicPaintingSession.MIN_BRUSH_SIZE;
             MosaicPaintingSession.Clear();
             if (ToolManager.activeToolType == typeof(MosaicPaintingTool)) ToolManager.RestorePreviousPersistentTool();
+            if (_prefabPath == null)
+            {
+                Object.DestroyImmediate(_gridObject);
+            }
+            else
+            {
+                PrefabStageUtility.GetCurrentPrefabStage()?.ClearDirtiness();
+                StageUtility.GoToMainStage();
+                AssetDatabase.DeleteAsset(_prefabPath);
+            }
+
             Object.DestroyImmediate(_material);
             foreach (var texture in _textures) Object.DestroyImmediate(texture);
             foreach (var intGrid in _intGrids) Object.DestroyImmediate(intGrid);
-            Object.DestroyImmediate(_gridObject);
         }
 
         [Test]
@@ -282,6 +293,7 @@ namespace FireAlt.Mosaic.Tests
         [Test]
         public void PaintingWindow_GroupsTerrainAndPresentsLinkedButtonsAlphabetically()
         {
+            EnterPrefabIsolation();
             var terrainObject = new GameObject("Terrain Owner", typeof(TilemapTerrainAuthoring));
             terrainObject.transform.SetParent(_gridObject.transform);
             var terrain = terrainObject.GetComponent<TilemapTerrainAuthoring>();
@@ -350,8 +362,24 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
+        public void PaintingWindow_NormalSceneAuthoringLocationsAreRejected()
+        {
+            var tilemap = CreateTilemap("Outside Tilemap");
+            var terrainObject = new GameObject("Outside Terrain", typeof(TilemapTerrainAuthoring));
+            terrainObject.transform.SetParent(_gridObject.transform);
+            var linked = CreateLinked("Outside Linked", (tilemap, 1));
+            var stage = StageUtility.GetCurrentStageHandle();
+
+            Assert.IsFalse(MosaicPaintingPreviewService.IsAllowedAuthoringLocation(tilemap, stage));
+            Assert.IsFalse(MosaicPaintingPreviewService.IsAllowedAuthoringLocation(
+                terrainObject.GetComponent<TilemapTerrainAuthoring>(), stage));
+            Assert.IsFalse(MosaicPaintingPreviewService.IsAllowedAuthoringLocation(linked, stage));
+        }
+
+        [Test]
         public void PaintingWindow_HideRawTargetValuesFiltersOnlyAffectedTilemaps()
         {
+            EnterPrefabIsolation();
             var defaultTarget = CreateTilemap("Default Target");
             var hiddenTarget = CreateTilemap("Hidden Target");
             var unrelatedTarget = CreateTilemap("Unrelated Target");
@@ -420,6 +448,14 @@ namespace FireAlt.Mosaic.Tests
 
             _intGrids.Add(intGrid);
             return intGrid;
+        }
+
+        private void EnterPrefabIsolation()
+        {
+            _prefabPath = AssetDatabase.GenerateUniqueAssetPath("Assets/LinkedTilemapLayersTests.prefab");
+            PrefabUtility.SaveAsPrefabAsset(_gridObject, _prefabPath);
+            Object.DestroyImmediate(_gridObject);
+            _gridObject = PrefabStageUtility.OpenPrefab(_prefabPath).prefabContentsRoot;
         }
 
         private TilemapAuthoring CreateTilemap(string name)

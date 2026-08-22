@@ -231,7 +231,7 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
-        public void PaintingWindow_DisabledAuthoringTargetSuppressesMatchingEntityTarget()
+        public void PaintingWindow_OutsideAuthoringTargetDoesNotSuppressMatchingEntityTarget()
         {
             var tilemap = CreateTilemap("Disabled Tilemap").GetComponent<TilemapAuthoring>();
             var hash = new MosaicPaintingTarget(tilemap).IntGridHash;
@@ -243,7 +243,23 @@ namespace FireAlt.Mosaic.Tests
                 targets, StageUtility.GetCurrentStageHandle(), inactiveHashes);
             MosaicPaintingWindow.RemoveEntityTargetsShadowedByAuthoring(targets, inactiveHashes);
 
-            Assert.IsEmpty(targets);
+            Assert.AreEqual(1, targets.Count);
+            Assert.IsTrue(targets[0].IsEntityTarget);
+        }
+
+        [Test]
+        public void PaintingWindow_EntityTargetRequiresActiveSubSceneGuid()
+        {
+            var sceneGuid = new Unity.Entities.Hash128(3u, 0u, 0u, 0u);
+            var entity = _world.EntityManager.CreateEntity();
+            _world.EntityManager.AddSharedComponent(entity, new SceneSection { SceneGUID = sceneGuid });
+            var subSceneGuids = new HashSet<Unity.Entities.Hash128>();
+
+            Assert.IsFalse(MosaicPaintingWindow.IsSubSceneEntity(_world.EntityManager, entity, subSceneGuids));
+
+            subSceneGuids.Add(sceneGuid);
+
+            Assert.IsTrue(MosaicPaintingWindow.IsSubSceneEntity(_world.EntityManager, entity, subSceneGuids));
         }
 
         [TestCase(false)]

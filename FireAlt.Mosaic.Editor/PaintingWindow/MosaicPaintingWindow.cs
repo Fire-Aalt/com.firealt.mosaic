@@ -13,6 +13,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.UIElements;
 using Unity.Rendering;
+using Unity.Scenes;
 using Unity.Transforms;
 using Hash128 = Unity.Entities.Hash128;
 
@@ -306,7 +307,7 @@ namespace FireAlt.Mosaic.Editor
 
             if (PrefabStageUtility.GetCurrentPrefabStage() == null)
             {
-                DiscoverEditorWorldTargets(targets);
+                DiscoverEditorWorldTargets(targets, currentStage);
             }
 
             MosaicPaintingPreviewService.AddAuthoringTargets(targets, currentStage, inactiveAuthoringHashes);
@@ -321,7 +322,7 @@ namespace FireAlt.Mosaic.Editor
             components.Clear();
             foreach (var component in Resources.FindObjectsOfTypeAll<LinkedTilemapLayers>())
             {
-                if (MosaicPaintingPreviewService.BelongsToStage(component, stage)) components.Add(component);
+                if (MosaicPaintingPreviewService.IsAllowedAuthoringLocation(component, stage)) components.Add(component);
             }
 
             components.Sort((left, right) =>
@@ -359,13 +360,23 @@ namespace FireAlt.Mosaic.Editor
             targets.RemoveAll(target => target.IsEntityTarget && authoringHashes.Contains(target.IntGridHash));
         }
 
-        private static void DiscoverEditorWorldTargets(List<MosaicPaintingTarget> targets)
+        private static void DiscoverEditorWorldTargets(List<MosaicPaintingTarget> targets, StageHandle currentStage)
         {
             var world = World.DefaultGameObjectInjectionWorld;
             if (world == null) return;
 
             var entityManager = world.EntityManager;
             entityManager.CompleteAllTrackedJobs();
+            var subSceneGuids = new HashSet<Hash128>();
+            foreach (var subScene in SubScene.AllSubScenes)
+            {
+                if (subScene != null && subScene.isActiveAndEnabled && subScene.SceneGUID != default
+                    && MosaicPaintingPreviewService.BelongsToStage(subScene, currentStage))
+                {
+                    subSceneGuids.Add(subScene.SceneGUID);
+                }
+            }
+
             var intGridEntities = new Dictionary<Hash128, Entity>();
             var intGridQuery = new EntityQueryBuilder(Allocator.Temp)
                 .WithAll<IntGridData, SceneSection>()
@@ -373,6 +384,7 @@ namespace FireAlt.Mosaic.Editor
                 .Build(entityManager);
             foreach (var entity in intGridQuery.ToEntityArray(Allocator.Temp))
             {
+                if (!IsSubSceneEntity(entityManager, entity, subSceneGuids)) continue;
                 intGridEntities[entityManager.GetComponentData<IntGridData>(entity).Hash] = entity;
             }
 
@@ -381,6 +393,7 @@ namespace FireAlt.Mosaic.Editor
                 .Build(entityManager);
             foreach (var terrainEntity in terrainQuery.ToEntityArray(Allocator.Temp))
             {
+                if (!IsSubSceneEntity(entityManager, terrainEntity, subSceneGuids)) continue;
                 var layers = entityManager.GetBuffer<TilemapTerrainLayerElement>(terrainEntity);
                 for (var i = 0; i < layers.Length; i++)
                 {
@@ -397,9 +410,17 @@ namespace FireAlt.Mosaic.Editor
                 .Build(entityManager);
             foreach (var entity in tilemapQuery.ToEntityArray(Allocator.Temp))
             {
+                if (!IsSubSceneEntity(entityManager, entity, subSceneGuids)) continue;
                 var name = entityManager.GetComponentData<IntGridData>(entity).DebugName.ToString();
                 targets.Add(new MosaicPaintingTarget(world, entity, entity, name, false, 0));
             }
+        }
+
+        internal static bool IsSubSceneEntity(EntityManager entityManager, Entity entity,
+            HashSet<Hash128> subSceneGuids)
+        {
+            return !MosaicInitializationSystem.IsStaleSceneEntity(entityManager, entity)
+                   && subSceneGuids.Contains(entityManager.GetSharedComponent<SceneSection>(entity).SceneGUID);
         }
 
         private static void ValidateDuplicateHashes(IReadOnlyList<MosaicPaintingTarget> targets)
