@@ -10,6 +10,7 @@ using Unity.Scenes;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using Hash128 = Unity.Entities.Hash128;
 
 namespace FireAlt.Mosaic.Editor
@@ -47,12 +48,7 @@ namespace FireAlt.Mosaic.Editor
                 if (MosaicPaintingController.IsAllowedAuthoringLocation(component, stage)) components.Add(component);
             }
 
-            components.Sort((left, right) =>
-            {
-                var comparison = string.CompareOrdinal(left.gameObject.name, right.gameObject.name);
-                return comparison != 0 ? comparison : left.gameObject.GetEntityId().GetHashCode()
-                    .CompareTo(right.gameObject.GetEntityId().GetHashCode());
-            });
+            components.Sort(CompareHierarchyOrder);
         }
 
         internal static bool DiscoverTargets(List<MosaicPaintingTarget> targets, StageHandle stage,
@@ -111,9 +107,77 @@ namespace FireAlt.Mosaic.Editor
 
             targets.AddRange(anonymousTargets);
 
-            targets.Sort((left, right) => string.CompareOrdinal(left.DisplayName, right.DisplayName));
+            targets.Sort(CompareTargetHierarchyOrder);
             ValidateDuplicateHashes(targets);
             return pending;
+        }
+
+        internal static int CompareHierarchyOrder(Component left, Component right)
+        {
+            if (ReferenceEquals(left, right)) return 0;
+
+            var leftTransform = left.transform;
+            var rightTransform = right.transform;
+            if (leftTransform.gameObject.scene != rightTransform.gameObject.scene)
+            {
+                var sceneComparison = GetSceneIndex(leftTransform.gameObject.scene)
+                    .CompareTo(GetSceneIndex(rightTransform.gameObject.scene));
+                if (sceneComparison != 0) return sceneComparison;
+
+                return leftTransform.gameObject.scene.handle.GetHashCode()
+                    .CompareTo(rightTransform.gameObject.scene.handle.GetHashCode());
+            }
+
+            var leftDepth = GetHierarchyDepth(leftTransform);
+            var rightDepth = GetHierarchyDepth(rightTransform);
+            var leftAncestor = leftTransform;
+            var rightAncestor = rightTransform;
+            for (var depth = leftDepth; depth > rightDepth; depth--) leftAncestor = leftAncestor.parent;
+            for (var depth = rightDepth; depth > leftDepth; depth--) rightAncestor = rightAncestor.parent;
+
+            if (leftAncestor == rightAncestor) return leftDepth.CompareTo(rightDepth);
+            while (leftAncestor.parent != rightAncestor.parent)
+            {
+                leftAncestor = leftAncestor.parent;
+                rightAncestor = rightAncestor.parent;
+            }
+
+            return leftAncestor.GetSiblingIndex().CompareTo(rightAncestor.GetSiblingIndex());
+        }
+
+        private static int CompareTargetHierarchyOrder(MosaicPaintingTarget left, MosaicPaintingTarget right)
+        {
+            if (left.Owner != null && right.Owner != null)
+            {
+                var comparison = CompareHierarchyOrder(left.Owner, right.Owner);
+                return comparison != 0 ? comparison : left.LayerIndex.CompareTo(right.LayerIndex);
+            }
+
+            if (left.Owner != null) return -1;
+            if (right.Owner != null) return 1;
+            return string.CompareOrdinal(left.DisplayName, right.DisplayName);
+        }
+
+        private static int GetHierarchyDepth(Transform transform)
+        {
+            var depth = 0;
+            while (transform.parent != null)
+            {
+                depth++;
+                transform = transform.parent;
+            }
+
+            return depth;
+        }
+
+        private static int GetSceneIndex(Scene scene)
+        {
+            for (var i = 0; i < SceneManager.sceneCount; i++)
+            {
+                if (SceneManager.GetSceneAt(i) == scene) return i;
+            }
+
+            return int.MaxValue;
         }
 
         internal static bool TryFindBinding(MosaicPaintingTargetId id, out MosaicPaintingRuntimeBinding binding)

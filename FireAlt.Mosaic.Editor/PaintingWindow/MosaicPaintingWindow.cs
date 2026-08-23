@@ -34,6 +34,7 @@ namespace FireAlt.Mosaic.Editor
         private readonly List<LinkedTilemapLayers> _linkedComponents = new();
         private readonly List<MosaicPaintingSelection> _selections = new();
         private readonly List<Button> _valueButtons = new();
+        private readonly Dictionary<object, bool> _foldoutStates = new();
 
         private MosaicPaintingShortcutContext _shortcutContext;
         private ScrollView _palette;
@@ -127,6 +128,16 @@ namespace FireAlt.Mosaic.Editor
             toolbar.Add(randomize);
             root.Add(toolbar);
 
+            var controlsFoldout = CreateGroupFoldout("Controls", null, expanded: false);
+            controlsFoldout.AddToClassList("mosaic-paint-controls-foldout");
+            var controlsHelp = new Label(
+                "LMB paints and RMB erases. Hold Alt and drag LMB or RMB to fill or clear a rectangle; "
+                + "rectangle painting ignores Brush Size. Hold Shift for Scene View navigation. "
+                + "Click the selected value again or press Escape to leave painting.");
+            controlsHelp.AddToClassList("mosaic-paint-help");
+            controlsFoldout.Add(controlsHelp);
+            root.Add(controlsFoldout);
+
             var brushControls = new VisualElement();
             brushControls.AddToClassList("mosaic-paint-controls");
             _brushSize = new SliderInt("Brush Size", MosaicPaintingController.MIN_BRUSH_SIZE,
@@ -144,14 +155,6 @@ namespace FireAlt.Mosaic.Editor
             });
             brushControls.Add(_brushSize);
             root.Add(brushControls);
-
-            var controlsHelp = new HelpBox(
-                "LMB paints and RMB erases. Hold Alt and drag LMB or RMB to fill or clear a rectangle; "
-                + "rectangle painting ignores Brush Size. Hold Shift for Scene View navigation. "
-                + "Click the selected value again or press Escape to leave painting.",
-                HelpBoxMessageType.None);
-            controlsHelp.AddToClassList("mosaic-paint-help");
-            root.Add(controlsHelp);
 
             _palette = new ScrollView(ScrollViewMode.Vertical);
             _palette.AddToClassList("mosaic-paint-palette");
@@ -303,12 +306,15 @@ namespace FireAlt.Mosaic.Editor
 
         private void BuildPalette()
         {
+            RememberFoldoutStates();
             _palette.Clear();
             _selections.Clear();
             _valueButtons.Clear();
 
             var hasPaintingTargets = false;
             var hiddenRawTargets = CollectHiddenRawTargets();
+            var paletteOwners = new List<(MonoBehaviour Owner, int Sequence)>();
+            var tilemapPaletteTargets = new Dictionary<TilemapAuthoring, MosaicPaintingTarget>();
             var terrainTargets = new Dictionary<TilemapTerrainAuthoring, List<MosaicPaintingTarget>>();
             foreach (var target in _targets)
             {
@@ -320,7 +326,6 @@ namespace FireAlt.Mosaic.Editor
                 }
 
                 if (!target.HasLoadedAuthoringScene) continue;
-                hasPaintingTargets = true;
 
                 if (target.Owner is TilemapTerrainAuthoring terrain)
                 {
@@ -328,6 +333,7 @@ namespace FireAlt.Mosaic.Editor
                     {
                         layers = new List<MosaicPaintingTarget>();
                         terrainTargets.Add(terrain, layers);
+                        paletteOwners.Add((terrain, paletteOwners.Count));
                     }
 
                     layers.Add(target);
@@ -335,56 +341,44 @@ namespace FireAlt.Mosaic.Editor
                 }
 
                 if (target.Owner is TilemapAuthoring tilemap && hiddenRawTargets.Contains(tilemap)) continue;
-                _palette.Add(CreateTargetFoldout(target, target.DisplayName));
-            }
-
-            var terrainOwners = new List<TilemapTerrainAuthoring>(terrainTargets.Keys);
-            terrainOwners.Sort((left, right) => string.CompareOrdinal(left.name, right.name));
-            foreach (var terrain in terrainOwners)
-            {
-                var terrainFoldout = CreateGroupFoldout(terrain.name, terrain);
-                terrainFoldout.AddToClassList("mosaic-paint-terrain");
-
-                var layers = terrainTargets[terrain];
-                layers.Sort((left, right) => left.LayerIndex.CompareTo(right.LayerIndex));
-                foreach (var target in layers)
+                if (target.Owner is TilemapAuthoring paletteTilemap)
                 {
-                    var layerName = $"Layer {target.LayerIndex + 1} / {target.IntGrid?.name ?? "Missing IntGrid"}";
-                    terrainFoldout.Add(CreateTargetFoldout(target, layerName, true));
+                    tilemapPaletteTargets[paletteTilemap] = target;
+                    paletteOwners.Add((paletteTilemap, paletteOwners.Count));
                 }
-
-                _palette.Add(terrainFoldout);
             }
 
-            var tilemapTargets = CreateTilemapTargetMap(_targets);
             foreach (var component in _linkedComponents)
             {
-                var linkedFoldout = CreateGroupFoldout(component.gameObject.name, component);
-                linkedFoldout.AddToClassList("mosaic-paint-linked");
-                var hasPublishedLayer = false;
+                paletteOwners.Add((component, paletteOwners.Count));
+            }
 
-                var linkedLayers = component.layers ?? new List<LinkedLayer>();
-                for (var i = 0; i < linkedLayers.Count; i++)
+            paletteOwners.Sort((left, right) =>
+            {
+                var comparison = MosaicPaintingCatalog.CompareHierarchyOrder(left.Owner, right.Owner);
+                return comparison != 0 ? comparison : left.Sequence.CompareTo(right.Sequence);
+            });
+
+            var tilemapTargets = CreateTilemapTargetMap(_targets);
+            foreach (var paletteOwner in paletteOwners)
+            {
+                switch (paletteOwner.Owner)
                 {
-                    var selection = MosaicPaintingSelection.Create(component, i, tilemapTargets, _stage);
-                    if (selection.ValidationMessage?.Contains("loaded and paintable") == true) continue;
-
-                    hasPublishedLayer = true;
-                    _selections.Add(selection);
-                    var row = CreateValueRow(selection, out var button);
-                    button.SetEnabled(selection.IsValid);
-                    if (!selection.IsValid) button.tooltip = selection.ValidationMessage;
-                    linkedFoldout.Add(row);
-                    if (!selection.IsValid)
-                    {
-                        linkedFoldout.Add(new HelpBox(selection.ValidationMessage, HelpBoxMessageType.Error));
-                    }
-                }
-
-                if (hasPublishedLayer)
-                {
-                    hasPaintingTargets = true;
-                    _palette.Add(linkedFoldout);
+                    case TilemapAuthoring tilemap:
+                        hasPaintingTargets = true;
+                        var target = tilemapPaletteTargets[tilemap];
+                        _palette.Add(CreateTargetFoldout(target, target.DisplayName));
+                        break;
+                    case TilemapTerrainAuthoring terrain:
+                        hasPaintingTargets = true;
+                        _palette.Add(CreateTerrainFoldout(terrain, terrainTargets[terrain]));
+                        break;
+                    case LinkedTilemapLayers linked:
+                        var linkedFoldout = CreateLinkedFoldout(linked, tilemapTargets);
+                        if (linkedFoldout == null) break;
+                        hasPaintingTargets = true;
+                        _palette.Add(linkedFoldout);
+                        break;
                 }
             }
 
@@ -395,6 +389,49 @@ namespace FireAlt.Mosaic.Editor
                     + "Open a SubScene to paint its IntGrid layers.",
                     HelpBoxMessageType.Info));
             }
+        }
+
+        private Foldout CreateTerrainFoldout(TilemapTerrainAuthoring terrain,
+            List<MosaicPaintingTarget> layers)
+        {
+            var terrainFoldout = CreateGroupFoldout(terrain.name, terrain);
+            terrainFoldout.AddToClassList("mosaic-paint-terrain");
+            layers.Sort((left, right) => left.LayerIndex.CompareTo(right.LayerIndex));
+            foreach (var target in layers)
+            {
+                var layerName = $"Layer {target.LayerIndex + 1} / {target.IntGrid?.name ?? "Missing IntGrid"}";
+                terrainFoldout.Add(CreateTargetFoldout(target, layerName, true));
+            }
+
+            return terrainFoldout;
+        }
+
+        private Foldout CreateLinkedFoldout(LinkedTilemapLayers component,
+            IReadOnlyDictionary<TilemapAuthoring, MosaicPaintingTarget> tilemapTargets)
+        {
+            var linkedFoldout = CreateGroupFoldout(component.gameObject.name, component);
+            linkedFoldout.AddToClassList("mosaic-paint-linked");
+            var hasPublishedLayer = false;
+
+            var linkedLayers = component.layers ?? new List<LinkedLayer>();
+            for (var i = 0; i < linkedLayers.Count; i++)
+            {
+                var selection = MosaicPaintingSelection.Create(component, i, tilemapTargets, _stage);
+                if (selection.ValidationMessage?.Contains("loaded and paintable") == true) continue;
+
+                hasPublishedLayer = true;
+                _selections.Add(selection);
+                var row = CreateValueRow(selection, out var button);
+                button.SetEnabled(selection.IsValid);
+                if (!selection.IsValid) button.tooltip = selection.ValidationMessage;
+                linkedFoldout.Add(row);
+                if (!selection.IsValid)
+                {
+                    linkedFoldout.Add(new HelpBox(selection.ValidationMessage, HelpBoxMessageType.Error));
+                }
+            }
+
+            return hasPublishedLayer ? linkedFoldout : null;
         }
 
         private HashSet<TilemapAuthoring> CollectHiddenRawTargets()
@@ -416,12 +453,30 @@ namespace FireAlt.Mosaic.Editor
             return hiddenTargets;
         }
 
-        private static Foldout CreateGroupFoldout(string text, object userData, bool nested = false)
+        private void RememberFoldoutStates()
         {
+            foreach (var foldout in _palette.Query<Foldout>().ToList())
+            {
+                var stateKey = GetFoldoutStateKey(foldout.userData);
+                if (stateKey != null) _foldoutStates[stateKey] = foldout.value;
+            }
+        }
+
+        private static object GetFoldoutStateKey(object userData)
+        {
+            return userData is MosaicPaintingTarget target ? target.Id : userData;
+        }
+
+        private Foldout CreateGroupFoldout(string text, object userData, bool nested = false,
+            bool expanded = true)
+        {
+            var stateKey = GetFoldoutStateKey(userData);
+            if (stateKey != null && _foldoutStates.TryGetValue(stateKey, out var savedState)) expanded = savedState;
+
             var foldout = new Foldout
             {
                 text = text,
-                value = true,
+                value = expanded,
                 userData = userData,
             };
             foldout.AddToClassList("mosaic-paint-group");

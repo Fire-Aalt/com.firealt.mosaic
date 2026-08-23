@@ -365,7 +365,7 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
-        public void PaintingWindow_GroupsTerrainAndPresentsLinkedButtonsAlphabetically()
+        public void PaintingWindow_GroupsTerrainAndPresentsLayersInHierarchyOrder()
         {
             EnterPrefabIsolation();
             var terrainObject = new GameObject("Terrain Owner", typeof(TilemapTerrainAuthoring));
@@ -385,15 +385,26 @@ namespace FireAlt.Mosaic.Tests
             alpha.layers[0].name = "Linked Paint";
             alpha.layers[0].icon = icon;
 
+            var earlyBranch = new GameObject("Zulu First Branch");
+            earlyBranch.transform.SetParent(_gridObject.transform);
+            var lateBranch = new GameObject("Alpha Second Branch");
+            lateBranch.transform.SetParent(_gridObject.transform);
+            terrain.transform.SetParent(earlyBranch.transform);
+            zulu.transform.SetParent(earlyBranch.transform);
+            tilemap.transform.SetParent(lateBranch.transform);
+            alpha.transform.SetParent(lateBranch.transform);
+            earlyBranch.transform.SetSiblingIndex(0);
+            lateBranch.transform.SetSiblingIndex(1);
+
             var window = ScriptableObject.CreateInstance<MosaicPaintingWindow>();
             try
             {
                 window.CreateGUI();
                 var targets = GetWindowList<MosaicPaintingTarget>(window, "_targets");
                 targets.Clear();
-                targets.Add(new MosaicPaintingTarget(terrain, terrain.intGridLayers[0], 0));
-                targets.Add(new MosaicPaintingTarget(terrain, terrain.intGridLayers[1], 1));
                 targets.Add(new MosaicPaintingTarget(tilemap));
+                targets.Add(new MosaicPaintingTarget(terrain, terrain.intGridLayers[1], 1));
+                targets.Add(new MosaicPaintingTarget(terrain, terrain.intGridLayers[0], 0));
                 var linkedComponents = GetWindowList<LinkedTilemapLayers>(window, "_linkedComponents");
                 linkedComponents.Clear();
                 linkedComponents.Add(alpha);
@@ -410,10 +421,17 @@ namespace FireAlt.Mosaic.Tests
 
                 var linkedFoldouts = foldouts.Where(foldout => foldout.ClassListContains("mosaic-paint-linked"))
                     .ToList();
-                Assert.AreEqual(new[] { "Alpha Links", "Zulu Links" },
+                Assert.AreEqual(new[] { "Zulu Links", "Alpha Links" },
                     linkedFoldouts.Select(foldout => foldout.text).ToArray());
                 Assert.IsTrue(linkedFoldouts.All(foldout =>
                     foldout.ClassListContains("mosaic-paint-group--top-level")));
+
+                var palette = window.rootVisualElement.Q<ScrollView>(className: "mosaic-paint-palette");
+                var paletteOwners = palette.contentContainer.Children().OfType<Foldout>()
+                    .Select(foldout => foldout.userData is MosaicPaintingTarget target
+                        ? target.Owner
+                        : foldout.userData).ToArray();
+                CollectionAssert.AreEqual(new object[] { terrain, zulu, tilemap, alpha }, paletteOwners);
 
                 var tilemapFoldout = foldouts.Single(foldout =>
                     foldout.userData is MosaicPaintingTarget target && ReferenceEquals(target.Owner, tilemap));
@@ -422,11 +440,13 @@ namespace FireAlt.Mosaic.Tests
                     ? "mosaic-paint-theme--dark"
                     : "mosaic-paint-theme--light"));
 
-                var alphaButton = linkedFoldouts[0].Query<Button>(className: "mosaic-paint-value").First();
+                var alphaFoldout = linkedFoldouts.Single(foldout => ReferenceEquals(foldout.userData, alpha));
+                var alphaButton = alphaFoldout.Query<Button>(className: "mosaic-paint-value").First();
                 Assert.AreEqual("Linked Paint", alphaButton.Q<Label>().text);
                 Assert.AreSame(icon, alphaButton.Q<Image>().image);
 
-                var zuluButton = linkedFoldouts[1].Query<Button>(className: "mosaic-paint-value").First();
+                var zuluFoldout = linkedFoldouts.Single(foldout => ReferenceEquals(foldout.userData, zulu));
+                var zuluButton = zuluFoldout.Query<Button>(className: "mosaic-paint-value").First();
                 Assert.AreEqual("Layer 1", zuluButton.Q<Label>().text);
                 Assert.AreEqual(Color.cyan, zuluButton.Q<Image>().style.backgroundColor.value);
                 Assert.AreEqual(1f, zuluButton.style.backgroundColor.value.a);
@@ -445,6 +465,64 @@ namespace FireAlt.Mosaic.Tests
                 Assert.AreEqual(2, MosaicPaintingController.BrushRadius);
                 Assert.IsTrue(MosaicPaintingTool.IsWithinBrushRadius(2, 0));
                 Assert.IsFalse(MosaicPaintingTool.IsWithinBrushRadius(2, 2));
+            }
+            finally
+            {
+                Object.DestroyImmediate(window);
+            }
+        }
+
+        [Test]
+        public void PaintingWindow_ControlsFoldoutIsCollapsedAboveStyledBrushSize()
+        {
+            var window = ScriptableObject.CreateInstance<MosaicPaintingWindow>();
+            try
+            {
+                window.CreateGUI();
+                var root = window.rootVisualElement;
+                var controls = root.Q<Foldout>(className: "mosaic-paint-controls-foldout");
+                var brush = root.Q<SliderInt>(className: "mosaic-paint-brush-radius");
+
+                Assert.IsNotNull(controls);
+                Assert.AreEqual("Controls", controls.text);
+                Assert.IsFalse(controls.value);
+                Assert.IsNotNull(controls.Q<Label>(className: "mosaic-paint-help"));
+                Assert.IsNull(controls.Q<HelpBox>());
+                Assert.IsNotNull(brush);
+                Assert.Less(root.IndexOf(controls), root.IndexOf(brush.parent));
+                Assert.IsTrue(brush.parent.ClassListContains("mosaic-paint-controls"));
+            }
+            finally
+            {
+                Object.DestroyImmediate(window);
+            }
+        }
+
+        [Test]
+        public void PaintingWindow_PaletteRebuildPreservesCollapsedLayer()
+        {
+            var tilemap = CreateTilemap("Collapsed Layer");
+            var window = ScriptableObject.CreateInstance<MosaicPaintingWindow>();
+            try
+            {
+                window.CreateGUI();
+                var targets = GetWindowList<MosaicPaintingTarget>(window, "_targets");
+                targets.Clear();
+                targets.Add(new MosaicPaintingTarget(tilemap));
+                GetWindowList<LinkedTilemapLayers>(window, "_linkedComponents").Clear();
+                InvokeBuildPalette(window);
+
+                var foldout = window.rootVisualElement.Query<Foldout>().ToList()
+                    .Single(candidate => candidate.userData is MosaicPaintingTarget);
+                foldout.value = false;
+
+                targets.Clear();
+                targets.Add(new MosaicPaintingTarget(tilemap));
+                InvokeBuildPalette(window);
+
+                foldout = window.rootVisualElement.Query<Foldout>().ToList()
+                    .Single(candidate => candidate.userData is MosaicPaintingTarget);
+                Assert.IsFalse(foldout.value);
             }
             finally
             {
@@ -480,7 +558,7 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
-        public void PaintingSelection_ReportsRawTerrainAndLinkedOriginatingComponents()
+        public void PaintingSelection_ReportsOriginsAndAllowsTerrainSelection()
         {
             EnterPrefabIsolation();
             var tilemap = CreateTilemap("Raw Target");
@@ -501,6 +579,12 @@ namespace FireAlt.Mosaic.Tests
             Assert.AreSame(tilemap, rawSelection.OriginatingComponent);
             Assert.AreSame(terrain, terrainSelection.OriginatingComponent);
             Assert.AreSame(linked, linkedSelection.OriginatingComponent);
+            Assert.IsTrue(terrainSelection.IsValid, terrainSelection.ValidationMessage);
+
+            MosaicPaintingController.Select(terrainSelection);
+
+            Assert.AreSame(terrainSelection, MosaicPaintingController.Selection);
+            Assert.AreSame(terrain, MosaicPaintingController.Target.Owner);
         }
 
         [Test]

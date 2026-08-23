@@ -233,8 +233,8 @@ namespace FireAlt.Mosaic.Editor
         private static string ValidateTarget(MosaicPaintingTarget target, short value, StageHandle stage,
             int operationIndex)
         {
-            if (target?.Owner is not TilemapAuthoring tilemap || !target.IsPaintable
-                || !MosaicPaintingController.BelongsToStage(tilemap, stage))
+            if (target?.Owner == null || !target.IsPaintable
+                || !MosaicPaintingController.BelongsToStage(target.Owner, stage))
             {
                 return $"Operation {operationIndex + 1} target must be loaded and paintable in the current stage.";
             }
@@ -242,7 +242,7 @@ namespace FireAlt.Mosaic.Editor
             if (value < 0) return $"Operation {operationIndex + 1} value cannot be negative.";
             if (value == 0) return null;
 
-            foreach (var definition in tilemap.intGrid.intGridValues)
+            foreach (var definition in target.Values)
             {
                 if (definition.value == value) return null;
             }

@@ -10,6 +10,12 @@
     --mosaic-paint-foldout-border: rgb(27, 35, 48);
     --mosaic-paint-foldout-text: rgb(237, 243, 255);
     --mosaic-paint-foldout-content: rgba(0, 0, 0, 0.14);
+    --mosaic-paint-controls-header: rgb(139, 112, 45);
+    --mosaic-paint-controls-header-hover: rgb(165, 135, 55);
+    --mosaic-paint-controls-text: rgb(255, 244, 201);
+    --mosaic-paint-controls-content: rgb(70, 61, 37);
+    --mosaic-paint-brush-background: rgb(44, 53, 69);
+    --mosaic-paint-slider-track: rgb(82, 107, 153);
 }
 
 .mosaic-paint-theme--light {
@@ -19,23 +25,59 @@
     --mosaic-paint-foldout-border: rgb(100, 115, 138);
     --mosaic-paint-foldout-text: rgb(29, 42, 64);
     --mosaic-paint-foldout-content: rgba(255, 255, 255, 0.28);
+    --mosaic-paint-controls-header: rgb(219, 193, 112);
+    --mosaic-paint-controls-header-hover: rgb(231, 207, 132);
+    --mosaic-paint-controls-text: rgb(66, 51, 14);
+    --mosaic-paint-controls-content: rgb(239, 226, 181);
+    --mosaic-paint-brush-background: rgb(205, 216, 235);
+    --mosaic-paint-slider-track: rgb(100, 126, 172);
 }
 
 .mosaic-paint-controls {
+    margin-left: 6px;
+    margin-right: 6px;
+    margin-bottom: 6px;
     padding-left: 8px;
     padding-right: 8px;
-    padding-top: 5px;
-    padding-bottom: 3px;
+    padding-top: 6px;
+    padding-bottom: 6px;
+    background-color: var(--mosaic-paint-brush-background);
+    border-left-width: 1px;
+    border-right-width: 1px;
+    border-top-width: 1px;
+    border-bottom-width: 1px;
+    border-color: var(--mosaic-paint-foldout-border);
 }
 
 .mosaic-paint-brush-radius {
     flex-grow: 1;
+    margin: 0;
 }
 
-.mosaic-paint-help {
+.mosaic-paint-brush-radius > .unity-base-field__label {
+    color: var(--mosaic-paint-foldout-text);
+    -unity-font-style: bold;
+}
+
+.mosaic-paint-brush-radius #unity-tracker {
+    background-color: var(--mosaic-paint-slider-track);
+}
+
+.mosaic-paint-brush-radius #unity-dragger {
+    background-color: var(--mosaic-paint-foldout-text);
+    border-color: var(--mosaic-paint-foldout-border);
+}
+
+.mosaic-paint-brush-radius .unity-base-text-field__input {
+    background-color: var(--mosaic-paint-foldout-content);
+    border-color: var(--mosaic-paint-foldout-border);
+}
+
+.mosaic-paint-controls-foldout {
     margin-left: 6px;
     margin-right: 6px;
-    margin-bottom: 2px;
+    margin-top: 6px;
+    margin-bottom: 6px;
 }
 
 .mosaic-paint-palette {
@@ -94,6 +136,34 @@
     margin-left: 0;
     padding: 4px;
     background-color: var(--mosaic-paint-foldout-content);
+}
+
+.mosaic-paint-controls-foldout > .unity-foldout__toggle {
+    background-color: var(--mosaic-paint-controls-header);
+}
+
+.mosaic-paint-controls-foldout > .unity-foldout__toggle:hover {
+    background-color: var(--mosaic-paint-controls-header-hover);
+    border-color: var(--mosaic-paint-controls-header-hover);
+}
+
+.mosaic-paint-controls-foldout > .unity-foldout__toggle .unity-foldout__text {
+    color: var(--mosaic-paint-controls-text);
+}
+
+.mosaic-paint-controls-foldout > .unity-foldout__toggle .unity-foldout__checkmark {
+    -unity-background-image-tint-color: var(--mosaic-paint-controls-text);
+}
+
+.mosaic-paint-controls-foldout > .unity-foldout__content {
+    padding: 8px;
+    background-color: var(--mosaic-paint-controls-content);
+}
+
+.mosaic-paint-controls-foldout .mosaic-paint-help {
+    margin: 0;
+    color: var(--mosaic-paint-controls-text);
+    white-space: normal;
 }
 
 .mosaic-paint-value-row {
