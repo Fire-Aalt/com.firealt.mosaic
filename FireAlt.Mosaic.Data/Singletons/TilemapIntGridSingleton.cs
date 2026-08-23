@@ -24,6 +24,7 @@ namespace FireAlt.Mosaic.Data
 
             public bool Cleared;
             public bool DestroySpawnedEntities;
+            public bool ForceRuleRefresh;
 
             public bool DualGrid;
             public bool IsTerrainLayer;
@@ -44,6 +45,7 @@ namespace FireAlt.Mosaic.Data
 
                 Cleared = false;
                 DestroySpawnedEntities = false;
+                ForceRuleRefresh = false;
                 
                 DualGrid = intGridData.DualGrid;
                 IsTerrainLayer = isTerrainLayer;
@@ -61,6 +63,7 @@ namespace FireAlt.Mosaic.Data
 
                 Cleared = true;
                 DestroySpawnedEntities = SpawnedEntities.Count != 0;
+                ForceRuleRefresh = false;
                 DualGrid = intGridData.DualGrid;
                 IsTerrainLayer = isTerrainLayer;
                 IntGridEntity = intGridEntity;
@@ -68,7 +71,7 @@ namespace FireAlt.Mosaic.Data
 
             public void SetValue(int2 position, IntGridValue value)
             {
-                ChangedPositions.Add(position);
+                MarkChanged(position);
                 if (value == 0)
                 {
                     IntGrid.Remove(position);
@@ -78,6 +81,11 @@ namespace FireAlt.Mosaic.Data
                     IntGrid[position] = value;
                 }
 
+            }
+
+            public void MarkChanged(int2 position)
+            {
+                ChangedPositions.Add(position);
                 if (!DualGrid) return;
 
                 ChangedPositions.Add(position + new int2(-1, 0));

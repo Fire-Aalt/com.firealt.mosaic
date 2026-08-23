@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using FireAlt.Core.EntityCommands;
 using FireAlt.Mosaic.Data;
 using Unity.Collections;
@@ -24,23 +25,24 @@ namespace FireAlt.Mosaic.Authoring
 
         internal List<SerializedIntGridLayer> MutablePaintedLayers => _paintedLayers;
 
-        private void Bake<TCommands>(ref TCommands commands, Entity gridEntity,
-            Func<GameObject, Entity> entityResolver)
-            where TCommands : IEntityCommands
+        internal IEnumerable<ValidLayer> ValidLayers()
         {
-            if (intGridLayers.Count == 0) return;
-
-            var uniqueDefinitions = new HashSet<IntGridDefinition>();
+            var index = 0;
             foreach (var definition in intGridLayers)
             {
-                if (definition != null && !uniqueDefinitions.Add(definition))
-                {
-                    throw new Exception($"Duplicate IntGridDefinition '{definition.name}' in terrain layers");
-                }
+                if (definition == null) continue;
+                yield return new ValidLayer(index++, definition);
             }
+        }
+
+        private void Bake<TCommands>(ref TCommands commands, Entity gridEntity,
+            Func<GameObject, Entity> entityResolver, IReadOnlyList<ValidLayer> validLayers)
+            where TCommands : IEntityCommands
+        {
+            ValidateUniqueLayers(validLayers);
 
             var terrainEntity = commands.Entity;
-            var layerEntities = new NativeArray<Entity>(intGridLayers.Count, Allocator.Temp);
+            var layerEntities = new NativeArray<Entity>(validLayers.Count, Allocator.Temp);
             for (var i = 0; i < layerEntities.Length; i++)
             {
                 layerEntities[i] = commands.CreateEntity();
@@ -52,18 +54,13 @@ namespace FireAlt.Mosaic.Authoring
             var tilePivot = float2.zero;
             var tileSize = float2.zero;
 
-            for (var i = 0; i < layerEntities.Length; i++)
+            foreach (var layer in validLayers)
             {
-                var intGridDefinition = intGridLayers[i];
-                if (intGridDefinition == null)
-                {
-                    throw new Exception($"IntGridDefinition is null at terrain layer {i}");
-                }
-
+                var intGridDefinition = layer.Definition;
                 var runtimeHash = BakerUtils.GetHash(intGridDefinition, isGlobal);
-                if (i == 0) rendererHash = runtimeHash;
+                if (layer.Index == 0) rendererHash = runtimeHash;
 
-                commands.Entity = layerEntities[i];
+                commands.Entity = layerEntities[layer.Index];
                 BakerUtils.AddTilemapTransform(ref commands, gridEntity, renderingData);
                 BakerUtils.AddIntGridLayerData(ref commands, intGridDefinition, runtimeHash, refSprite, true,
                     ref tilePivot, ref tileSize, FindPaintedRectangles(intGridDefinition), entityResolver);
@@ -85,6 +82,18 @@ namespace FireAlt.Mosaic.Authoring
 
             BakerUtils.AddTilemapTransform(ref commands, gridEntity, renderingData);
             BakerUtils.AddRenderingData(ref commands, gameObject, rendererHash, renderingData, refSprite);
+        }
+
+        internal static void ValidateUniqueLayers(IReadOnlyList<ValidLayer> validLayers)
+        {
+            var uniqueDefinitions = new HashSet<IntGridDefinition>();
+            foreach (var layer in validLayers)
+            {
+                if (!uniqueDefinitions.Add(layer.Definition))
+                {
+                    throw new Exception($"Duplicate IntGridDefinition '{layer.Definition.name}' in terrain layers");
+                }
+            }
         }
 
         private IReadOnlyList<SerializedIntGridRectangle> FindPaintedRectangles(IntGridDefinition definition)
@@ -131,9 +140,9 @@ namespace FireAlt.Mosaic.Authoring
             }
 
             _paintedLayers.Clear();
-            foreach (var intGridLayer in intGridLayers)
+            foreach (var layer in ValidLayers())
             {
-                if (intGridLayer == null) continue;
+                var intGridLayer = layer.Definition;
 
                 if (!existing.TryGetValue(intGridLayer, out var paintedLayer))
                 {
@@ -152,7 +161,13 @@ namespace FireAlt.Mosaic.Authoring
         {
             public override void Bake(TilemapTerrainAuthoring authoring)
             {
-                if (authoring.intGridLayers.Count == 0) return;
+                foreach (var intGridDefinition in authoring.intGridLayers)
+                {
+                    BakerUtils.RegisterDependencies(this, intGridDefinition);
+                }
+
+                var validLayers = authoring.ValidLayers().ToArray();
+                if (validLayers.Length == 0) return;
                 
                 var gridAuthoring = GetComponentInParent<GridAuthoring>();
                 if (gridAuthoring == null)
@@ -161,26 +176,24 @@ namespace FireAlt.Mosaic.Authoring
                 }
                 
                 var entity = GetEntity(TransformUsageFlags.Dynamic);
-                RegisterDependencies(authoring);
 
                 var commands = new BakerCommands(this, entity);
                 authoring.Bake(ref commands, GetEntity(gridAuthoring, TransformUsageFlags.None),
-                    go => GetEntity(go, TransformUsageFlags.None));
+                    go => GetEntity(go, TransformUsageFlags.None), validLayers);
             }
+        }
 
-            private void RegisterDependencies(TilemapTerrainAuthoring authoring)
+        internal readonly struct ValidLayer
+        {
+            public ValidLayer(int index, IntGridDefinition definition)
             {
-                foreach (var intGridDefinition in authoring.intGridLayers)
-                {
-                    DependsOn(intGridDefinition);
-                    if (intGridDefinition == null) continue;
-
-                    foreach (var group in intGridDefinition.ruleGroups)
-                    {
-                        DependsOn(group);
-                    }
-                }
+                Index = index;
+                Definition = definition;
             }
+
+            public int Index { get; }
+
+            public IntGridDefinition Definition { get; }
         }
     }
 }

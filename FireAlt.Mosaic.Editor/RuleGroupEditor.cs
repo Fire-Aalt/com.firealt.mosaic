@@ -49,7 +49,7 @@ namespace FireAlt.Mosaic.Editor
                     {
                         if (index >= _target.rules.Count) return;
                         
-                        ((RuleController)element.userData).BindData(index, list, _target.rules[index]);
+                        ((RuleController)element.userData).BindData(index, list);
                     },
                     CreateDataItem = () =>
                     {

@@ -31,9 +31,9 @@ namespace FireAlt.Mosaic.Editor
             foreach (var terrain in Resources.FindObjectsOfTypeAll<TilemapTerrainAuthoring>())
             {
                 if (!MosaicPaintingController.IsAllowedAuthoringLocation(terrain, stage)) continue;
-                for (var i = 0; i < terrain.intGridLayers.Count; i++)
+                foreach (var layer in terrain.ValidLayers())
                 {
-                    targets.Add(new MosaicPaintingTarget(terrain, terrain.intGridLayers[i], i));
+                    targets.Add(new MosaicPaintingTarget(terrain, layer.Definition, layer.Index));
                 }
             }
 

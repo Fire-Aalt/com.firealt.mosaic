@@ -13,6 +13,17 @@ namespace FireAlt.Mosaic.Authoring
 {
     public static class BakerUtils
     {
+        internal static void RegisterDependencies(IBaker baker, IntGridDefinition intGrid)
+        {
+            if (intGrid == null) return;
+
+            baker.DependsOn(intGrid);
+            foreach (var group in intGrid.ruleGroups)
+            {
+                if (group != null) baker.DependsOn(group);
+            }
+        }
+
         public static void AddTilemapTransform<TCommands>(ref TCommands commands, Entity gridEntity,
             RenderingData renderingData)
             where TCommands : IEntityCommands

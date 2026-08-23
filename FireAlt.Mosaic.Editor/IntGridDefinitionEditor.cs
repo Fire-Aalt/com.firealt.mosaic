@@ -26,8 +26,13 @@ namespace FireAlt.Mosaic.Editor
         {
             var instance = AssetDatabaseUtils.CreateNewScriptableObjectAsset<RuleGroup>(name + "Group", _target);
             instance.intGrid = _target;
-            _target.ruleGroups.Add(instance);
-            serializedObject.Update();
+            EditorUtility.SetDirty(instance);
+
+            var ruleGroups = serializedObject.FindProperty(nameof(IntGridDefinition.ruleGroups));
+            var index = ruleGroups.arraySize;
+            ruleGroups.arraySize++;
+            ruleGroups.GetArrayElementAtIndex(index).objectReferenceValue = instance;
+            serializedObject.ApplyModifiedProperties();
         }
     }
 }

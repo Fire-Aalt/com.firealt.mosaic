@@ -24,7 +24,6 @@ namespace FireAlt.Mosaic.Editor
         private TransformationButton _rotationResultTransformation;
         
         private RuleGroup _ruleGroup;
-        private RuleGroup.Rule _rule;
         private int _ruleIndex;
         private SerializedProperty _ruleProperty;
         
@@ -34,6 +33,7 @@ namespace FireAlt.Mosaic.Editor
 
             {
                 _enabledToggle = visualElement.Q<Toggle>("EnabledToggle");
+                _enabledToggle.RegisterValueChangedCallback(OnEnableFieldChange);
             }
 
             {
@@ -43,10 +43,12 @@ namespace FireAlt.Mosaic.Editor
                     tooltip = "IntGrid Rule Matrix. Click to edit"
                 };
                 matrixCol.Add(_intGridMatrixView);
+                _intGridMatrixView.RegisterCallback<ClickEvent>(OnMatrixClicked);
             }
 
             {
                 _chanceSlider = visualElement.Q<TouchSliderFloat>("ChanceSlider");
+                _chanceSlider.RegisterValueChangedCallback(OnChanceFieldChange);
                 var root = visualElement.Q<VisualElement>("RuleTransformations");
 
                 const string horTooltip = "X mirror. Enable this to also check for match when mirrored horizontally";
@@ -81,22 +83,21 @@ namespace FireAlt.Mosaic.Editor
             return iconButton;
         }
     
-        public void BindData(int index, SerializedProperty list, RuleGroup.Rule rule)
+        public void BindData(int index, SerializedProperty list)
         {
             _ruleIndex = index;
-            _rule = rule;
             _ruleProperty = list.GetArrayElementAtIndex(index);
 
-            _enabledToggle.value = rule.enabled.HasFlag(RuleGroup.Enabled.Enabled);
-            _enabledToggle.RegisterValueChangedCallback(OnEnableFieldChange);
+            var enabledProperty = _ruleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.enabled));
+            _enabledToggle.SetValueWithoutNotify(
+                ((RuleGroup.Enabled)enabledProperty.intValue).HasFlag(RuleGroup.Enabled.Enabled));
 
-            _chanceSlider.value = rule.ruleChance;
-            _chanceSlider.RegisterValueChangedCallback(OnChanceFieldChange);
+            var chanceProperty = _ruleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleChance));
+            _chanceSlider.SetValueWithoutNotify(chanceProperty.floatValue);
             
             var matrixProperty = _ruleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleMatrix));
                     
             _intGridMatrixView.Bind(matrixProperty);
-            _intGridMatrixView.RegisterCallback<ClickEvent>(OnMatrixClicked);
             
             var ruleTransformationProperty = _ruleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleTransformation));
             
@@ -113,15 +114,7 @@ namespace FireAlt.Mosaic.Editor
         
         private void OnEnableFieldChange(ChangeEvent<bool> evt)
         {
-            if (evt.newValue)
-            {
-                _rule.enabled = RuleGroup.Enabled.Enabled;
-            }
-            else
-            {
-                _rule.enabled ^= RuleGroup.Enabled.Enabled;
-            }
-            _ruleProperty.serializedObject.Update();
+            ApplyEnabled(_ruleProperty, evt.newValue);
         }
         
         private void OnMatrixClicked(ClickEvent clickEvent)
@@ -132,8 +125,21 @@ namespace FireAlt.Mosaic.Editor
         
         private void OnChanceFieldChange(ChangeEvent<float> evt)
         {
-            _rule.ruleChance = evt.newValue;
-            _ruleProperty.serializedObject.Update();
+            ApplyChance(_ruleProperty, evt.newValue);
+        }
+
+        internal static void ApplyEnabled(SerializedProperty ruleProperty, bool enabled)
+        {
+            var property = ruleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.enabled));
+            property.intValue = enabled ? (int)RuleGroup.Enabled.Enabled : 0;
+            property.serializedObject.ApplyModifiedProperties();
+        }
+
+        internal static void ApplyChance(SerializedProperty ruleProperty, float chance)
+        {
+            var property = ruleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.ruleChance));
+            property.floatValue = chance;
+            property.serializedObject.ApplyModifiedProperties();
         }
     }
 }

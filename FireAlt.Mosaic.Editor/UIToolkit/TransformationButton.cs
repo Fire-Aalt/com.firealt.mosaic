@@ -17,6 +17,7 @@ namespace FireAlt.Mosaic.Editor
             _transformation = transformation;
             this.tooltip = tooltip;
             AddToClassList("icon-button");
+            RegisterCallback<ClickEvent>(OnClicked);
         }
         
         public void Bind(SerializedProperty property)
@@ -31,7 +32,6 @@ namespace FireAlt.Mosaic.Editor
             {
                 DisableIconButton();
             }
-            RegisterCallback<ClickEvent>(OnClicked);
         }
         
         private void EnableIconButton()
@@ -59,7 +59,6 @@ namespace FireAlt.Mosaic.Editor
                 DisableIconButton();
             }
             _property.serializedObject.ApplyModifiedProperties();
-            _property.serializedObject.Update();
         }
     }
 }

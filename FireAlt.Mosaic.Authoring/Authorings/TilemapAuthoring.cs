@@ -26,11 +26,6 @@ namespace FireAlt.Mosaic.Authoring
             Func<GameObject, Entity> entityResolver)
             where TCommands : IEntityCommands
         {
-            if (intGrid == null)
-            {
-                throw new Exception("IntGridDefinition is null");
-            }
-
             var tilePivot = float2.zero;
             var tileSize = float2.zero;
             var refSprite = new RefSprite();
@@ -46,6 +41,9 @@ namespace FireAlt.Mosaic.Authoring
         {
             public override void Bake(TilemapAuthoring authoring)
             {
+                BakerUtils.RegisterDependencies(this, authoring.intGrid);
+                if (authoring.intGrid == null) return;
+
                 var gridAuthoring = GetComponentInParent<GridAuthoring>();
                 if (gridAuthoring == null)
                 {
@@ -53,22 +51,10 @@ namespace FireAlt.Mosaic.Authoring
                 }
                 
                 var entity = GetEntity(TransformUsageFlags.Dynamic);
-                RegisterDependencies(authoring);
 
                 var commands = new BakerCommands(this, entity);
                 authoring.Bake(ref commands, GetEntity(gridAuthoring, TransformUsageFlags.None),
                     go => GetEntity(go, TransformUsageFlags.None));
-            }
-
-            private void RegisterDependencies(TilemapAuthoring authoring)
-            {
-                DependsOn(authoring.intGrid);
-                if (authoring.intGrid == null) return;
-
-                foreach (var group in authoring.intGrid.ruleGroups)
-                {
-                    DependsOn(group);
-                }
             }
         }
     }

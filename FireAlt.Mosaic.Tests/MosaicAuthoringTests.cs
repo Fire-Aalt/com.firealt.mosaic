@@ -15,6 +15,7 @@ using Unity.Mathematics;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.TestTools;
 using UnityEngine.UIElements;
 using Unity.Transforms;
 
@@ -22,6 +23,10 @@ namespace FireAlt.Mosaic.Tests
 {
     public sealed class MosaicAuthoringTests
     {
+        private sealed class CallbackTestWindow : EditorWindow
+        {
+        }
+
         private struct TestCleanup : ICleanupComponentData
         {
         }
@@ -186,6 +191,229 @@ namespace FireAlt.Mosaic.Tests
             {
                 Object.DestroyImmediate(second);
                 Object.DestroyImmediate(terrainObject);
+            }
+        }
+
+        [Test]
+        public void TilemapBake_WithoutIntGrid_BakesNoMosaicDataOrErrors()
+        {
+            var tilemapObject = new GameObject("Empty Tilemap", typeof(TilemapAuthoring));
+            try
+            {
+                var entities = EditorBakingWorld.BakeInto(new[] { tilemapObject }, _world);
+
+                Assert.IsFalse(entities.Any(entity => _world.EntityManager.HasComponent<IntGridData>(entity)));
+                Assert.IsFalse(entities.Any(entity => _world.EntityManager.HasComponent<TilemapRendererData>(entity)));
+                LogAssert.NoUnexpectedReceived();
+            }
+            finally
+            {
+                Object.DestroyImmediate(tilemapObject);
+            }
+        }
+
+        [Test]
+        public void TerrainBake_WithOnlyNullLayers_BakesNoMosaicDataOrErrors()
+        {
+            var terrainObject = new GameObject("Empty Terrain", typeof(TilemapTerrainAuthoring));
+            var terrain = terrainObject.GetComponent<TilemapTerrainAuthoring>();
+            terrain.intGridLayers.Add(null);
+            terrain.intGridLayers.Add(null);
+
+            try
+            {
+                var entities = EditorBakingWorld.BakeInto(new[] { terrainObject }, _world);
+
+                Assert.IsFalse(entities.Any(entity => _world.EntityManager.HasComponent<IntGridData>(entity)));
+                Assert.IsFalse(entities.Any(entity =>
+                    _world.EntityManager.HasComponent<FireAlt.Mosaic.Data.TerrainData>(entity)));
+                LogAssert.NoUnexpectedReceived();
+            }
+            finally
+            {
+                Object.DestroyImmediate(terrainObject);
+            }
+        }
+
+        [Test]
+        public void TerrainBake_NullLayerGapsUseCompactValidOrder()
+        {
+            var second = ScriptableObject.CreateInstance<IntGridDefinition>();
+            second.name = "Second IntGrid";
+            var terrainObject = new GameObject("Terrain With Gaps", typeof(TilemapTerrainAuthoring));
+            terrainObject.transform.SetParent(_gridObject.transform);
+            var terrain = terrainObject.GetComponent<TilemapTerrainAuthoring>();
+            terrain.isGlobal = false;
+            terrain.renderingData.material = _material;
+            terrain.intGridLayers.Add(null);
+            terrain.intGridLayers.Add(_intGrid);
+            terrain.intGridLayers.Add(null);
+            terrain.intGridLayers.Add(second);
+
+            try
+            {
+                var validLayers = terrain.ValidLayers().ToArray();
+                Assert.AreEqual(2, validLayers.Length);
+                Assert.AreEqual(0, validLayers[0].Index);
+                Assert.AreEqual(_intGrid, validLayers[0].Definition);
+                Assert.AreEqual(1, validLayers[1].Index);
+                Assert.AreEqual(second, validLayers[1].Definition);
+
+                var entities = EditorBakingWorld.BakeInto(new[] { _gridObject }, _world);
+                var terrainEntity = FindEntity<FireAlt.Mosaic.Data.TerrainData>(entities);
+                var layers = _world.EntityManager.GetBuffer<TilemapTerrainLayerElement>(terrainEntity);
+
+                Assert.AreEqual(2, layers.Length);
+                Assert.AreEqual(_intGrid.name,
+                    _world.EntityManager.GetComponentData<IntGridData>(layers[0].IntGridEntity).DebugName.ToString());
+                Assert.AreEqual(second.name,
+                    _world.EntityManager.GetComponentData<IntGridData>(layers[1].IntGridEntity).DebugName.ToString());
+            }
+            finally
+            {
+                Object.DestroyImmediate(second);
+                Object.DestroyImmediate(terrainObject);
+            }
+        }
+
+        [Test]
+        public void TerrainBake_DuplicateValidDefinitionsStillFailAcrossNullGaps()
+        {
+            var terrainObject = new GameObject("Duplicate Terrain", typeof(TilemapTerrainAuthoring));
+            terrainObject.transform.SetParent(_gridObject.transform);
+            var terrain = terrainObject.GetComponent<TilemapTerrainAuthoring>();
+            terrain.renderingData.material = _material;
+            terrain.intGridLayers.Add(_intGrid);
+            terrain.intGridLayers.Add(null);
+            terrain.intGridLayers.Add(_intGrid);
+
+            try
+            {
+                var validLayers = terrain.ValidLayers().ToArray();
+                var exception = Assert.Throws<System.Exception>(() =>
+                    TilemapTerrainAuthoring.ValidateUniqueLayers(validLayers));
+                StringAssert.Contains("Duplicate IntGridDefinition", exception.Message);
+            }
+            finally
+            {
+                Object.DestroyImmediate(terrainObject);
+            }
+        }
+
+        [Test]
+        public void RuleGroupSerializedEdits_RemainDirtyUntilExplicitSave()
+        {
+            var ruleGroup = ScriptableObject.CreateInstance<RuleGroup>();
+            ruleGroup.rules.Add(new RuleGroup.Rule());
+            var path = AssetDatabase.GenerateUniqueAssetPath("Assets/MosaicRuleGroupSaveTests.asset");
+            _temporaryAssets.Add(path);
+            AssetDatabase.CreateAsset(ruleGroup, path);
+            AssetDatabase.SaveAssetIfDirty(ruleGroup);
+
+            var serializedRuleGroup = new SerializedObject(ruleGroup);
+            var rule = serializedRuleGroup.FindProperty(nameof(RuleGroup.rules)).GetArrayElementAtIndex(0);
+            Undo.IncrementCurrentGroup();
+            var undoGroup = Undo.GetCurrentGroup();
+            RuleController.ApplyEnabled(rule, false);
+            RuleController.ApplyChance(rule, 25f);
+            Undo.CollapseUndoOperations(undoGroup);
+
+            Assert.AreEqual(0, (int)ruleGroup.rules[0].enabled);
+            Assert.AreEqual(25f, ruleGroup.rules[0].ruleChance);
+            Assert.IsTrue(EditorUtility.IsDirty(ruleGroup));
+
+            Undo.PerformUndo();
+            Assert.AreEqual(RuleGroup.Enabled.Enabled, ruleGroup.rules[0].enabled);
+            Assert.AreEqual(100f, ruleGroup.rules[0].ruleChance);
+            Undo.PerformRedo();
+            Assert.AreEqual(0, (int)ruleGroup.rules[0].enabled);
+            Assert.AreEqual(25f, ruleGroup.rules[0].ruleChance);
+            Assert.IsTrue(EditorUtility.IsDirty(ruleGroup));
+
+            AssetDatabase.SaveAssets();
+            Assert.IsFalse(EditorUtility.IsDirty(ruleGroup));
+            Undo.ClearAll();
+        }
+
+        [Test]
+        public void RuleRowRebinding_EditsOnlyTheCurrentlyBoundSerializedProperty()
+        {
+            var ruleGroup = ScriptableObject.CreateInstance<RuleGroup>();
+            var window = EditorWindow.CreateWindow<CallbackTestWindow>();
+            ruleGroup.intGrid = _intGrid;
+            ruleGroup.rules.Add(new RuleGroup.Rule());
+            ruleGroup.rules.Add(new RuleGroup.Rule());
+
+            var root = new VisualElement();
+            var fields = typeof(RuleController).GetFields(BindingFlags.Instance | BindingFlags.NonPublic);
+            var enabledToggle = (VisualElement)System.Activator.CreateInstance(
+                fields.Single(field => field.Name == "_enabledToggle").FieldType);
+            var chanceSlider = (VisualElement)System.Activator.CreateInstance(
+                fields.Single(field => field.Name == "_chanceSlider").FieldType);
+            enabledToggle.name = "EnabledToggle";
+            chanceSlider.name = "ChanceSlider";
+            chanceSlider.GetType().GetProperty("highValue")?.SetValue(chanceSlider, 100f);
+            root.Add(enabledToggle);
+            root.Add(chanceSlider);
+            root.Add(new VisualElement { name = "MatrixCol" });
+            root.Add(new VisualElement { name = "RuleTransformations" });
+            root.Add(new VisualElement { name = "ResultTransformations" });
+            window.rootVisualElement.Add(root);
+            window.Show();
+
+            try
+            {
+                var controller = new RuleController();
+                controller.SetVisualElement(ruleGroup, root);
+                var serializedRuleGroup = new SerializedObject(ruleGroup);
+                var rules = serializedRuleGroup.FindProperty(nameof(RuleGroup.rules));
+                controller.BindData(0, rules);
+                controller.BindData(1, rules);
+
+                enabledToggle.GetType().GetProperty("value")?.SetValue(enabledToggle, false);
+                chanceSlider.GetType().GetProperty("value")?.SetValue(chanceSlider, 40f);
+
+                Assert.AreEqual(RuleGroup.Enabled.Enabled, ruleGroup.rules[0].enabled);
+                Assert.AreEqual(100f, ruleGroup.rules[0].ruleChance);
+                Assert.AreEqual(0, (int)ruleGroup.rules[1].enabled);
+                Assert.AreEqual(40f, ruleGroup.rules[1].ruleChance);
+            }
+            finally
+            {
+                window.Close();
+                Object.DestroyImmediate(ruleGroup);
+            }
+        }
+
+        [Test]
+        public void TransformationButton_RebindingDoesNotRegisterDuplicateClickHandlers()
+        {
+            var ruleGroup = ScriptableObject.CreateInstance<RuleGroup>();
+            var window = EditorWindow.CreateWindow<CallbackTestWindow>();
+            ruleGroup.rules.Add(new RuleGroup.Rule());
+            var serializedRuleGroup = new SerializedObject(ruleGroup);
+            var rule = serializedRuleGroup.FindProperty(nameof(RuleGroup.rules)).GetArrayElementAtIndex(0);
+            var transformation = rule.FindPropertyRelative(nameof(RuleGroup.Rule.ruleTransformation));
+            var button = new TransformationButton(Transformation.MirrorX, string.Empty);
+            window.rootVisualElement.Add(button);
+            window.Show();
+            button.Bind(transformation);
+            button.Bind(transformation);
+
+            try
+            {
+                using (var click = ClickEvent.GetPooled())
+                {
+                    click.target = button;
+                    button.SendEvent(click);
+                }
+
+                Assert.AreEqual(Transformation.MirrorX, ruleGroup.rules[0].ruleTransformation);
+            }
+            finally
+            {
+                window.Close();
+                Object.DestroyImmediate(ruleGroup);
             }
         }
 

@@ -379,9 +379,10 @@ namespace FireAlt.Mosaic.Editor
 
             foreach (var terrain in instance.GetComponentsInChildren<TilemapTerrainAuthoring>(true))
             {
-                for (var i = 0; i < terrain.intGridLayers.Count; i++)
+                foreach (var layer in terrain.ValidLayers())
                 {
-                    AddContextPrefabVisibilityTarget(new MosaicPaintingTarget(terrain, terrain.intGridLayers[i], i));
+                    AddContextPrefabVisibilityTarget(new MosaicPaintingTarget(
+                        terrain, layer.Definition, layer.Index));
                 }
             }
         }
@@ -711,9 +712,9 @@ namespace FireAlt.Mosaic.Editor
 
                 foreach (var terrain in root.GetComponentsInChildren<TilemapTerrainAuthoring>(true))
                 {
-                    for (var i = 0; i < terrain.intGridLayers.Count; i++)
+                    foreach (var layer in terrain.ValidLayers())
                     {
-                        targets.Add(new MosaicPaintingTarget(terrain, terrain.intGridLayers[i], i));
+                        targets.Add(new MosaicPaintingTarget(terrain, layer.Definition, layer.Index));
                     }
                 }
             }
