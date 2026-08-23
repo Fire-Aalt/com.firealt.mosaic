@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using FireAlt.Core;
@@ -189,6 +190,72 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
+        public void TilemapBake_ExpandsPackedRectanglesIntoInitialValues()
+        {
+            var tilemap = CreateTilemap("Packed Tilemap").GetComponent<TilemapAuthoring>();
+            var positions = new[]
+            {
+                new Vector2Int(-2, 3),
+                new Vector2Int(-1, 3),
+                new Vector2Int(-2, 4),
+                new Vector2Int(5, -6),
+            };
+            Assert.IsTrue(new MosaicPaintingTarget(tilemap).SetCells(positions, 1));
+
+            var entities = EditorBakingWorld.BakeInto(new[] { _gridObject }, _world);
+            var intGridEntity = FindEntity<IntGridData>(entities);
+            var initialValues = _world.EntityManager.GetBuffer<IntGridInitialValueElement>(intGridEntity);
+            var actualPositions = new List<Vector2Int>(initialValues.Length);
+            foreach (var value in initialValues)
+            {
+                actualPositions.Add(new Vector2Int(value.Position.x, value.Position.y));
+                Assert.AreEqual(1, (short)value.Value);
+            }
+
+            Assert.AreEqual(positions.Length, initialValues.Length);
+            CollectionAssert.AreEquivalent(positions, actualPositions);
+        }
+
+        [Test]
+        public void TerrainBake_ExpandsOnlyTheMatchingPackedLayer()
+        {
+            var second = ScriptableObject.CreateInstance<IntGridDefinition>();
+            var terrainObject = new GameObject("Packed Terrain", typeof(TilemapTerrainAuthoring));
+            terrainObject.transform.SetParent(_gridObject.transform);
+            var terrain = terrainObject.GetComponent<TilemapTerrainAuthoring>();
+            terrain.isGlobal = false;
+            terrain.renderingData.material = _material;
+            terrain.intGridLayers.Add(_intGrid);
+            terrain.intGridLayers.Add(second);
+            terrain.MutablePaintedLayers.Add(new SerializedIntGridLayer(_intGrid));
+            terrain.MutablePaintedLayers.Add(new SerializedIntGridLayer(second));
+            var positions = new[] { new Vector2Int(1, 2), new Vector2Int(2, 2), new Vector2Int(2, 3) };
+
+            try
+            {
+                Assert.IsTrue(new MosaicPaintingTarget(terrain, _intGrid, 0).SetCells(positions, 1));
+                var entities = EditorBakingWorld.BakeInto(new[] { _gridObject }, _world);
+                var terrainEntity = FindEntity<FireAlt.Mosaic.Data.TerrainData>(entities);
+                var layers = _world.EntityManager.GetBuffer<TilemapTerrainLayerElement>(terrainEntity);
+                var firstValues = _world.EntityManager.GetBuffer<IntGridInitialValueElement>(layers[0].IntGridEntity);
+                var secondValues = _world.EntityManager.GetBuffer<IntGridInitialValueElement>(layers[1].IntGridEntity);
+                var actualPositions = new List<Vector2Int>(firstValues.Length);
+                foreach (var value in firstValues)
+                {
+                    actualPositions.Add(new Vector2Int(value.Position.x, value.Position.y));
+                }
+
+                CollectionAssert.AreEquivalent(positions, actualPositions);
+                Assert.AreEqual(0, secondValues.Length);
+            }
+            finally
+            {
+                Object.DestroyImmediate(second);
+                Object.DestroyImmediate(terrainObject);
+            }
+        }
+
+        [Test]
         public void Initialization_AssignsLocalAndRendererHashesFromEntityLifetime()
         {
             var first = _world.EntityManager.CreateEntity(typeof(IntGridData), typeof(TilemapRendererData));
@@ -240,6 +307,80 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
+        public void PaintingStroke_UpdatesCellsBeforePackingAndBytesOnlyOnDispose()
+        {
+            var tilemap = CreateTilemap("Deferred Packing Tilemap").GetComponent<TilemapAuthoring>();
+            var target = new MosaicPaintingTarget(tilemap);
+            var stroke = target.BeginStroke(1);
+            try
+            {
+                Assert.IsTrue(stroke.SetCells(new[] { new Vector2Int(2, 3), new Vector2Int(3, 3) }));
+                Assert.AreEqual(2, tilemap.PaintedCells.Count);
+                Assert.IsEmpty(tilemap.PaintedData.Bytes);
+            }
+            finally
+            {
+                stroke.Dispose();
+            }
+
+            Assert.IsNotEmpty(tilemap.PaintedData.Bytes);
+            Assert.AreEqual(1, tilemap.PaintedData.Rectangles.Count);
+            Assert.AreEqual(new Vector2Int(2, 1), tilemap.PaintedData.Rectangles[0].Size);
+        }
+
+        [Test]
+        public void PaintingStroke_NoOpLeavesPackedBytesUntouched()
+        {
+            var tilemap = CreateTilemap("No-op Packing Tilemap").GetComponent<TilemapAuthoring>();
+            var target = new MosaicPaintingTarget(tilemap);
+            var position = new Vector2Int(-4, 7);
+            Assert.IsTrue(target.SetCell(position, 1));
+            var bytes = tilemap.PaintedData.Bytes.ToArray();
+
+            using (var stroke = target.BeginStroke(1))
+            {
+                Assert.IsFalse(stroke.SetCells(new[] { position }));
+            }
+
+            CollectionAssert.AreEqual(bytes, tilemap.PaintedData.Bytes);
+        }
+
+        [Test]
+        public void PackedStorage_RepresentativePrefabReducesPaintedYamlByAtLeast90Percent()
+        {
+            var prefabRoot = new GameObject("Packed Storage", typeof(GridAuthoring));
+            var tilemapObject = new GameObject("Tilemap", typeof(TilemapAuthoring));
+            tilemapObject.transform.SetParent(prefabRoot.transform);
+            var tilemap = tilemapObject.GetComponent<TilemapAuthoring>();
+            tilemap.intGrid = _intGrid;
+            tilemap.renderingData.material = _material;
+            var cells = new List<Vector2Int>(984);
+            for (var rectangleIndex = 0; rectangleIndex < 92; rectangleIndex++)
+            {
+                var width = rectangleIndex < 64 ? 11 : 10;
+                for (var x = 0; x < width; x++) cells.Add(new Vector2Int(x - 20, rectangleIndex * 2 - 100));
+            }
+
+            var prefabPath = AssetDatabase.GenerateUniqueAssetPath("Assets/MosaicPackedStorageTests.prefab");
+            _temporaryAssets.Add(prefabPath);
+            try
+            {
+                Assert.IsTrue(new MosaicPaintingTarget(tilemap).SetCells(cells, 1));
+                Assert.AreEqual(92, tilemap.PaintedData.Rectangles.Count);
+                PrefabUtility.SaveAsPrefabAsset(prefabRoot, prefabPath);
+
+                var packedYamlSize = File.ReadLines(prefabPath).Single(line => line.Contains("_bytes:")).Length;
+                var legacyYamlSize = cells.Sum(cell =>
+                    $"  - _position: {{x: {cell.x}, y: {cell.y}}}\n    _value: 1\n".Length);
+                Assert.Less(packedYamlSize, legacyYamlSize * 0.1);
+            }
+            finally
+            {
+                Object.DestroyImmediate(prefabRoot);
+            }
+        }
+
+        [Test]
         public void PaintingStroke_AppendsAndUpdatesWithoutSorting()
         {
             _intGrid.intGridValues.Add(new IntGridValueDefinition { value = 2, name = "Updated" });
@@ -247,10 +388,10 @@ namespace FireAlt.Mosaic.Tests
             var retained = new Vector2Int(5, 5);
             var updated = new Vector2Int(2, -3);
             var appended = new Vector2Int(-10, -10);
-            tilemap.MutablePaintedCells.Add(new SerializedIntGridCell(retained, 1));
-            tilemap.MutablePaintedCells.Add(new SerializedIntGridCell(updated, 1));
+            var target = new MosaicPaintingTarget(tilemap);
+            Assert.IsTrue(target.SetCells(new[] { retained, updated }, 1));
 
-            using var stroke = new MosaicPaintingTarget(tilemap).BeginStroke(2);
+            using var stroke = target.BeginStroke(2);
             Assert.IsTrue(stroke.SetCells(new[] { updated, appended, appended }));
 
             CollectionAssert.AreEqual(new[] { updated, appended }, stroke.ChangedCells);
@@ -270,11 +411,10 @@ namespace FireAlt.Mosaic.Tests
             var retained = new Vector2Int(1, 1);
             var erased = new Vector2Int(2, 2);
             var moved = new Vector2Int(3, 3);
-            tilemap.MutablePaintedCells.Add(new SerializedIntGridCell(retained, 1));
-            tilemap.MutablePaintedCells.Add(new SerializedIntGridCell(erased, 1));
-            tilemap.MutablePaintedCells.Add(new SerializedIntGridCell(moved, 1));
+            var target = new MosaicPaintingTarget(tilemap);
+            Assert.IsTrue(target.SetCells(new[] { retained, erased, moved }, 1));
 
-            using var stroke = new MosaicPaintingTarget(tilemap).BeginStroke(0);
+            using var stroke = target.BeginStroke(0);
             Assert.IsTrue(stroke.SetCells(new[] { erased }));
             CollectionAssert.AreEqual(new[] { retained, moved },
                 tilemap.PaintedCells.Select(cell => cell.Position).ToArray());
@@ -319,15 +459,15 @@ namespace FireAlt.Mosaic.Tests
             const int EXISTING_CELL_COUNT = 20000;
             const int BATCH_CELL_COUNT = 5000;
             var tilemap = CreateTilemap("Large Batch Tilemap").GetComponent<TilemapAuthoring>();
-            for (var i = 0; i < EXISTING_CELL_COUNT; i++)
-            {
-                tilemap.MutablePaintedCells.Add(new SerializedIntGridCell(new Vector2Int(i, 0), 1));
-            }
+            var target = new MosaicPaintingTarget(tilemap);
+            var existing = new List<Vector2Int>(EXISTING_CELL_COUNT);
+            for (var i = 0; i < EXISTING_CELL_COUNT; i++) existing.Add(new Vector2Int(i, 0));
+            Assert.IsTrue(target.SetCells(existing, 1));
 
             var positions = new List<Vector2Int>(BATCH_CELL_COUNT);
             for (var i = 0; i < BATCH_CELL_COUNT; i++) positions.Add(new Vector2Int(-i - 1, 1));
 
-            using var stroke = new MosaicPaintingTarget(tilemap).BeginStroke(1);
+            using var stroke = target.BeginStroke(1);
             Assert.IsTrue(stroke.SetCells(positions));
             Assert.AreEqual(BATCH_CELL_COUNT, stroke.ChangedCells.Count);
             Assert.AreEqual(EXISTING_CELL_COUNT + BATCH_CELL_COUNT, tilemap.PaintedCells.Count);
@@ -359,7 +499,7 @@ namespace FireAlt.Mosaic.Tests
                 var modifications = PrefabUtility.GetPropertyModifications(tilemap);
                 Assert.IsNotNull(modifications);
                 Assert.IsTrue(modifications.Any(modification =>
-                    modification.propertyPath.StartsWith("_paintedCells")));
+                    modification.propertyPath.StartsWith("_paintedData")));
             }
             finally
             {

@@ -18,7 +18,7 @@ namespace FireAlt.Mosaic.Pipeline.Editor
 {
     internal static class MosaicPipelineCommands
     {
-        private const int MAX_CELL_RESULTS = 4096;
+        private const int MAX_RECTANGLE_RESULTS = 4096;
         private const int MAX_PAINT_CELLS = 4096;
 
         [CliCommand("mosaic_targets",
@@ -54,29 +54,30 @@ namespace FireAlt.Mosaic.Pipeline.Editor
         }
 
         [CliCommand("mosaic_get_target",
-            "Get values, cells, entity bindings, and render bounds for one ready Mosaic target. "
+            "Get values, packed painted rectangles, entity bindings, and render bounds for one ready Mosaic target. "
             + "Use mosaic_targets to find selectors.",
             Tags = new[] { "authoring/mosaic" })]
         private static object GetTarget(
             [CliArg("target", "Target index, exact display name, unique name fragment, or current IntGrid hash.",
                 Required = true)] string selector,
-            [CliArg("include_cells", "Include serialized or runtime cells up to cell_limit.")]
-            bool includeCells = false,
-            [CliArg("cell_limit", "Maximum returned cells when include_cells=true.")] int cellLimit = 256)
+            [CliArg("rectangle_limit", "Maximum returned painted rectangles.")] int rectangleLimit = 256)
         {
             var targets = DiscoverTargets(out _, out _);
             var target = ResolveTarget(targets, selector, out var index);
-            cellLimit = math.clamp(cellLimit, 0, MAX_CELL_RESULTS);
+            rectangleLimit = math.clamp(rectangleLimit, 0, MAX_RECTANGLE_RESULTS);
 
             var values = CreateValues(target);
-            var cells = includeCells ? CreateCells(target, cellLimit) : null;
+            var rectangles = CreateRectangles(target, rectangleLimit);
             return new
             {
                 target = CreateTargetSummary(target, index, false),
                 values,
-                cellCount = target.Cells.Count,
-                cellsTruncated = includeCells && target.Cells.Count > cellLimit,
-                cells,
+                cellCount = target.CellCount,
+                rectangleCount = target.Rectangles.Count,
+                occupiedBounds = CreateOccupiedBounds(target),
+                valueCounts = CreateValueCounts(target),
+                rectanglesTruncated = target.Rectangles.Count > rectangleLimit,
+                rectangles,
                 renderBounds = CreateRenderBounds(target),
             };
         }
@@ -255,7 +256,8 @@ namespace FireAlt.Mosaic.Pipeline.Editor
                 rendererHash = target.RendererHash.ToString(),
                 intGridEntity = binding.IntGridEntity.ToString(),
                 rendererEntity = binding.RendererEntity.ToString(),
-                cellCount = target.Cells.Count,
+                cellCount = target.CellCount,
+                rectangleCount = target.Rectangles.Count,
                 values = includeValues ? CreateValues(target) : null,
             };
         }
@@ -277,17 +279,74 @@ namespace FireAlt.Mosaic.Pipeline.Editor
             return values;
         }
 
-        private static List<object> CreateCells(MosaicPaintingTarget target, int limit)
+        private static List<object> CreateRectangles(MosaicPaintingTarget target, int limit)
         {
-            var count = math.min(target.Cells.Count, limit);
-            var cells = new List<object>(count);
+            var count = math.min(target.Rectangles.Count, limit);
+            var rectangles = new List<object>(count);
             for (var i = 0; i < count; i++)
             {
-                var cell = target.Cells[i];
-                cells.Add(new { x = cell.Position.x, y = cell.Position.y, value = cell.Value });
+                var rectangle = target.Rectangles[i];
+                rectangles.Add(new
+                {
+                    x = rectangle.Position.x,
+                    y = rectangle.Position.y,
+                    width = rectangle.Size.x,
+                    height = rectangle.Size.y,
+                    value = rectangle.Value,
+                });
             }
 
-            return cells;
+            return rectangles;
+        }
+
+        private static object CreateOccupiedBounds(MosaicPaintingTarget target)
+        {
+            if (target.Rectangles.Count == 0) return null;
+
+            var minX = int.MaxValue;
+            var minY = int.MaxValue;
+            var maxX = int.MinValue;
+            var maxY = int.MinValue;
+            foreach (var rectangle in target.Rectangles)
+            {
+                minX = math.min(minX, rectangle.Position.x);
+                minY = math.min(minY, rectangle.Position.y);
+                maxX = math.max(maxX, rectangle.Position.x + rectangle.Size.x - 1);
+                maxY = math.max(maxY, rectangle.Position.y + rectangle.Size.y - 1);
+            }
+
+            return new
+            {
+                x = minX,
+                y = minY,
+                width = (long)maxX - minX + 1,
+                height = (long)maxY - minY + 1,
+            };
+        }
+
+        private static List<object> CreateValueCounts(MosaicPaintingTarget target)
+        {
+            var counts = new SortedDictionary<short, RectangleValueCount>();
+            foreach (var rectangle in target.Rectangles)
+            {
+                counts.TryGetValue(rectangle.Value, out var count);
+                count.CellCount += rectangle.CellCount;
+                count.RectangleCount++;
+                counts[rectangle.Value] = count;
+            }
+
+            var result = new List<object>(counts.Count);
+            foreach (var pair in counts)
+            {
+                result.Add(new
+                {
+                    value = pair.Key,
+                    cellCount = pair.Value.CellCount,
+                    rectangleCount = pair.Value.RectangleCount,
+                });
+            }
+
+            return result;
         }
 
         private static List<object> CreateCellCoordinates(IReadOnlyList<Vector2Int> positions)
@@ -330,6 +389,12 @@ namespace FireAlt.Mosaic.Pipeline.Editor
 
             query.Dispose();
             return result;
+        }
+
+        private struct RectangleValueCount
+        {
+            public int CellCount;
+            public int RectangleCount;
         }
     }
 }

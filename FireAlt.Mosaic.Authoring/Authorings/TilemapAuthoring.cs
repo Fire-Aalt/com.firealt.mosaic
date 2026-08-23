@@ -16,11 +16,11 @@ namespace FireAlt.Mosaic.Authoring
         public bool isGlobal = true;
         public RenderingData renderingData = new();
 
-        [SerializeField, HideInInspector] private List<SerializedIntGridCell> _paintedCells = new();
+        [SerializeField, HideInInspector] private SerializedIntGridData _paintedData = new();
 
-        public IReadOnlyList<SerializedIntGridCell> PaintedCells => _paintedCells;
+        public IReadOnlyList<SerializedIntGridCell> PaintedCells => _paintedData.Cells;
 
-        internal List<SerializedIntGridCell> MutablePaintedCells => _paintedCells;
+        internal SerializedIntGridData PaintedData => _paintedData;
 
         private void Bake<TCommands>(ref TCommands commands, Entity gridEntity,
             Func<GameObject, Entity> entityResolver)
@@ -38,7 +38,7 @@ namespace FireAlt.Mosaic.Authoring
 
             BakerUtils.AddTilemapTransform(ref commands, gridEntity, renderingData);
             BakerUtils.AddIntGridLayerData(ref commands, intGrid, runtimeHash, refSprite, false,
-                ref tilePivot, ref tileSize, _paintedCells, entityResolver);
+                ref tilePivot, ref tileSize, _paintedData.Rectangles, entityResolver);
             BakerUtils.AddRenderingData(ref commands, gameObject, runtimeHash, renderingData, refSprite);
         }
 

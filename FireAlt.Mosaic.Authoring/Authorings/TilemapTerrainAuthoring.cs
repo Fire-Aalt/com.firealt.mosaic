@@ -66,7 +66,7 @@ namespace FireAlt.Mosaic.Authoring
                 commands.Entity = layerEntities[i];
                 BakerUtils.AddTilemapTransform(ref commands, gridEntity, renderingData);
                 BakerUtils.AddIntGridLayerData(ref commands, intGridDefinition, runtimeHash, refSprite, true,
-                    ref tilePivot, ref tileSize, FindPaintedCells(intGridDefinition), entityResolver);
+                    ref tilePivot, ref tileSize, FindPaintedRectangles(intGridDefinition), entityResolver);
                 commands.AddComponent(new Data.TerrainLayer { TerrainEntity = terrainEntity });
             }
 
@@ -87,14 +87,14 @@ namespace FireAlt.Mosaic.Authoring
             BakerUtils.AddRenderingData(ref commands, gameObject, rendererHash, renderingData, refSprite);
         }
 
-        private IReadOnlyList<SerializedIntGridCell> FindPaintedCells(IntGridDefinition definition)
+        private IReadOnlyList<SerializedIntGridRectangle> FindPaintedRectangles(IntGridDefinition definition)
         {
             foreach (var layer in _paintedLayers)
             {
-                if (layer.IntGrid == definition) return layer.Cells;
+                if (layer.IntGrid == definition) return layer.PaintedData.Rectangles;
             }
 
-            return Array.Empty<SerializedIntGridCell>();
+            return Array.Empty<SerializedIntGridRectangle>();
         }
 
         private void OnValidate()

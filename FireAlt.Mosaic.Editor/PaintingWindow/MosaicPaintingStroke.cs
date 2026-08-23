@@ -10,6 +10,7 @@ namespace FireAlt.Mosaic.Editor
     internal sealed class MosaicPaintingStroke : IDisposable
     {
         private readonly MosaicPaintingTarget _target;
+        private readonly SerializedIntGridData _data;
         private readonly List<SerializedIntGridCell> _cells;
         private readonly Dictionary<Vector2Int, int> _cellIndices;
         private readonly List<Vector2Int> _changedCells = new();
@@ -20,9 +21,10 @@ namespace FireAlt.Mosaic.Editor
         {
             _target = target;
             _value = value;
-            if (!target.TryGetMutableCells(out var cells)) return;
+            if (!target.TryGetMutableData(out var data)) return;
 
-            _cells = cells;
+            _data = data;
+            _cells = data.MutableCells;
             _cellIndices = new Dictionary<Vector2Int, int>(_cells.Count);
             for (var i = 0; i < _cells.Count; i++)
             {
@@ -55,6 +57,8 @@ namespace FireAlt.Mosaic.Editor
         public void Dispose()
         {
             if (!_changed || _target.Owner == null) return;
+
+            _data.Collapse();
 
             if (PrefabUtility.IsPartOfPrefabInstance(_target.Owner))
             {

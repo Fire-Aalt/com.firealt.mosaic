@@ -52,7 +52,7 @@ namespace FireAlt.Mosaic.Authoring
         
         public static void AddIntGridLayerData<TCommands>(ref TCommands commands, IntGridDefinition intGrid,
             Hash128 runtimeHash, RefSprite refSprite, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize,
-            IReadOnlyList<SerializedIntGridCell> initialValues, Func<GameObject, Entity> entityResolver)
+            IReadOnlyList<SerializedIntGridRectangle> initialValues, Func<GameObject, Entity> entityResolver)
             where TCommands : IEntityCommands
         {
             commands.AddBuffer<RuleBlobReferenceElement>();
@@ -110,15 +110,19 @@ namespace FireAlt.Mosaic.Authoring
                 });
             }
 
-            foreach (var initialValue in initialValues)
+            foreach (var rectangle in initialValues)
             {
-                if (initialValue.Value == 0) continue;
-
-                initialValuesBuffer.Add(new IntGridInitialValueElement
+                for (var y = 0; y < rectangle.Size.y; y++)
                 {
-                    Position = new int2(initialValue.Position.x, initialValue.Position.y),
-                    Value = initialValue.Value,
-                });
+                    for (var x = 0; x < rectangle.Size.x; x++)
+                    {
+                        initialValuesBuffer.Add(new IntGridInitialValueElement
+                        {
+                            Position = new int2(rectangle.Position.x + x, rectangle.Position.y + y),
+                            Value = rectangle.Value,
+                        });
+                    }
+                }
             }
         }
         

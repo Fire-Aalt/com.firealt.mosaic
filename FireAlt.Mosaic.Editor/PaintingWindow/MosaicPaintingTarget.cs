@@ -92,11 +92,11 @@ namespace FireAlt.Mosaic.Editor
 
     internal sealed class MosaicPaintingTarget
     {
-        private const string PAINTED_CELLS = "_paintedCells";
+        private const string PAINTED_DATA = "_paintedData";
         private const string PAINTED_LAYERS = "_paintedLayers";
-        private const string CELLS = "_cells";
         private readonly List<IntGridValueDefinition> _entityValues = new();
         private readonly List<SerializedIntGridCell> _entityCells = new();
+        private readonly List<SerializedIntGridRectangle> _entityRectangles = new();
         private readonly MosaicPaintingRuntimeBinding _binding;
         private readonly string _displayName;
         private readonly bool _isTerrain;
@@ -158,6 +158,7 @@ namespace FireAlt.Mosaic.Editor
             }
 
             _entityCells.Sort((left, right) => Compare(left.Position, right.Position));
+            IntGridCellPacking.Pack(_entityCells, _entityRectangles);
         }
 
         public MonoBehaviour Owner { get; }
@@ -307,6 +308,40 @@ namespace FireAlt.Mosaic.Editor
             for (var i = 0; i < corners.Length; i++) corners[i] += normal;
         }
 
+        public IReadOnlyList<SerializedIntGridRectangle> Rectangles
+        {
+            get
+            {
+                if (IsEntityTarget) return _entityRectangles;
+                if (Owner is TilemapAuthoring tilemap) return tilemap.PaintedData.Rectangles;
+                if (Owner is not TilemapTerrainAuthoring terrain) return Array.Empty<SerializedIntGridRectangle>();
+
+                foreach (var layer in terrain.PaintedLayers)
+                {
+                    if (layer.IntGrid == IntGrid) return layer.PaintedData.Rectangles;
+                }
+
+                return Array.Empty<SerializedIntGridRectangle>();
+            }
+        }
+
+        public int CellCount
+        {
+            get
+            {
+                if (IsEntityTarget) return _entityCells.Count;
+                if (Owner is TilemapAuthoring tilemap) return tilemap.PaintedData.CellCount;
+                if (Owner is not TilemapTerrainAuthoring terrain) return 0;
+
+                foreach (var layer in terrain.PaintedLayers)
+                {
+                    if (layer.IntGrid == IntGrid) return layer.PaintedData.CellCount;
+                }
+
+                return 0;
+            }
+        }
+
         public Vector3 GetCellCenter(Vector2Int cell)
         {
             var center = new float2(cell.x, cell.y) + PaintedCellCenterOffset;
@@ -379,14 +414,14 @@ namespace FireAlt.Mosaic.Editor
             return y != 0 ? y : left.x.CompareTo(right.x);
         }
 
-        internal bool TryGetMutableCells(out List<SerializedIntGridCell> cells)
+        internal bool TryGetMutableData(out SerializedIntGridData data)
         {
-            cells = null;
+            data = null;
             if (!IsPaintable) return false;
 
             if (Owner is TilemapAuthoring tilemap)
             {
-                cells = tilemap.MutablePaintedCells;
+                data = tilemap.PaintedData;
                 return true;
             }
 
@@ -396,7 +431,7 @@ namespace FireAlt.Mosaic.Editor
             {
                 if (layer.IntGrid == IntGrid)
                 {
-                    cells = layer.MutableCells;
+                    data = layer.PaintedData;
                     return true;
                 }
             }
@@ -408,8 +443,8 @@ namespace FireAlt.Mosaic.Editor
         {
             if (target is TilemapAuthoring)
             {
-                return propertyPath == PAINTED_CELLS
-                       || propertyPath.StartsWith($"{PAINTED_CELLS}.", StringComparison.Ordinal);
+                return propertyPath == PAINTED_DATA
+                       || propertyPath.StartsWith($"{PAINTED_DATA}.", StringComparison.Ordinal);
             }
 
             if (target is not TilemapTerrainAuthoring
@@ -418,8 +453,8 @@ namespace FireAlt.Mosaic.Editor
                 return false;
             }
 
-            return propertyPath.EndsWith($".{CELLS}", StringComparison.Ordinal)
-                   || propertyPath.Contains($".{CELLS}.", StringComparison.Ordinal);
+            return propertyPath.EndsWith($".{PAINTED_DATA}", StringComparison.Ordinal)
+                   || propertyPath.Contains($".{PAINTED_DATA}.", StringComparison.Ordinal);
         }
 
     }
