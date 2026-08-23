@@ -11,6 +11,9 @@ namespace FireAlt.Mosaic.Editor
     {
         private const int CONTROL_HINT = 0x4D4F5341;
         private const int MAX_STROKE_CELL_DELTA = 500;
+        private const float VISIBLE_FILL_ALPHA = 0.18f;
+        private const float VISIBLE_OUTLINE_ALPHA = 1f;
+        private const float OCCLUDED_ALPHA_MULTIPLIER = 0.35f;
 
         private readonly Vector3[] _corners = new Vector3[4];
         private readonly HashSet<Vector2Int> _brushCells = new();
@@ -22,6 +25,8 @@ namespace FireAlt.Mosaic.Editor
         private bool _strokeActive;
         private bool _erase;
         private Vector2Int? _previousCell;
+        private Vector2Int? _rectangleStart;
+        private Vector2Int _rectangleEnd;
         private MosaicPaintingSelectionStroke _paintStroke;
 
         public override GUIContent toolbarIcon => _toolbarIcon;
@@ -109,24 +114,50 @@ namespace FireAlt.Mosaic.Editor
             }
 
             _controlId = GUIUtility.GetControlID(CONTROL_HINT, FocusType.Passive);
-            if (currentEvent.type == EventType.Layout && !currentEvent.alt && !currentEvent.shift)
+            if (currentEvent.type == EventType.Layout && !currentEvent.shift)
             {
                 HandleUtility.AddDefaultControl(_controlId);
             }
 
+            if (_strokeActive && !IsHotControl)
+            {
+                EndStroke();
+                return;
+            }
+
             if (currentEvent.type == EventType.MouseMove) sceneView.Repaint();
 
+            var hasCell = target.TryGetCell(currentEvent.mousePosition, out var cell);
             if (currentEvent.rawType == EventType.MouseUp && IsHotControl && currentEvent.button == (_erase ? 1 : 0))
             {
+                if (_rectangleStart.HasValue)
+                {
+                    if (hasCell) _rectangleEnd = cell;
+                    ApplyRectangle();
+                }
+
                 EndStroke();
                 if (currentEvent.type is not EventType.Ignore and not EventType.Used) currentEvent.Use();
                 return;
             }
 
-            if (!target.TryGetCell(currentEvent.mousePosition, out var cell)) return;
-            DrawBrush(target, cell);
+            if (!hasCell) return;
 
-            if (currentEvent.alt || currentEvent.shift || currentEvent.button == 2) return;
+            if (_rectangleStart.HasValue && currentEvent.type == EventType.MouseDrag && IsHotControl)
+            {
+                _rectangleEnd = cell;
+                sceneView.Repaint();
+            }
+
+            DrawPreview(target, cell, currentEvent.alt && !currentEvent.shift && !_strokeActive);
+
+            if (_rectangleStart.HasValue)
+            {
+                if (currentEvent.type == EventType.MouseDrag && IsHotControl) currentEvent.Use();
+                return;
+            }
+
+            if (currentEvent.shift || currentEvent.button == 2) return;
 
             switch (currentEvent.type)
             {
@@ -134,9 +165,10 @@ namespace FireAlt.Mosaic.Editor
                                                    && HandleUtility.nearestControl == _controlId:
                 {
                     _erase = currentEvent.button == 1;
+                    var rectangle = currentEvent.alt;
                     Undo.IncrementCurrentGroup();
                     _undoGroup = Undo.GetCurrentGroup();
-                    Undo.SetCurrentGroupName(_erase ? "Erase Mosaic IntGrid" : "Paint Mosaic IntGrid");
+                    Undo.SetCurrentGroupName(GetUndoName(rectangle, _erase));
                     GUIUtility.hotControl = _controlId;
                     GUIUtility.keyboardControl = 0;
                     if (!selection.TryBeginStroke(_erase, out _paintStroke))
@@ -148,12 +180,21 @@ namespace FireAlt.Mosaic.Editor
                     }
 
                     _strokeActive = true;
-                    _previousCell = cell;
-                    ApplyBrush(cell);
+                    if (rectangle)
+                    {
+                        _rectangleStart = cell;
+                        _rectangleEnd = cell;
+                    }
+                    else
+                    {
+                        _previousCell = cell;
+                        ApplyBrush(cell);
+                    }
+
                     currentEvent.Use();
                     break;
                 }
-                case EventType.MouseDrag when _strokeActive && IsHotControl:
+                case EventType.MouseDrag when _strokeActive && IsHotControl && !currentEvent.alt:
                     ApplyStroke(_previousCell ?? cell, cell);
                     _previousCell = cell;
                     currentEvent.Use();
@@ -170,6 +211,7 @@ namespace FireAlt.Mosaic.Editor
 
             _strokeActive = false;
             _previousCell = null;
+            _rectangleStart = null;
             _undoGroup = -1;
             _brushCells.Clear();
             SceneView.RepaintAll();
@@ -239,27 +281,87 @@ namespace FireAlt.Mosaic.Editor
             _paintStroke?.SetCells(_brushCells);
         }
 
-        private void DrawBrush(MosaicPaintingTarget target, Vector2Int center)
+        private void ApplyRectangle()
         {
-            var fill = MosaicPaintingController.Color;
-            fill.a = 0.18f;
-            var outline = MosaicPaintingController.Color;
-            outline.a = 1f;
+            if (!_rectangleStart.HasValue) return;
 
-            var previousZTest = Handles.zTest;
-            Handles.zTest = CompareFunction.LessEqual;
-            var radius = MosaicPaintingController.BrushRadius;
-            for (var x = -radius; x <= radius; x++)
+            _brushCells.Clear();
+            if (TryAddRectangleCells(_rectangleStart.Value, _rectangleEnd, _brushCells)) ApplyCells();
+        }
+
+        private void DrawPreview(MosaicPaintingTarget target, Vector2Int cell, bool rectangleModifier)
+        {
+            _brushCells.Clear();
+            if (_rectangleStart.HasValue)
             {
-                for (var y = -radius; y <= radius; y++)
-                {
-                    if (!IsWithinBrushRadius(x, y)) continue;
-                    target.GetCellCorners(center + new Vector2Int(x, y), _corners, 0.006f);
-                    Handles.DrawSolidRectangleWithOutline(_corners, fill, outline);
-                }
+                if (!TryAddRectangleCells(_rectangleStart.Value, _rectangleEnd, _brushCells))
+                    _brushCells.Add(_rectangleStart.Value);
+            }
+            else if (rectangleModifier)
+            {
+                _brushCells.Add(cell);
+            }
+            else
+            {
+                AddBrushCells(cell);
             }
 
-            Handles.zTest = previousZTest;
+            DrawGhostCells(target);
+        }
+
+        private void DrawGhostCells(MosaicPaintingTarget target)
+        {
+            var fill = MosaicPaintingController.Color;
+            fill.a = VISIBLE_FILL_ALPHA;
+            var outline = MosaicPaintingController.Color;
+            outline.a = VISIBLE_OUTLINE_ALPHA;
+            var occludedFill = fill;
+            occludedFill.a *= OCCLUDED_ALPHA_MULTIPLIER;
+            var occludedOutline = outline;
+            occludedOutline.a *= OCCLUDED_ALPHA_MULTIPLIER;
+
+            var previousZTest = Handles.zTest;
+            try
+            {
+                DrawGhostPass(target, occludedFill, occludedOutline, CompareFunction.Greater);
+                DrawGhostPass(target, fill, outline, CompareFunction.LessEqual);
+            }
+            finally
+            {
+                Handles.zTest = previousZTest;
+            }
+        }
+
+        private void DrawGhostPass(MosaicPaintingTarget target, Color fill, Color outline, CompareFunction zTest)
+        {
+            Handles.zTest = zTest;
+            foreach (var cell in _brushCells)
+            {
+                target.GetCellCorners(cell, _corners, 0.006f);
+                Handles.DrawSolidRectangleWithOutline(_corners, fill, outline);
+            }
+        }
+
+        internal static bool TryAddRectangleCells(Vector2Int start, Vector2Int end, ISet<Vector2Int> cells)
+        {
+            if (start == end) return false;
+
+            var minX = Mathf.Min(start.x, end.x);
+            var maxX = Mathf.Max(start.x, end.x);
+            var minY = Mathf.Min(start.y, end.y);
+            var maxY = Mathf.Max(start.y, end.y);
+            for (var x = minX; x <= maxX; x++)
+            {
+                for (var y = minY; y <= maxY; y++) cells.Add(new Vector2Int(x, y));
+            }
+
+            return true;
+        }
+
+        private static string GetUndoName(bool rectangle, bool erase)
+        {
+            if (rectangle) return erase ? "Clear Mosaic IntGrid Rectangle" : "Fill Mosaic IntGrid Rectangle";
+            return erase ? "Erase Mosaic IntGrid" : "Paint Mosaic IntGrid";
         }
 
         internal static bool IsWithinBrushRadius(int x, int y)

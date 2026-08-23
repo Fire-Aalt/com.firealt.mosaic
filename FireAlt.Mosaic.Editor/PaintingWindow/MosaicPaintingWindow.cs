@@ -146,7 +146,8 @@ namespace FireAlt.Mosaic.Editor
             root.Add(brushControls);
 
             var controlsHelp = new HelpBox(
-                "LMB paints, RMB erases, and Alt or Shift temporarily restores normal Scene View navigation. "
+                "LMB paints and RMB erases. Hold Alt and drag LMB or RMB to fill or clear a rectangle; "
+                + "rectangle painting ignores Brush Size. Hold Shift for Scene View navigation. "
                 + "Click the selected value again or press Escape to leave painting.",
                 HelpBoxMessageType.None);
             controlsHelp.AddToClassList("mosaic-paint-help");
@@ -370,10 +371,10 @@ namespace FireAlt.Mosaic.Editor
 
                     hasPublishedLayer = true;
                     _selections.Add(selection);
-                    var button = CreateValueButton(selection);
+                    var row = CreateValueRow(selection, out var button);
                     button.SetEnabled(selection.IsValid);
                     if (!selection.IsValid) button.tooltip = selection.ValidationMessage;
-                    linkedFoldout.Add(button);
+                    linkedFoldout.Add(row);
                     if (!selection.IsValid)
                     {
                         linkedFoldout.Add(new HelpBox(selection.ValidationMessage, HelpBoxMessageType.Error));
@@ -442,16 +443,25 @@ namespace FireAlt.Mosaic.Editor
             {
                 var selection = MosaicPaintingSelection.Create(target, value, _stage);
                 _selections.Add(selection);
-                var button = CreateValueButton(selection);
-                foldout.Add(button);
+                foldout.Add(CreateValueRow(selection, out _));
             }
 
             return foldout;
         }
 
-        private Button CreateValueButton(MosaicPaintingSelection selection)
+        private VisualElement CreateValueRow(MosaicPaintingSelection selection, out Button button)
         {
-            var button = new Button(() => SelectValue(selection));
+            var row = new VisualElement
+            {
+                userData = selection.OriginatingComponent,
+            };
+            row.AddToClassList("mosaic-paint-value-row");
+            row.AddManipulator(new ContextualMenuManipulator(evt =>
+            {
+                evt.menu.AppendAction("Go to Layer", _ => GoToLayer(selection.OriginatingComponent));
+            }));
+
+            button = new Button(() => SelectValue(selection));
             button.AddToClassList("mosaic-paint-value");
             button.userData = selection.Id;
 
@@ -485,7 +495,17 @@ namespace FireAlt.Mosaic.Editor
             }
 
             _valueButtons.Add(button);
-            return button;
+            row.Add(button);
+            return row;
+        }
+
+        private static void GoToLayer(MonoBehaviour originatingComponent)
+        {
+            if (originatingComponent == null) return;
+
+            Selection.activeObject = originatingComponent;
+            EditorGUIUtility.PingObject(originatingComponent);
+            EditorApplication.ExecuteMenuItem("Window/General/Inspector");
         }
 
         private void SelectValue(MosaicPaintingSelection selection)

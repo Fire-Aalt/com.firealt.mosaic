@@ -124,6 +124,27 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
+        public void LinkedLayer_RectangleFillAndClearUsesOneCellBatch()
+        {
+            var first = CreateTilemap("First");
+            var second = CreateTilemap("Second");
+            var selection = CreateSelection(CreateLinked("Linked", (first, 1), (second, 2)));
+            var cells = new HashSet<Vector2Int>();
+            Assert.IsTrue(MosaicPaintingTool.TryAddRectangleCells(
+                new Vector2Int(-1, 2), new Vector2Int(1, 3), cells));
+
+            Assert.IsTrue(selection.TryBeginStroke(false, out var fillStroke));
+            using (fillStroke) Assert.IsTrue(fillStroke.SetCells(cells));
+            AssertCells(first, 1, cells.ToArray());
+            AssertCells(second, 2, cells.ToArray());
+
+            Assert.IsTrue(selection.TryBeginStroke(true, out var clearStroke));
+            using (clearStroke) Assert.IsTrue(clearStroke.SetCells(cells));
+            Assert.IsEmpty(first.PaintedCells);
+            Assert.IsEmpty(second.PaintedCells);
+        }
+
+        [Test]
         public void LinkedLayer_DragReusesEveryTargetStrokeAcrossSegments()
         {
             var first = CreateTilemap("First");
@@ -401,11 +422,102 @@ namespace FireAlt.Mosaic.Tests
                 Assert.AreEqual(Color.cyan, zuluButton
                     .Q<VisualElement>(className: "mosaic-paint-value__accent").style.backgroundColor.value);
 
+                var contextRows = window.rootVisualElement
+                    .Query<VisualElement>(className: "mosaic-paint-value-row").ToList();
+                Assert.IsTrue(contextRows.Any(row => ReferenceEquals(row.userData, terrain)));
+                Assert.IsTrue(contextRows.Any(row => ReferenceEquals(row.userData, tilemap)));
+                Assert.IsTrue(contextRows.Any(row => ReferenceEquals(row.userData, alpha)));
+                Assert.IsTrue(contextRows.Any(row => ReferenceEquals(row.userData, zulu)));
+
                 MosaicPaintingController.BrushSize = 3;
                 Assert.AreEqual(3, MosaicPaintingController.BrushSize);
                 Assert.AreEqual(2, MosaicPaintingController.BrushRadius);
                 Assert.IsTrue(MosaicPaintingTool.IsWithinBrushRadius(2, 0));
                 Assert.IsFalse(MosaicPaintingTool.IsWithinBrushRadius(2, 2));
+            }
+            finally
+            {
+                Object.DestroyImmediate(window);
+            }
+        }
+
+        [TestCase(2, 1)]
+        [TestCase(-2, 1)]
+        [TestCase(2, -1)]
+        [TestCase(-2, -1)]
+        public void PaintingTool_RectangleCellsAreInclusiveInEveryDirection(int endX, int endY)
+        {
+            MosaicPaintingController.BrushSize = MosaicPaintingController.MAX_BRUSH_SIZE;
+            var cells = new HashSet<Vector2Int>();
+
+            Assert.IsTrue(MosaicPaintingTool.TryAddRectangleCells(
+                Vector2Int.zero, new Vector2Int(endX, endY), cells));
+
+            var expected = Enumerable.Range(Math.Min(0, endX), Math.Abs(endX) + 1)
+                .SelectMany(x => Enumerable.Range(Math.Min(0, endY), Math.Abs(endY) + 1)
+                    .Select(y => new Vector2Int(x, y))).ToArray();
+            CollectionAssert.AreEquivalent(expected, cells);
+        }
+
+        [Test]
+        public void PaintingTool_RectangleRequiresAnotherGridCell()
+        {
+            var cells = new HashSet<Vector2Int>();
+
+            Assert.IsFalse(MosaicPaintingTool.TryAddRectangleCells(Vector2Int.one, Vector2Int.one, cells));
+            Assert.IsEmpty(cells);
+        }
+
+        [Test]
+        public void PaintingSelection_ReportsRawTerrainAndLinkedOriginatingComponents()
+        {
+            EnterPrefabIsolation();
+            var tilemap = CreateTilemap("Raw Target");
+            var terrainObject = new GameObject("Terrain Owner", typeof(TilemapTerrainAuthoring));
+            terrainObject.transform.SetParent(_gridObject.transform);
+            var terrain = terrainObject.GetComponent<TilemapTerrainAuthoring>();
+            terrain.renderingData.material = _material;
+            terrain.intGridLayers.Add(_intGrid);
+            var linked = CreateLinked("Linked Owner", (tilemap, 1));
+            var stage = StageUtility.GetCurrentStageHandle();
+
+            var rawSelection = MosaicPaintingSelection.Create(new MosaicPaintingTarget(tilemap),
+                _intGrid.intGridValues[0], stage);
+            var terrainSelection = MosaicPaintingSelection.Create(new MosaicPaintingTarget(terrain, _intGrid, 0),
+                _intGrid.intGridValues[0], stage);
+            var linkedSelection = CreateSelection(linked);
+
+            Assert.AreSame(tilemap, rawSelection.OriginatingComponent);
+            Assert.AreSame(terrain, terrainSelection.OriginatingComponent);
+            Assert.AreSame(linked, linkedSelection.OriginatingComponent);
+        }
+
+        [Test]
+        public void PaintingWindow_DisabledLinkedValueKeepsEnabledContextOwner()
+        {
+            EnterPrefabIsolation();
+            var tilemap = CreateTilemap("Invalid Target");
+            var linked = CreateLinked("Invalid Linked", (tilemap, 99));
+            var window = ScriptableObject.CreateInstance<MosaicPaintingWindow>();
+            try
+            {
+                window.CreateGUI();
+                var targets = GetWindowList<MosaicPaintingTarget>(window, "_targets");
+                targets.Clear();
+                targets.Add(new MosaicPaintingTarget(tilemap));
+                var linkedComponents = GetWindowList<LinkedTilemapLayers>(window, "_linkedComponents");
+                linkedComponents.Clear();
+                linkedComponents.Add(linked);
+                InvokeBuildPalette(window);
+
+                var linkedFoldout = window.rootVisualElement.Query<Foldout>().ToList()
+                    .Single(foldout => ReferenceEquals(foldout.userData, linked));
+                var button = linkedFoldout.Q<Button>(className: "mosaic-paint-value");
+                var row = button.parent;
+                Assert.IsFalse(button.enabledSelf);
+                Assert.IsTrue(row.enabledSelf);
+                Assert.IsTrue(row.ClassListContains("mosaic-paint-value-row"));
+                Assert.AreSame(linked, row.userData);
             }
             finally
             {

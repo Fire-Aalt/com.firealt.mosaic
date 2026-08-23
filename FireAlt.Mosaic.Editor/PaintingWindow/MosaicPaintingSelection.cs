@@ -111,6 +111,8 @@ namespace FireAlt.Mosaic.Editor
 
         public bool IsValid => string.IsNullOrEmpty(ValidationMessage) && ValidateCurrentConfiguration() == null;
 
+        internal MonoBehaviour OriginatingComponent => _linkedOwner != null ? _linkedOwner : Anchor?.Owner;
+
         internal IReadOnlyList<MosaicPaintingOperation> Operations => _operations;
 
         internal static MosaicPaintingSelection Create(MosaicPaintingTarget target, IntGridValueDefinition value,

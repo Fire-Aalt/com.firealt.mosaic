@@ -96,6 +96,14 @@
     background-color: var(--mosaic-paint-foldout-content);
 }
 
+.mosaic-paint-value-row {
+    flex-shrink: 0;
+}
+
+.mosaic-paint-value-row > .mosaic-paint-value {
+    flex-grow: 1;
+}
+
 .mosaic-paint-value {
     height: 54px;
     min-height: 54px;
