@@ -38,6 +38,7 @@ namespace FireAlt.Mosaic.Tests
         [SetUp]
         public void SetUp()
         {
+            _prefabPath = null;
             _gridObject = new GameObject("Linked Test Grid", typeof(GridAuthoring));
             _intGrid = CreateIntGrid("Linked Test IntGrid", Color.red, Color.blue);
             var shader = Shader.Find("Unlit/Texture") ?? Shader.Find("Sprites/Default")
@@ -51,6 +52,7 @@ namespace FireAlt.Mosaic.Tests
             MosaicPaintingController.BrushSize = MosaicPaintingController.MIN_BRUSH_SIZE;
             MosaicPaintingController.ClearSelection();
             if (ToolManager.activeToolType == typeof(MosaicPaintingTool)) ToolManager.RestorePreviousPersistentTool();
+            ClearUndo(_gridObject);
             if (_prefabPath == null)
             {
                 Object.DestroyImmediate(_gridObject);
@@ -65,6 +67,15 @@ namespace FireAlt.Mosaic.Tests
             Object.DestroyImmediate(_material);
             foreach (var texture in _textures) Object.DestroyImmediate(texture);
             foreach (var intGrid in _intGrids) Object.DestroyImmediate(intGrid);
+            _textures.Clear();
+            _intGrids.Clear();
+            _prefabPath = null;
+        }
+
+        private static void ClearUndo(GameObject root)
+        {
+            if (root == null) return;
+            foreach (var component in root.GetComponentsInChildren<Component>(true)) Undo.ClearUndo(component);
         }
 
         [Test]
