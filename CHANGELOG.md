@@ -7,6 +7,7 @@
 * Added `Show IntGrid` (`Shift+R`) to replace the regular Mosaic output with raw IntGrid colors, `Bounds` to display tilemap render bounds and `Randomize` to preview another RuleEngine seed.
 * Added `LinkedTilemapLayers`, an editor-only authoring component for painting several `TilemapAuthoring` layers with one palette value. Each linked layer has its own name, color, optional icon and ordered list of target/value operations.
 * Added packed rectangle storage for painted IntGrid data on `TilemapAuthoring` and `TilemapTerrainAuthoring`, greatly reducing the serialized size of large filled areas.
+* Added Unity CLI integration with 3 commands for debugging and agentic workflows: `mosaic_targets`, `mosaic_get_target`, `mosaic_paint`.
 
 ## [3.2.0] - 2026-08-15
 
