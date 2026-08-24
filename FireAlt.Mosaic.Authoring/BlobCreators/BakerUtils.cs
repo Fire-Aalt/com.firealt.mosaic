@@ -66,6 +66,32 @@ namespace FireAlt.Mosaic.Authoring
             IReadOnlyList<SerializedIntGridRectangle> initialValues, Func<GameObject, Entity> entityResolver)
             where TCommands : IEntityCommands
         {
+            if (!TryValidateRuleResults(intGrid, out var validationError))
+            {
+                throw new InvalidOperationException(validationError);
+            }
+
+            AddIntGridLayerData(ref commands, intGrid, runtimeHash, refSprite, constPivotAndSize, ref tilePivot,
+                ref tileSize, initialValues, entityResolver, true);
+        }
+
+        internal static void AddEmptyIntGridLayerData<TCommands>(ref TCommands commands, IntGridDefinition intGrid,
+            Hash128 runtimeHash, IReadOnlyList<SerializedIntGridRectangle> initialValues)
+            where TCommands : IEntityCommands
+        {
+            var refSprite = new RefSprite();
+            var tilePivot = float2.zero;
+            var tileSize = float2.zero;
+            AddIntGridLayerData(ref commands, intGrid, runtimeHash, refSprite, false, ref tilePivot, ref tileSize,
+                initialValues, null, false);
+        }
+
+        private static void AddIntGridLayerData<TCommands>(ref TCommands commands, IntGridDefinition intGrid,
+            Hash128 runtimeHash, RefSprite refSprite, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize,
+            IReadOnlyList<SerializedIntGridRectangle> initialValues, Func<GameObject, Entity> entityResolver,
+            bool includeRules)
+            where TCommands : IEntityCommands
+        {
             commands.AddBuffer<RuleBlobReferenceElement>();
             commands.AddBuffer<WeightedEntityElement>();
             commands.AddComponent(new IntGridData
@@ -89,22 +115,25 @@ namespace FireAlt.Mosaic.Authoring
             var refreshPositions = new NativeHashSet<int2>(64, Allocator.Temp);
 
             var entityCount = 0;
-            foreach (var group in intGrid.ruleGroups)
+            if (includeRules)
             {
-                foreach (var rule in group.rules)
+                foreach (var group in intGrid.ruleGroups)
                 {
-                    var blob = RuleBlobCreator.Create(rule, entityCount, refreshPositions);
-                    commands.AddBlobAsset(ref blob, out _);
-
-                    ruleBlobBuffer.Add(new RuleBlobReferenceElement
+                    foreach (var rule in group.rules)
                     {
-                        Enabled = rule.enabled.HasFlag(RuleGroup.Enabled.Enabled),
-                        Value = blob
-                    });
-                    
-                    AddResults(rule, weightedEntityBuffer, refSprite, constPivotAndSize, ref tilePivot, ref tileSize,
-                        entityResolver);
-                    entityCount += rule.TileEntities.Count;
+                        var blob = RuleBlobCreator.Create(rule, entityCount, refreshPositions);
+                        commands.AddBlobAsset(ref blob, out _);
+
+                        ruleBlobBuffer.Add(new RuleBlobReferenceElement
+                        {
+                            Enabled = rule.enabled.HasFlag(RuleGroup.Enabled.Enabled),
+                            Value = blob
+                        });
+                        
+                        AddResults(rule, weightedEntityBuffer, refSprite, constPivotAndSize, ref tilePivot, ref tileSize,
+                            entityResolver);
+                        entityCount += rule.TileEntities.Count;
+                    }
                 }
             }
 
@@ -135,6 +164,53 @@ namespace FireAlt.Mosaic.Authoring
                     }
                 }
             }
+        }
+
+        internal static bool TryValidateRuleResults(IntGridDefinition intGrid, out string error)
+        {
+            for (var groupIndex = 0; groupIndex < intGrid.ruleGroups.Count; groupIndex++)
+            {
+                var group = intGrid.ruleGroups[groupIndex];
+                if (group == null)
+                {
+                    error = $"IntGrid '{intGrid.name}' has no RuleGroup assigned at index {groupIndex}.";
+                    return false;
+                }
+
+                for (var ruleIndex = 0; ruleIndex < group.rules.Count; ruleIndex++)
+                {
+                    var rule = group.rules[ruleIndex];
+                    if (rule == null)
+                    {
+                        error = $"RuleGroup '{group.name}' has no rule assigned at index {ruleIndex}.";
+                        return false;
+                    }
+
+                    for (var resultIndex = 0; resultIndex < rule.TileSprites.Count; resultIndex++)
+                    {
+                        if (rule.TileSprites[resultIndex]?.result != null) continue;
+                        error = $"RuleGroup '{group.name}' rule {ruleIndex} tile sprite {resultIndex} has no Sprite " +
+                                "assigned. Assign a Sprite or remove the entry.";
+                        return false;
+                    }
+
+                    for (var resultIndex = 0; resultIndex < rule.TileEntities.Count; resultIndex++)
+                    {
+                        if (rule.TileEntities[resultIndex]?.result != null) continue;
+                        error = $"RuleGroup '{group.name}' rule {ruleIndex} tile entity {resultIndex} has no prefab " +
+                                "assigned. Assign a prefab or remove the entry.";
+                        return false;
+                    }
+                }
+            }
+
+            error = null;
+            return true;
+        }
+
+        internal static void LogBakingError(UnityEngine.Object context, string error)
+        {
+            Debug.LogError($"Mosaic did not bake '{context.name}': {error}", context);
         }
         
         private static void AddResults(RuleGroup.Rule rule, DynamicBuffer<WeightedEntityElement> weightedEntityBuffer,

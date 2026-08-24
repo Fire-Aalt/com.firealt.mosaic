@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using FireAlt.Core;
 using FireAlt.Core.Editor;
 using FireAlt.Core.Extensions;
@@ -333,6 +334,112 @@ namespace FireAlt.Mosaic.Tests
             AssetDatabase.SaveAssets();
             Assert.IsFalse(EditorUtility.IsDirty(ruleGroup));
             Undo.ClearAll();
+        }
+
+        [Test]
+        public void WeightedSpriteList_AddThenRemoveLastEntryDoesNotBindDeletedIndex()
+        {
+            var ruleGroup = ScriptableObject.CreateInstance<RuleGroup>();
+            ruleGroup.intGrid = _intGrid;
+            var rule = new RuleGroup.Rule();
+            rule.Bind(ruleGroup);
+            ruleGroup.rules.Add(rule);
+
+            try
+            {
+                var serializedRuleGroup = new SerializedObject(ruleGroup);
+                var serializedRule = serializedRuleGroup.FindProperty(nameof(RuleGroup.rules))
+                    .GetArrayElementAtIndex(0);
+                var sprites = serializedRule.FindPropertyRelative(nameof(RuleGroup.Rule.TileSprites));
+                sprites.arraySize++;
+                sprites.GetArrayElementAtIndex(0).boxedValue = new SpriteResult();
+                serializedRuleGroup.ApplyModifiedProperties();
+                serializedRuleGroup.Update();
+                sprites.DeleteArrayElementAtIndex(0);
+                serializedRuleGroup.ApplyModifiedProperties();
+                serializedRuleGroup.Update();
+                Assert.AreEqual(0, sprites.arraySize);
+
+                var element = EditorResources.WeightedListElementAsset.Instantiate();
+                var controller = new WeightedListEntryController();
+                controller.SetVisualElement<Sprite>(element);
+                controller.BindData<Sprite>(0, sprites);
+                LogAssert.NoUnexpectedReceived();
+            }
+            finally
+            {
+                Object.DestroyImmediate(ruleGroup);
+            }
+        }
+
+        [Test]
+        public void RuleResultValidation_NullSpriteFailsAndValidSpriteRecovers()
+        {
+            var ruleGroup = ScriptableObject.CreateInstance<RuleGroup>();
+            var texture = new Texture2D(1, 1);
+            var sprite = Sprite.Create(texture, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f));
+            ruleGroup.name = "Invalid Results";
+            ruleGroup.intGrid = _intGrid;
+            var rule = new RuleGroup.Rule();
+            rule.Bind(ruleGroup);
+            rule.TileSprites.Add(new SpriteResult());
+            ruleGroup.rules.Add(rule);
+            _intGrid.ruleGroups.Add(ruleGroup);
+
+            try
+            {
+                Assert.IsFalse(BakerUtils.TryValidateRuleResults(_intGrid, out var validationError));
+                StringAssert.Contains("has no Sprite assigned", validationError);
+
+                rule.TileSprites[0].result = sprite;
+                Assert.IsTrue(BakerUtils.TryValidateRuleResults(_intGrid, out validationError));
+                Assert.IsNull(validationError);
+            }
+            finally
+            {
+                _intGrid.ruleGroups.Remove(ruleGroup);
+                Object.DestroyImmediate(sprite);
+                Object.DestroyImmediate(texture);
+                Object.DestroyImmediate(ruleGroup);
+            }
+        }
+
+        [Test]
+        public void TilemapBake_InvalidRuleUsesEmptyRendererAndValidRuleRecovers()
+        {
+            var group = ScriptableObject.CreateInstance<RuleGroup>();
+            var texture = new Texture2D(1, 1);
+            var sprite = Sprite.Create(texture, new Rect(0, 0, 1, 1), new Vector2(0.5f, 0.5f));
+            var tilemapObject = CreateTilemap("Recoverable Tilemap");
+            group.name = "Recoverable Rules";
+            group.intGrid = _intGrid;
+            var rule = new RuleGroup.Rule();
+            rule.Bind(group);
+            rule.TileSprites.Add(new SpriteResult());
+            group.rules.Add(rule);
+            _intGrid.ruleGroups.Add(group);
+
+            try
+            {
+                LogAssert.Expect(LogType.Error, new Regex("Mosaic did not bake.*has no Sprite assigned"));
+                var invalidEntities = EditorBakingWorld.BakeInto(new[] { _gridObject }, _world);
+                var invalidTilemap = FindEntity<TilemapRendererData>(invalidEntities);
+                Assert.AreEqual(0, _world.EntityManager.GetBuffer<RuleBlobReferenceElement>(invalidTilemap).Length);
+
+                rule.TileSprites[0].result = sprite;
+                var validEntities = EditorBakingWorld.BakeInto(new[] { _gridObject }, _world);
+                var validTilemap = FindEntity<TilemapRendererData>(validEntities);
+                Assert.AreEqual(1, _world.EntityManager.GetBuffer<RuleBlobReferenceElement>(validTilemap).Length);
+                LogAssert.NoUnexpectedReceived();
+            }
+            finally
+            {
+                _intGrid.ruleGroups.Remove(group);
+                Object.DestroyImmediate(sprite);
+                Object.DestroyImmediate(texture);
+                Object.DestroyImmediate(group);
+                Object.DestroyImmediate(tilemapObject);
+            }
         }
 
         [Test]

@@ -1,8 +1,8 @@
 {
   "name": "com.firealt.mosaic",
-  "version": "3.2.0",
+  "version": "4.0.0",
   "displayName": "FireAlt Mosaic",
-  "description": "Mosaic is a Next Gen Runtime Unity Tilemap solution, heavily inspired by LDtk, built using Entity Component System.",
+  "description": "Mosaic is a Next Gen Rule-based Tilemap solution, heavily inspired by LDtk, built using Entity Component System.",
   "unity": "6000.3",
   "documentationUrl": "https://github.com/Fire-Aalt/com.firealt.mosaic/blob/main/README.md",
   "changelogUrl": "https://github.com/Fire-Aalt/com.firealt.mosaic/blob/main/CHANGELOG.md",

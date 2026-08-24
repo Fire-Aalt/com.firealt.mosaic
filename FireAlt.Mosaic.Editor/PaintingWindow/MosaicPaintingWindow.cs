@@ -72,8 +72,8 @@ namespace FireAlt.Mosaic.Editor
             return window;
         }
 
-        [Shortcut("Mosaic/Toggle Details", typeof(MosaicPaintingShortcutContext), KeyCode.H,
-            ShortcutModifiers.Control)]
+        [Shortcut("Mosaic/Toggle Details", typeof(MosaicPaintingShortcutContext), KeyCode.R,
+            ShortcutModifiers.Shift)]
         private static void ToggleDetailsShortcut()
         {
             ActiveWindow?.ToggleDetails();
@@ -100,7 +100,7 @@ namespace FireAlt.Mosaic.Editor
             var toolbar = new Toolbar();
             _intGridColorsToggle = new ToolbarToggle
             {
-                text = "◉  Show IntGrid",
+                text = "Show IntGrid",
                 tooltip = "Show raw IntGrid colors instead of RuleEngine and Mosaic presentation output. Ctrl+H",
                 value = _showIntGridColors,
             };
@@ -131,9 +131,10 @@ namespace FireAlt.Mosaic.Editor
             var controlsFoldout = CreateGroupFoldout("Controls", null, expanded: false);
             controlsFoldout.AddToClassList("mosaic-paint-controls-foldout");
             var controlsHelp = new Label(
-                "LMB paints and RMB erases. Hold Alt and drag LMB or RMB to fill or clear a rectangle; "
-                + "rectangle painting ignores Brush Size. Hold Shift for Scene View navigation. "
-                + "Click the selected value again or press Escape to leave painting.");
+                "* LMB paints and RMB erases. \n"
+                + "* Hold Alt and drag LMB or RMB to fill or clear a rectangle. \n"
+                + "* Hold Shift for Scene View navigation. \n"
+                + "* Click the selected value again or press Escape to leave painting.");
             controlsHelp.AddToClassList("mosaic-paint-help");
             controlsFoldout.Add(controlsHelp);
             root.Add(controlsFoldout);

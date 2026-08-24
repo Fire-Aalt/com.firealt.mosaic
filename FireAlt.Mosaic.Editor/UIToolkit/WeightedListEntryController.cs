@@ -1,4 +1,3 @@
-using FireAlt.Core.Editor;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -11,13 +10,17 @@ namespace FireAlt.Mosaic.Editor
         private ObjectField _objectField;
         private IntegerField _weightField;
         private Image _image;
-        private EventCallback<ChangeEvent<Object>> _objectChangedCallback;
-        private EventCallback<ChangeEvent<int>> _weightChangedCallback;
+        private SerializedObject _serializedObject;
+        private string _resultPropertyPath;
+        private string _weightPropertyPath;
     
         public void SetVisualElement<T>(VisualElement visualElement) where T : Object
         {
             _objectField = visualElement.Q<ObjectField>("ObjectField");
             _weightField = visualElement.Q<IntegerField>("WeightField");
+            _objectField.objectType = typeof(T);
+            _objectField.RegisterValueChangedCallback(OnObjectChanged);
+            _weightField.RegisterValueChangedCallback(OnWeightChanged);
             
             var imageHolder = visualElement.Q<VisualElement>("ImageHolder");
 
@@ -35,56 +38,62 @@ namespace FireAlt.Mosaic.Editor
     
         public void BindData<T>(int index, SerializedProperty list) where T : Object
         {
-            var serializedTileSprites = list.GetArrayElementAtIndex(index);
-
-            var resultProperty = serializedTileSprites.FindPropertyRelative("result");
-            var weightProperty = serializedTileSprites.FindPropertyRelative("weight");
-
-            _objectField.objectType = typeof(T);
-
-            if (_objectChangedCallback != null)
+            _serializedObject = null;
+            _resultPropertyPath = null;
+            _weightPropertyPath = null;
+            if (index < 0 || index >= list.arraySize)
             {
-                _objectField.UnregisterValueChangedCallback(_objectChangedCallback);
+                _objectField.SetValueWithoutNotify(null);
+                _weightField.SetValueWithoutNotify(1);
+                if (_image != null) _image.sprite = null;
+                return;
             }
 
-            if (_weightChangedCallback != null)
+            var entry = list.GetArrayElementAtIndex(index);
+            var resultProperty = entry.FindPropertyRelative("result");
+            var weightProperty = entry.FindPropertyRelative("weight");
+
+            _serializedObject = list.serializedObject;
+            _resultPropertyPath = resultProperty.propertyPath;
+            _weightPropertyPath = weightProperty.propertyPath;
+            _objectField.SetValueWithoutNotify(resultProperty.objectReferenceValue);
+            _weightField.SetValueWithoutNotify(Mathf.Max(1, weightProperty.intValue));
+            if (_image != null) _image.sprite = resultProperty.objectReferenceValue as Sprite;
+        }
+
+        private void OnObjectChanged(ChangeEvent<Object> evt)
+        {
+            if (!TryGetProperty(_resultPropertyPath, out var property)) return;
+
+            Undo.RecordObject(_serializedObject.targetObject, "Edit Weighted Result");
+            property.objectReferenceValue = evt.newValue;
+            ApplySerializedChange(_serializedObject);
+            if (_image != null) _image.sprite = evt.newValue as Sprite;
+        }
+
+        private void OnWeightChanged(ChangeEvent<int> evt)
+        {
+            if (!TryGetProperty(_weightPropertyPath, out var property)) return;
+
+            var weight = Mathf.Max(1, evt.newValue);
+            Undo.RecordObject(_serializedObject.targetObject, "Edit Weighted Result");
+            property.intValue = weight;
+            ApplySerializedChange(_serializedObject);
+            _weightField.SetValueWithoutNotify(weight);
+        }
+
+        private bool TryGetProperty(string propertyPath, out SerializedProperty property)
+        {
+            property = null;
+            if (_serializedObject == null || _serializedObject.targetObject == null
+                || string.IsNullOrEmpty(propertyPath))
             {
-                _weightField.UnregisterValueChangedCallback(_weightChangedCallback);
+                return false;
             }
-            
-            _objectField.BindProperty(resultProperty);
-            _weightField.BindProperty(weightProperty);
 
-            var resultPropertyPath = resultProperty.propertyPath;
-            var weightPropertyPath = weightProperty.propertyPath;
-            var serializedObject = list.serializedObject;
-
-            _objectChangedCallback = evt =>
-            {
-                serializedObject.Update();
-                Undo.RecordObject(serializedObject.targetObject, "Edit Weighted Result");
-                serializedObject.FindProperty(resultPropertyPath).objectReferenceValue = evt.newValue;
-                ApplySerializedChange(serializedObject);
-            };
-            _objectField.RegisterValueChangedCallback(_objectChangedCallback);
-
-            _weightChangedCallback = evt =>
-            {
-                serializedObject.Update();
-                Undo.RecordObject(serializedObject.targetObject, "Edit Weighted Result");
-                serializedObject.FindProperty(weightPropertyPath).intValue = Mathf.Max(1, evt.newValue);
-                ApplySerializedChange(serializedObject);
-            };
-            _weightField.RegisterValueChangedCallback(_weightChangedCallback);
-
-            if (typeof(T) == typeof(Sprite))
-            {
-                _image.SetBinding("sprite", new DataBinding
-                {
-                    dataSourcePath = SerializationUtils.ToPropertyPath(resultProperty),
-                    bindingMode = BindingMode.ToTarget
-                });
-            }
+            _serializedObject.Update();
+            property = _serializedObject.FindProperty(propertyPath);
+            return property != null;
         }
 
         private static void ApplySerializedChange(SerializedObject serializedObject)

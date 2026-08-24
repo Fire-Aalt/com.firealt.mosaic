@@ -36,7 +36,7 @@ namespace FireAlt.Mosaic.Authoring
         }
 
         private void Bake<TCommands>(ref TCommands commands, Entity gridEntity,
-            Func<GameObject, Entity> entityResolver, IReadOnlyList<ValidLayer> validLayers)
+            Func<GameObject, Entity> entityResolver, IReadOnlyList<ValidLayer> validLayers, bool includeRules)
             where TCommands : IEntityCommands
         {
             ValidateUniqueLayers(validLayers);
@@ -62,8 +62,17 @@ namespace FireAlt.Mosaic.Authoring
 
                 commands.Entity = layerEntities[layer.Index];
                 BakerUtils.AddTilemapTransform(ref commands, gridEntity, renderingData);
-                BakerUtils.AddIntGridLayerData(ref commands, intGridDefinition, runtimeHash, refSprite, true,
-                    ref tilePivot, ref tileSize, FindPaintedRectangles(intGridDefinition), entityResolver);
+                if (includeRules)
+                {
+                    BakerUtils.AddIntGridLayerData(ref commands, intGridDefinition, runtimeHash, refSprite, true,
+                        ref tilePivot, ref tileSize, FindPaintedRectangles(intGridDefinition), entityResolver);
+                }
+                else
+                {
+                    BakerUtils.AddEmptyIntGridLayerData(ref commands, intGridDefinition, runtimeHash,
+                        FindPaintedRectangles(intGridDefinition));
+                }
+
                 commands.AddComponent(new Data.TerrainLayer { TerrainEntity = terrainEntity });
             }
 
@@ -168,7 +177,16 @@ namespace FireAlt.Mosaic.Authoring
 
                 var validLayers = authoring.ValidLayers().ToArray();
                 if (validLayers.Length == 0) return;
-                
+
+                var includeRules = true;
+                foreach (var layer in validLayers)
+                {
+                    if (BakerUtils.TryValidateRuleResults(layer.Definition, out var validationError)) continue;
+                    BakerUtils.LogBakingError(authoring, validationError);
+                    includeRules = false;
+                    break;
+                }
+                 
                 var gridAuthoring = GetComponentInParent<GridAuthoring>();
                 if (gridAuthoring == null)
                 {
@@ -179,7 +197,7 @@ namespace FireAlt.Mosaic.Authoring
 
                 var commands = new BakerCommands(this, entity);
                 authoring.Bake(ref commands, GetEntity(gridAuthoring, TransformUsageFlags.None),
-                    go => GetEntity(go, TransformUsageFlags.None), validLayers);
+                    go => GetEntity(go, TransformUsageFlags.None), validLayers, includeRules);
             }
         }
 

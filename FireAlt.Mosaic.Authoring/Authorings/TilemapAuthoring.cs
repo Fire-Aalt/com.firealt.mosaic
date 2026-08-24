@@ -23,7 +23,7 @@ namespace FireAlt.Mosaic.Authoring
         internal SerializedIntGridData PaintedData => _paintedData;
 
         private void Bake<TCommands>(ref TCommands commands, Entity gridEntity,
-            Func<GameObject, Entity> entityResolver)
+            Func<GameObject, Entity> entityResolver, bool includeRules)
             where TCommands : IEntityCommands
         {
             var tilePivot = float2.zero;
@@ -32,8 +32,16 @@ namespace FireAlt.Mosaic.Authoring
             var runtimeHash = BakerUtils.GetHash(intGrid, isGlobal);
 
             BakerUtils.AddTilemapTransform(ref commands, gridEntity, renderingData);
-            BakerUtils.AddIntGridLayerData(ref commands, intGrid, runtimeHash, refSprite, false,
-                ref tilePivot, ref tileSize, _paintedData.Rectangles, entityResolver);
+            if (includeRules)
+            {
+                BakerUtils.AddIntGridLayerData(ref commands, intGrid, runtimeHash, refSprite, false,
+                    ref tilePivot, ref tileSize, _paintedData.Rectangles, entityResolver);
+            }
+            else
+            {
+                BakerUtils.AddEmptyIntGridLayerData(ref commands, intGrid, runtimeHash, _paintedData.Rectangles);
+            }
+
             BakerUtils.AddRenderingData(ref commands, gameObject, runtimeHash, renderingData, refSprite);
         }
 
@@ -43,6 +51,11 @@ namespace FireAlt.Mosaic.Authoring
             {
                 BakerUtils.RegisterDependencies(this, authoring.intGrid);
                 if (authoring.intGrid == null) return;
+                var includeRules = BakerUtils.TryValidateRuleResults(authoring.intGrid, out var validationError);
+                if (!includeRules)
+                {
+                    BakerUtils.LogBakingError(authoring, validationError);
+                }
 
                 var gridAuthoring = GetComponentInParent<GridAuthoring>();
                 if (gridAuthoring == null)
@@ -54,7 +67,7 @@ namespace FireAlt.Mosaic.Authoring
 
                 var commands = new BakerCommands(this, entity);
                 authoring.Bake(ref commands, GetEntity(gridAuthoring, TransformUsageFlags.None),
-                    go => GetEntity(go, TransformUsageFlags.None));
+                    go => GetEntity(go, TransformUsageFlags.None), includeRules);
             }
         }
     }

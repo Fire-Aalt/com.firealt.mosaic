@@ -1,3 +1,13 @@
+## [4.0.0] - 2026-08-23
+
+### Added
+* Added Mosaic Tool (Tool selection in Scene View) which opens a Mosaic Painting window for painting serialized `IntGrid` values directly in the Scene View.
+* Added a circular Brush Size, a depth-aware brush preview, continuous drag painting and one Undo operation per stroke.
+* Added rectangle fill and clear by holding `Alt` while dragging with LMB or RMB.
+* Added `Show IntGrid` (`Shift+R`) to replace the regular Mosaic output with raw IntGrid colors, `Bounds` to display tilemap render bounds and `Randomize` to preview another RuleEngine seed.
+* Added `LinkedTilemapLayers`, an editor-only authoring component for painting several `TilemapAuthoring` layers with one palette value. Each linked layer has its own name, color, optional icon and ordered list of target/value operations.
+* Added packed rectangle storage for painted IntGrid data on `TilemapAuthoring` and `TilemapTerrainAuthoring`, greatly reducing the serialized size of large filled areas.
+
 ## [3.2.0] - 2026-08-15
 
 ### Changed

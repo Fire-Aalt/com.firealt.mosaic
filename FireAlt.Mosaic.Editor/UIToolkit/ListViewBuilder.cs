@@ -101,6 +101,7 @@ namespace FireAlt.Mosaic.Editor
                 }
             }
 
+            ListView.ClearSelection();
             ApplySerializedObject(serializedObject);
             ListView.Rebuild();
         }
@@ -149,7 +150,7 @@ namespace FireAlt.Mosaic.Editor
         
         protected void HighlightLastElement()
         {
-            var last = List.Count - 1;
+            var last = SerializedListProperty.arraySize - 1;
 
             if (last >= 0)
             {
