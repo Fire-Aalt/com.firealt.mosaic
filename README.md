@@ -83,7 +83,7 @@ Select an IntGrid value and paint in the Scene View:
 
 Brush Size controls a circular brush from 1 to 10. A size of 1 paints one cell. The Scene View preview shows the cells which will be affected, including cells hidden behind other geometry. Every drag or rectangle is recorded as one Undo operation.
 
-*video*
+https://github.com/user-attachments/assets/82708d6a-e868-4476-92db-93e52e3731e5
 
 The toolbar contains the following preview controls:
 
