@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using FireAlt.Core.EntityCommands;
-using FireAlt.Mosaic.Data;
 using UnityEngine;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -21,29 +19,6 @@ namespace FireAlt.Mosaic.Authoring
         public IReadOnlyList<SerializedIntGridCell> PaintedCells => _paintedData.Cells;
 
         internal SerializedIntGridData PaintedData => _paintedData;
-
-        private void Bake<TCommands>(ref TCommands commands, Entity gridEntity,
-            Func<GameObject, Entity> entityResolver, bool includeRules)
-            where TCommands : IEntityCommands
-        {
-            var tilePivot = float2.zero;
-            var tileSize = float2.zero;
-            var refSprite = new RefSprite();
-            var runtimeHash = BakerUtils.GetHash(intGrid, isGlobal);
-
-            BakerUtils.AddTilemapTransform(ref commands, gridEntity, renderingData);
-            if (includeRules)
-            {
-                BakerUtils.AddIntGridLayerData(ref commands, intGrid, runtimeHash, refSprite, false,
-                    ref tilePivot, ref tileSize, _paintedData.Rectangles, entityResolver);
-            }
-            else
-            {
-                BakerUtils.AddEmptyIntGridLayerData(ref commands, intGrid, runtimeHash, _paintedData.Rectangles);
-            }
-
-            BakerUtils.AddRenderingData(ref commands, gameObject, runtimeHash, renderingData, refSprite);
-        }
 
         public class Baker : Baker<TilemapAuthoring>
         {
@@ -65,9 +40,24 @@ namespace FireAlt.Mosaic.Authoring
                 
                 var entity = GetEntity(TransformUsageFlags.Dynamic);
 
-                var commands = new BakerCommands(this, entity);
-                authoring.Bake(ref commands, GetEntity(gridAuthoring, TransformUsageFlags.None),
-                    go => GetEntity(go, TransformUsageFlags.None), includeRules);
+                var gridEntity = GetEntity(gridAuthoring, TransformUsageFlags.None);
+                var tilePivot = float2.zero;
+                var tileSize = float2.zero;
+                var refSprite = new RefSprite();
+                var runtimeHash = BakerUtils.GetHash(authoring.intGrid, authoring.isGlobal);
+                
+                BakerUtils.AddTilemapTransform(this, entity, gridEntity, authoring.renderingData);
+                if (includeRules)
+                {
+                    BakerUtils.AddIntGridLayerData(this, entity, authoring.intGrid, runtimeHash, refSprite, false,
+                        ref tilePivot, ref tileSize, authoring._paintedData.Rectangles, go => GetEntity(go, TransformUsageFlags.None));
+                }
+                else
+                {
+                    BakerUtils.AddEmptyIntGridLayerData(this, entity, authoring.intGrid, runtimeHash, authoring._paintedData.Rectangles);
+                }
+
+                BakerUtils.AddRenderingData(this, entity, authoring.gameObject, runtimeHash, authoring.renderingData, refSprite);
             }
         }
     }

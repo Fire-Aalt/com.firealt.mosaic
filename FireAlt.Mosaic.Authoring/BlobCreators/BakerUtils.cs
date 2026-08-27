@@ -24,27 +24,26 @@ namespace FireAlt.Mosaic.Authoring
             }
         }
 
-        public static void AddTilemapTransform<TCommands>(ref TCommands commands, Entity gridEntity,
+        public static void AddTilemapTransform(IBaker baker, Entity entity, Entity gridEntity,
             RenderingData renderingData)
-            where TCommands : IEntityCommands
         {
-            commands.AddComponent(new TilemapTransform
+            baker.AddComponent(entity, new TilemapTransform
             {
                 GridEntity = gridEntity,
                 Orientation = renderingData.orientation,
             });
         }
         
-        public static void AddRenderingData<TCommands>(ref TCommands commands, GameObject gameObject, Hash128 hash,
+        public static void AddRenderingData(IBaker baker, Entity entity, GameObject gameObject, Hash128 hash,
             RenderingData renderingData, RefSprite refSprite)
-            where TCommands : IEntityCommands
         {
             if (renderingData.material == null)
             {
                 throw new Exception("Material is null");
             }
+            baker.DependsOn(renderingData.material);
             
-            commands.AddComponent(new TilemapRendererData
+            baker.AddComponent(entity, new TilemapRendererData
             {
                 MeshHash = hash,
                 LayerMask = gameObject.layer,
@@ -53,64 +52,55 @@ namespace FireAlt.Mosaic.Authoring
                 ReceiveShadows = renderingData.receiveShadows,
             });
             
-            commands.AddComponent(refSprite.Sprite == null
+            baker.AddComponent(entity, refSprite.Sprite == null
                 ? new RuntimeMaterialLookup(renderingData.material, renderingData.material.mainTexture)
                 : new RuntimeMaterialLookup(renderingData.material, refSprite.Sprite));
-            commands.AddComponent<RuntimeMaterial>();
-            commands.AddComponent<MosaicRendererInitialized>();
-            commands.SetComponentEnabled<MosaicRendererInitialized>(false);
+            baker.AddComponent<RuntimeMaterial>(entity);
+            baker.AddComponent<MosaicRendererInitialized>(entity);
+            baker.SetComponentEnabled<MosaicRendererInitialized>(entity, false);
         }
         
-        public static void AddIntGridLayerData<TCommands>(ref TCommands commands, IntGridDefinition intGrid,
+        public static void AddIntGridLayerData(IBaker baker, Entity entity, IntGridDefinition intGrid,
             Hash128 runtimeHash, RefSprite refSprite, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize,
             IReadOnlyList<SerializedIntGridRectangle> initialValues, Func<GameObject, Entity> entityResolver)
-            where TCommands : IEntityCommands
         {
             if (!TryValidateRuleResults(intGrid, out var validationError))
             {
                 throw new InvalidOperationException(validationError);
             }
 
-            AddIntGridLayerData(ref commands, intGrid, runtimeHash, refSprite, constPivotAndSize, ref tilePivot,
+            AddIntGridLayerData(baker, entity, intGrid, runtimeHash, refSprite, constPivotAndSize, ref tilePivot,
                 ref tileSize, initialValues, entityResolver, true);
         }
 
-        internal static void AddEmptyIntGridLayerData<TCommands>(ref TCommands commands, IntGridDefinition intGrid,
+        internal static void AddEmptyIntGridLayerData(IBaker baker, Entity entity, IntGridDefinition intGrid,
             Hash128 runtimeHash, IReadOnlyList<SerializedIntGridRectangle> initialValues)
-            where TCommands : IEntityCommands
         {
             var refSprite = new RefSprite();
             var tilePivot = float2.zero;
             var tileSize = float2.zero;
-            AddIntGridLayerData(ref commands, intGrid, runtimeHash, refSprite, false, ref tilePivot, ref tileSize,
+            AddIntGridLayerData(baker, entity, intGrid, runtimeHash, refSprite, false, ref tilePivot, ref tileSize,
                 initialValues, null, false);
         }
 
-        private static void AddIntGridLayerData<TCommands>(ref TCommands commands, IntGridDefinition intGrid,
+        private static void AddIntGridLayerData(IBaker baker, Entity entity, IntGridDefinition intGrid,
             Hash128 runtimeHash, RefSprite refSprite, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize,
             IReadOnlyList<SerializedIntGridRectangle> initialValues, Func<GameObject, Entity> entityResolver,
             bool includeRules)
-            where TCommands : IEntityCommands
         {
-            commands.AddBuffer<RuleBlobReferenceElement>();
-            commands.AddBuffer<WeightedEntityElement>();
-            commands.AddComponent(new IntGridData
+            baker.AddComponent(entity, new IntGridData
             {
                 Hash = runtimeHash,
                 DebugName = intGrid.name,
                 DualGrid = intGrid.useDualGrid
             });
-            commands.SetComponentEnabled<IntGridData>(false);
-            commands.AddBuffer<RefreshPositionElement>();
-            commands.AddBuffer<IntGridValueElement>();
-            commands.AddBuffer<IntGridInitialValueElement>();
-
-            // Acquire buffers only after all structural commands, which can invalidate DynamicBuffer handles.
-            var ruleBlobBuffer = commands.SetBuffer<RuleBlobReferenceElement>();
-            var weightedEntityBuffer = commands.SetBuffer<WeightedEntityElement>();
-            var refreshPositionsBuffer = commands.SetBuffer<RefreshPositionElement>();
-            var intGridValues = commands.SetBuffer<IntGridValueElement>();
-            var initialValuesBuffer = commands.SetBuffer<IntGridInitialValueElement>();
+            baker.SetComponentEnabled<IntGridData>(entity, false);
+            
+            var ruleBlobBuffer = baker.AddBuffer<RuleBlobReferenceElement>(entity);
+            var weightedEntityBuffer = baker.AddBuffer<WeightedEntityElement>(entity);
+            var refreshPositionsBuffer = baker.AddBuffer<RefreshPositionElement>(entity);
+            var intGridValues = baker.AddBuffer<IntGridValueElement>(entity);
+            var initialValuesBuffer = baker.AddBuffer<IntGridInitialValueElement>(entity);
 
             var refreshPositions = new NativeHashSet<int2>(64, Allocator.Temp);
 
@@ -122,7 +112,7 @@ namespace FireAlt.Mosaic.Authoring
                     foreach (var rule in group.rules)
                     {
                         var blob = RuleBlobCreator.Create(rule, entityCount, refreshPositions);
-                        commands.AddBlobAsset(ref blob, out _);
+                        baker.AddBlobAsset(ref blob, out _);
 
                         ruleBlobBuffer.Add(new RuleBlobReferenceElement
                         {

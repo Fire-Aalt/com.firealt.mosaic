@@ -1,3 +1,8 @@
+## [4.0.1] - 2026-08-27
+
+### Fixed
+* Entities created by a Tilemap not being offset by the Tilemap `LocalToWorld` position.
+
 ## [4.0.0] - 2026-08-23
 
 ### Added

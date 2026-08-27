@@ -87,7 +87,7 @@ namespace FireAlt.Mosaic
             rendererQuery.Dispose();
         }
 
-        internal static Hash128 CreateRuntimeHash(Entity entity)
+        private static Hash128 CreateRuntimeHash(Entity entity)
         {
             return new Hash128((uint)entity.Index, (uint)entity.Version,
                 LOCAL_HASH_NAMESPACE_A, LOCAL_HASH_NAMESPACE_B);
@@ -292,7 +292,7 @@ namespace FireAlt.Mosaic
         {
             if (!entityManager.HasComponent<SceneTag>(entity)) return false;
 
-            var sceneEntity = entityManager.GetSharedComponentManaged<SceneTag>(entity).SceneEntity;
+            var sceneEntity = entityManager.GetSharedComponent<SceneTag>(entity).SceneEntity;
             return sceneEntity != Entity.Null && !entityManager.Exists(sceneEntity);
         }
 

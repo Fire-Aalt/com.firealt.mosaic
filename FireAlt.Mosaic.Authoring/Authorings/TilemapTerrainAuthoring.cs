@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using FireAlt.Core.EntityCommands;
 using FireAlt.Mosaic.Data;
 using Unity.Collections;
 using Unity.Entities;
@@ -33,64 +32,6 @@ namespace FireAlt.Mosaic.Authoring
                 if (definition == null) continue;
                 yield return new ValidLayer(index++, definition);
             }
-        }
-
-        private void Bake<TCommands>(ref TCommands commands, Entity gridEntity,
-            Func<GameObject, Entity> entityResolver, IReadOnlyList<ValidLayer> validLayers, bool includeRules)
-            where TCommands : IEntityCommands
-        {
-            ValidateUniqueLayers(validLayers);
-
-            var terrainEntity = commands.Entity;
-            var layerEntities = new NativeArray<Entity>(validLayers.Count, Allocator.Temp);
-            for (var i = 0; i < layerEntities.Length; i++)
-            {
-                layerEntities[i] = commands.CreateEntity();
-            }
-
-            commands.Entity = terrainEntity;
-            var refSprite = new RefSprite();
-            var rendererHash = default(Unity.Entities.Hash128);
-            var tilePivot = float2.zero;
-            var tileSize = float2.zero;
-
-            foreach (var layer in validLayers)
-            {
-                var intGridDefinition = layer.Definition;
-                var runtimeHash = BakerUtils.GetHash(intGridDefinition, isGlobal);
-                if (layer.Index == 0) rendererHash = runtimeHash;
-
-                commands.Entity = layerEntities[layer.Index];
-                BakerUtils.AddTilemapTransform(ref commands, gridEntity, renderingData);
-                if (includeRules)
-                {
-                    BakerUtils.AddIntGridLayerData(ref commands, intGridDefinition, runtimeHash, refSprite, true,
-                        ref tilePivot, ref tileSize, FindPaintedRectangles(intGridDefinition), entityResolver);
-                }
-                else
-                {
-                    BakerUtils.AddEmptyIntGridLayerData(ref commands, intGridDefinition, runtimeHash,
-                        FindPaintedRectangles(intGridDefinition));
-                }
-
-                commands.AddComponent(new Data.TerrainLayer { TerrainEntity = terrainEntity });
-            }
-
-            commands.Entity = terrainEntity;
-            var layersBuffer = commands.AddBuffer<TilemapTerrainLayerElement>();
-            foreach (var layerEntity in layerEntities)
-            {
-                layersBuffer.Add(new TilemapTerrainLayerElement { IntGridEntity = layerEntity });
-            }
-
-            commands.AddComponent(new Data.TerrainData
-            {
-                TileSize = tileSize,
-                MaxLayersBlend = maxLayersBlend,
-            });
-
-            BakerUtils.AddTilemapTransform(ref commands, gridEntity, renderingData);
-            BakerUtils.AddRenderingData(ref commands, gameObject, rendererHash, renderingData, refSprite);
         }
 
         internal static void ValidateUniqueLayers(IReadOnlyList<ValidLayer> validLayers)
@@ -193,11 +134,58 @@ namespace FireAlt.Mosaic.Authoring
                     throw new Exception("GridAuthoring not found");
                 }
                 
-                var entity = GetEntity(TransformUsageFlags.Dynamic);
+                var terrainEntity = GetEntity(TransformUsageFlags.Dynamic);
+                var gridEntity = GetEntity(gridAuthoring, TransformUsageFlags.None);
+                
+                ValidateUniqueLayers(validLayers);
 
-                var commands = new BakerCommands(this, entity);
-                authoring.Bake(ref commands, GetEntity(gridAuthoring, TransformUsageFlags.None),
-                    go => GetEntity(go, TransformUsageFlags.None), validLayers, includeRules);
+                var layerEntities = new NativeArray<Entity>(validLayers.Length, Allocator.Temp);
+                for (var i = 0; i < layerEntities.Length; i++)
+                {
+                    layerEntities[i] = CreateAdditionalEntity(TransformUsageFlags.Dynamic);
+                }
+
+                var refSprite = new RefSprite();
+                var rendererHash = default(Unity.Entities.Hash128);
+                var tilePivot = float2.zero;
+                var tileSize = float2.zero;
+
+                foreach (var layer in validLayers)
+                {
+                    var intGridDefinition = layer.Definition;
+                    var runtimeHash = BakerUtils.GetHash(intGridDefinition, authoring.isGlobal);
+                    if (layer.Index == 0) rendererHash = runtimeHash;
+
+                    var entity = layerEntities[layer.Index];
+                    BakerUtils.AddTilemapTransform(this, entity, gridEntity, authoring.renderingData);
+                    if (includeRules)
+                    {
+                        BakerUtils.AddIntGridLayerData(this, entity, intGridDefinition, runtimeHash, refSprite, true,
+                            ref tilePivot, ref tileSize, authoring.FindPaintedRectangles(intGridDefinition), go => GetEntity(go, TransformUsageFlags.None));
+                    }
+                    else
+                    {
+                        BakerUtils.AddEmptyIntGridLayerData(this, entity, intGridDefinition, runtimeHash,
+                            authoring.FindPaintedRectangles(intGridDefinition));
+                    }
+
+                    AddComponent(entity, new Data.TerrainLayer { TerrainEntity = terrainEntity });
+                }
+
+                var layersBuffer = AddBuffer<TilemapTerrainLayerElement>(terrainEntity);
+                foreach (var layerEntity in layerEntities)
+                {
+                    layersBuffer.Add(new TilemapTerrainLayerElement { IntGridEntity = layerEntity });
+                }
+
+                AddComponent(terrainEntity, new Data.TerrainData
+                {
+                    TileSize = tileSize,
+                    MaxLayersBlend = authoring.maxLayersBlend,
+                });
+
+                BakerUtils.AddTilemapTransform(this, terrainEntity, gridEntity, authoring.renderingData);
+                BakerUtils.AddRenderingData(this, terrainEntity, authoring.gameObject, rendererHash, authoring.renderingData, refSprite);
             }
         }
 

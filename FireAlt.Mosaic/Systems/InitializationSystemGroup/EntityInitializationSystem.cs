@@ -60,10 +60,11 @@ namespace FireAlt.Mosaic
 
                 ref var dataLayer = ref _intGridLayers.GetValueAsRef(currentCommand.IntGridHash);
                 var rendererData = state.EntityManager.GetComponentData<TilemapTransform>(dataLayer.IntGridEntity);
+                var tilemapTransform = state.EntityManager.GetComponentData<LocalToWorld>(dataLayer.IntGridEntity);
                 
                 state.EntityManager.SetComponentData(instance, new LocalTransform
                 {
-                    Position = MosaicUtils.ToWorldSpace(cell, rendererData) + srcTransform.Position, 
+                    Position = MosaicUtils.ToWorldSpace(cell, rendererData) + srcTransform.Position + tilemapTransform.Position, 
                     Scale = srcTransform.Scale,
                     Rotation = srcTransform.Rotation
                 });
