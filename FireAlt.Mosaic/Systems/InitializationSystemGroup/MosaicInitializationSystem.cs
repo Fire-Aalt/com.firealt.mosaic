@@ -123,16 +123,13 @@ namespace FireAlt.Mosaic
 
         private void InitializeRenderers(ref NativeHashSet<Hash128> staleHashes)
         {
-            var rendererQuery = new EntityQueryBuilder(Allocator.Temp)
+            var rendererQuery = SystemAPI.QueryBuilder()
                 .WithAll<TilemapRendererData, RuntimeMaterial>()
-                .Build(EntityManager);
+                .Build();
             if (rendererQuery.IsEmpty) return;
 
             var presentationData = SystemAPI.GetSingleton<PresentationDataSingleton>().Value.Value;
-            if (presentationData == null || !presentationData.IsCreated) return;
-
             var entitiesGraphicsSystem = World.GetExistingSystemManaged<EntitiesGraphicsSystem>();
-            if (entitiesGraphicsSystem == null) return;
 
             ref var tilemapSingleton = ref SystemAPI.GetSingletonRW<IntGridMeshDataSystem.Singleton>().ValueRW;
             ref var terrainSingleton = ref SystemAPI.GetSingletonRW<TerrainMeshDataSystem.Singleton>().ValueRW;
