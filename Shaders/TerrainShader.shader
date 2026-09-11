@@ -302,9 +302,9 @@ Shader "TerrainShader"
 				#define ENABLE_TERRAIN_PERPIXEL_NORMAL
 			#endif
 
+			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
@@ -622,31 +622,29 @@ Shader "TerrainShader"
 					BitangentWS = cross(NormalWS, -TangentWS);
 				#endif
 
-				float localBlendLayers4_g30 = ( 0.0 );
-				int VertexID4_g30 = input.ase_texcoord7.x;
-				float2 TileSize4_g30 = _TileSize;
-				float2 BaseUV4_g30 = input.ase_texcoord7.yz;
-				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g30) = _MainTex;
-				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
-				SamplerState Sampler4_g30 = sampler_MainTex;
-				SamplerState NormalSampler4_g30 = sampler_NormalMap;
-				float4 RGBA4_g30 = float4( 0,0,0,0 );
-				float3 Normal4_g30 = float3( 0,0,0 );
-				{
-				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
-				}
-				float4 temp_output_2_0_g28 = RGBA4_g30;
+				float localBlendLayers4_g34 = ( 0.0 );
+				int VertexID4_g34 = input.ase_texcoord7.x;
+				float2 TileSize4_g34 = _TileSize;
+				float2 BaseUV4_g34 = input.ase_texcoord7.yz;
+				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g34) = _MainTex;
+				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
+				SamplerState Sampler4_g34 = sampler_MainTex;
+				SamplerState NormalSampler4_g34 = sampler_NormalMap;
+				float4 RGBA4_g34 = float4( 0,0,0,0 );
+				float3 Normal4_g34 = float3( 0,0,0 );
+				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
+				float4 temp_output_2_0_g31 = RGBA4_g34;
 				
 
-				float3 BaseColor = (temp_output_2_0_g28).xyz;
-				float3 Normal = Normal4_g30;
+				float3 BaseColor = (temp_output_2_0_g31).xyz;
+				float3 Normal = Normal4_g34;
 				float3 Specular = 0.5;
 				float Metallic = 0;
 				float Smoothness = 0.5;
 				float Occlusion = 1;
 				float3 Emission = 0;
-				float Alpha = (temp_output_2_0_g28).w;
+				float Alpha = (temp_output_2_0_g31).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 					float AlphaClipThresholdShadow = 0.5;
@@ -964,9 +962,9 @@ Shader "TerrainShader"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
             #endif
 
+			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
@@ -1197,24 +1195,22 @@ Shader "TerrainShader"
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 				float4 ScreenPos = ComputeScreenPos( ClipPos );
 
-				float localBlendLayers4_g30 = ( 0.0 );
-				int VertexID4_g30 = input.ase_texcoord1.x;
-				float2 TileSize4_g30 = _TileSize;
-				float2 BaseUV4_g30 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g30) = _MainTex;
-				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
-				SamplerState Sampler4_g30 = sampler_MainTex;
-				SamplerState NormalSampler4_g30 = sampler_NormalMap;
-				float4 RGBA4_g30 = float4( 0,0,0,0 );
-				float3 Normal4_g30 = float3( 0,0,0 );
-				{
-				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
-				}
-				float4 temp_output_2_0_g28 = RGBA4_g30;
+				float localBlendLayers4_g34 = ( 0.0 );
+				int VertexID4_g34 = input.ase_texcoord1.x;
+				float2 TileSize4_g34 = _TileSize;
+				float2 BaseUV4_g34 = input.ase_texcoord1.yz;
+				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g34) = _MainTex;
+				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
+				SamplerState Sampler4_g34 = sampler_MainTex;
+				SamplerState NormalSampler4_g34 = sampler_NormalMap;
+				float4 RGBA4_g34 = float4( 0,0,0,0 );
+				float3 Normal4_g34 = float3( 0,0,0 );
+				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
+				float4 temp_output_2_0_g31 = RGBA4_g34;
 				
 
-				float Alpha = (temp_output_2_0_g28).w;
+				float Alpha = (temp_output_2_0_g31).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 					float AlphaClipThresholdShadow = 0.5;
@@ -1299,9 +1295,9 @@ Shader "TerrainShader"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
             #endif
 
+			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
@@ -1518,24 +1514,22 @@ Shader "TerrainShader"
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 				float4 ScreenPos = ComputeScreenPos( ClipPos );
 
-				float localBlendLayers4_g30 = ( 0.0 );
-				int VertexID4_g30 = input.ase_texcoord1.x;
-				float2 TileSize4_g30 = _TileSize;
-				float2 BaseUV4_g30 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g30) = _MainTex;
-				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
-				SamplerState Sampler4_g30 = sampler_MainTex;
-				SamplerState NormalSampler4_g30 = sampler_NormalMap;
-				float4 RGBA4_g30 = float4( 0,0,0,0 );
-				float3 Normal4_g30 = float3( 0,0,0 );
-				{
-				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
-				}
-				float4 temp_output_2_0_g28 = RGBA4_g30;
+				float localBlendLayers4_g34 = ( 0.0 );
+				int VertexID4_g34 = input.ase_texcoord1.x;
+				float2 TileSize4_g34 = _TileSize;
+				float2 BaseUV4_g34 = input.ase_texcoord1.yz;
+				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g34) = _MainTex;
+				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
+				SamplerState Sampler4_g34 = sampler_MainTex;
+				SamplerState NormalSampler4_g34 = sampler_NormalMap;
+				float4 RGBA4_g34 = float4( 0,0,0,0 );
+				float3 Normal4_g34 = float3( 0,0,0 );
+				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
+				float4 temp_output_2_0_g31 = RGBA4_g34;
 				
 
-				float Alpha = (temp_output_2_0_g28).w;
+				float Alpha = (temp_output_2_0_g31).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 				#endif
@@ -1609,9 +1603,9 @@ Shader "TerrainShader"
 			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/MetaInput.hlsl"
 			#include "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/ShaderPass.hlsl"
 
+			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			struct Attributes
@@ -1831,26 +1825,24 @@ Shader "TerrainShader"
 				float3 PositionRWS = GetCameraRelativePositionWS( input.positionWS );
 				float4 ShadowCoord = shadowCoord;
 
-				float localBlendLayers4_g30 = ( 0.0 );
-				int VertexID4_g30 = input.ase_texcoord3.x;
-				float2 TileSize4_g30 = _TileSize;
-				float2 BaseUV4_g30 = input.ase_texcoord3.yz;
-				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g30) = _MainTex;
-				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
-				SamplerState Sampler4_g30 = sampler_MainTex;
-				SamplerState NormalSampler4_g30 = sampler_NormalMap;
-				float4 RGBA4_g30 = float4( 0,0,0,0 );
-				float3 Normal4_g30 = float3( 0,0,0 );
-				{
-				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
-				}
-				float4 temp_output_2_0_g28 = RGBA4_g30;
+				float localBlendLayers4_g34 = ( 0.0 );
+				int VertexID4_g34 = input.ase_texcoord3.x;
+				float2 TileSize4_g34 = _TileSize;
+				float2 BaseUV4_g34 = input.ase_texcoord3.yz;
+				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g34) = _MainTex;
+				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
+				SamplerState Sampler4_g34 = sampler_MainTex;
+				SamplerState NormalSampler4_g34 = sampler_NormalMap;
+				float4 RGBA4_g34 = float4( 0,0,0,0 );
+				float3 Normal4_g34 = float3( 0,0,0 );
+				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
+				float4 temp_output_2_0_g31 = RGBA4_g34;
 				
 
-				float3 BaseColor = (temp_output_2_0_g28).xyz;
+				float3 BaseColor = (temp_output_2_0_g31).xyz;
 				float3 Emission = 0;
-				float Alpha = (temp_output_2_0_g28).w;
+				float Alpha = (temp_output_2_0_g31).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 				#endif
@@ -1923,9 +1915,9 @@ Shader "TerrainShader"
 			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShaderGraphFunctions.hlsl"
 			#include "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/ShaderPass.hlsl"
 
+			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			struct Attributes
@@ -2127,25 +2119,23 @@ Shader "TerrainShader"
 				float3 PositionRWS = GetCameraRelativePositionWS( input.positionWS );
 				float4 ShadowCoord = shadowCoord;
 
-				float localBlendLayers4_g30 = ( 0.0 );
-				int VertexID4_g30 = input.ase_texcoord1.x;
-				float2 TileSize4_g30 = _TileSize;
-				float2 BaseUV4_g30 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g30) = _MainTex;
-				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
-				SamplerState Sampler4_g30 = sampler_MainTex;
-				SamplerState NormalSampler4_g30 = sampler_NormalMap;
-				float4 RGBA4_g30 = float4( 0,0,0,0 );
-				float3 Normal4_g30 = float3( 0,0,0 );
-				{
-				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
-				}
-				float4 temp_output_2_0_g28 = RGBA4_g30;
+				float localBlendLayers4_g34 = ( 0.0 );
+				int VertexID4_g34 = input.ase_texcoord1.x;
+				float2 TileSize4_g34 = _TileSize;
+				float2 BaseUV4_g34 = input.ase_texcoord1.yz;
+				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g34) = _MainTex;
+				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
+				SamplerState Sampler4_g34 = sampler_MainTex;
+				SamplerState NormalSampler4_g34 = sampler_NormalMap;
+				float4 RGBA4_g34 = float4( 0,0,0,0 );
+				float3 Normal4_g34 = float3( 0,0,0 );
+				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
+				float4 temp_output_2_0_g31 = RGBA4_g34;
 				
 
-				float3 BaseColor = (temp_output_2_0_g28).xyz;
-				float Alpha = (temp_output_2_0_g28).w;
+				float3 BaseColor = (temp_output_2_0_g31).xyz;
+				float Alpha = (temp_output_2_0_g31).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 				#endif
@@ -2222,9 +2212,9 @@ Shader "TerrainShader"
 				#define ENABLE_TERRAIN_PERPIXEL_NORMAL
 			#endif
 
+			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
@@ -2471,26 +2461,24 @@ Shader "TerrainShader"
 					BitangentWS = cross(NormalWS, -TangentWS);
 				#endif
 
-				float localBlendLayers4_g30 = ( 0.0 );
-				int VertexID4_g30 = input.ase_texcoord3.x;
-				float2 TileSize4_g30 = _TileSize;
-				float2 BaseUV4_g30 = input.ase_texcoord3.yz;
-				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g30) = _MainTex;
-				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
-				SamplerState Sampler4_g30 = sampler_MainTex;
-				SamplerState NormalSampler4_g30 = sampler_NormalMap;
-				float4 RGBA4_g30 = float4( 0,0,0,0 );
-				float3 Normal4_g30 = float3( 0,0,0 );
-				{
-				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
-				}
+				float localBlendLayers4_g34 = ( 0.0 );
+				int VertexID4_g34 = input.ase_texcoord3.x;
+				float2 TileSize4_g34 = _TileSize;
+				float2 BaseUV4_g34 = input.ase_texcoord3.yz;
+				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g34) = _MainTex;
+				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
+				SamplerState Sampler4_g34 = sampler_MainTex;
+				SamplerState NormalSampler4_g34 = sampler_NormalMap;
+				float4 RGBA4_g34 = float4( 0,0,0,0 );
+				float3 Normal4_g34 = float3( 0,0,0 );
+				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
 				
-				float4 temp_output_2_0_g28 = RGBA4_g30;
+				float4 temp_output_2_0_g31 = RGBA4_g34;
 				
 
-				float3 Normal = Normal4_g30;
-				float Alpha = (temp_output_2_0_g28).w;
+				float3 Normal = Normal4_g34;
+				float Alpha = (temp_output_2_0_g31).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 				#endif
@@ -2650,9 +2638,9 @@ Shader "TerrainShader"
 				#define ENABLE_TERRAIN_PERPIXEL_NORMAL
 			#endif
 
+			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
@@ -2962,31 +2950,29 @@ Shader "TerrainShader"
 					BitangentWS = cross(NormalWS, -TangentWS);
 				#endif
 
-				float localBlendLayers4_g30 = ( 0.0 );
-				int VertexID4_g30 = input.ase_texcoord7.x;
-				float2 TileSize4_g30 = _TileSize;
-				float2 BaseUV4_g30 = input.ase_texcoord7.yz;
-				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g30) = _MainTex;
-				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
-				SamplerState Sampler4_g30 = sampler_MainTex;
-				SamplerState NormalSampler4_g30 = sampler_NormalMap;
-				float4 RGBA4_g30 = float4( 0,0,0,0 );
-				float3 Normal4_g30 = float3( 0,0,0 );
-				{
-				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
-				}
-				float4 temp_output_2_0_g28 = RGBA4_g30;
+				float localBlendLayers4_g34 = ( 0.0 );
+				int VertexID4_g34 = input.ase_texcoord7.x;
+				float2 TileSize4_g34 = _TileSize;
+				float2 BaseUV4_g34 = input.ase_texcoord7.yz;
+				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g34) = _MainTex;
+				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
+				SamplerState Sampler4_g34 = sampler_MainTex;
+				SamplerState NormalSampler4_g34 = sampler_NormalMap;
+				float4 RGBA4_g34 = float4( 0,0,0,0 );
+				float3 Normal4_g34 = float3( 0,0,0 );
+				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
+				float4 temp_output_2_0_g31 = RGBA4_g34;
 				
 
-				float3 BaseColor = (temp_output_2_0_g28).xyz;
-				float3 Normal = Normal4_g30;
+				float3 BaseColor = (temp_output_2_0_g31).xyz;
+				float3 Normal = Normal4_g34;
 				float3 Specular = 0.5;
 				float Metallic = 0;
 				float Smoothness = 0.5;
 				float Occlusion = 1;
 				float3 Emission = 0;
-				float Alpha = (temp_output_2_0_g28).w;
+				float Alpha = (temp_output_2_0_g31).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 					float AlphaClipThresholdShadow = 0.5;
@@ -3181,9 +3167,9 @@ Shader "TerrainShader"
 			#include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
 			#include "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/ShaderPass.hlsl"
 
+			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
@@ -3398,24 +3384,22 @@ Shader "TerrainShader"
 				float4 ScreenPosNorm = float4( GetNormalizedScreenSpaceUV( input.positionCS ), input.positionCS.zw );
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 
-				float localBlendLayers4_g30 = ( 0.0 );
-				int VertexID4_g30 = input.ase_texcoord1.x;
-				float2 TileSize4_g30 = _TileSize;
-				float2 BaseUV4_g30 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g30) = _MainTex;
-				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
-				SamplerState Sampler4_g30 = sampler_MainTex;
-				SamplerState NormalSampler4_g30 = sampler_NormalMap;
-				float4 RGBA4_g30 = float4( 0,0,0,0 );
-				float3 Normal4_g30 = float3( 0,0,0 );
-				{
-				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
-				}
-				float4 temp_output_2_0_g28 = RGBA4_g30;
+				float localBlendLayers4_g34 = ( 0.0 );
+				int VertexID4_g34 = input.ase_texcoord1.x;
+				float2 TileSize4_g34 = _TileSize;
+				float2 BaseUV4_g34 = input.ase_texcoord1.yz;
+				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g34) = _MainTex;
+				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
+				SamplerState Sampler4_g34 = sampler_MainTex;
+				SamplerState NormalSampler4_g34 = sampler_NormalMap;
+				float4 RGBA4_g34 = float4( 0,0,0,0 );
+				float3 Normal4_g34 = float3( 0,0,0 );
+				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
+				float4 temp_output_2_0_g31 = RGBA4_g34;
 				
 
-				surfaceDescription.Alpha = (temp_output_2_0_g28).w;
+				surfaceDescription.Alpha = (temp_output_2_0_g31).w;
 				#if defined( _ALPHATEST_ON )
 					surfaceDescription.AlphaClipThreshold = _Cutoff;
 				#endif
@@ -3490,9 +3474,9 @@ Shader "TerrainShader"
 			#include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
 			#include "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/ShaderPass.hlsl"
 
+			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
@@ -3707,24 +3691,22 @@ Shader "TerrainShader"
 				float4 ScreenPosNorm = float4( GetNormalizedScreenSpaceUV( input.positionCS ), input.positionCS.zw );
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 
-				float localBlendLayers4_g30 = ( 0.0 );
-				int VertexID4_g30 = input.ase_texcoord1.x;
-				float2 TileSize4_g30 = _TileSize;
-				float2 BaseUV4_g30 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g30) = _MainTex;
-				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
-				SamplerState Sampler4_g30 = sampler_MainTex;
-				SamplerState NormalSampler4_g30 = sampler_NormalMap;
-				float4 RGBA4_g30 = float4( 0,0,0,0 );
-				float3 Normal4_g30 = float3( 0,0,0 );
-				{
-				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
-				}
-				float4 temp_output_2_0_g28 = RGBA4_g30;
+				float localBlendLayers4_g34 = ( 0.0 );
+				int VertexID4_g34 = input.ase_texcoord1.x;
+				float2 TileSize4_g34 = _TileSize;
+				float2 BaseUV4_g34 = input.ase_texcoord1.yz;
+				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g34) = _MainTex;
+				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
+				SamplerState Sampler4_g34 = sampler_MainTex;
+				SamplerState NormalSampler4_g34 = sampler_NormalMap;
+				float4 RGBA4_g34 = float4( 0,0,0,0 );
+				float3 Normal4_g34 = float3( 0,0,0 );
+				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
+				float4 temp_output_2_0_g31 = RGBA4_g34;
 				
 
-				surfaceDescription.Alpha = (temp_output_2_0_g28).w;
+				surfaceDescription.Alpha = (temp_output_2_0_g31).w;
 				#if defined( _ALPHATEST_ON )
 					surfaceDescription.AlphaClipThreshold = _Cutoff;
 				#endif
@@ -3802,9 +3784,9 @@ Shader "TerrainShader"
 
 			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/MotionVectorsCommon.hlsl"
 
+			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
-			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 
 
 			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
@@ -3987,24 +3969,22 @@ Shader "TerrainShader"
 				float4 ScreenPosNorm = float4( GetNormalizedScreenSpaceUV( input.positionCS ), input.positionCS.zw );
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 
-				float localBlendLayers4_g30 = ( 0.0 );
-				int VertexID4_g30 = input.ase_texcoord3.x;
-				float2 TileSize4_g30 = _TileSize;
-				float2 BaseUV4_g30 = input.ase_texcoord3.yz;
-				float4 DefaultBlendColor4_g30 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g30) = _MainTex;
-				TEXTURE2D(NormalTexture4_g30) = _NormalMap;
-				SamplerState Sampler4_g30 = sampler_MainTex;
-				SamplerState NormalSampler4_g30 = sampler_NormalMap;
-				float4 RGBA4_g30 = float4( 0,0,0,0 );
-				float3 Normal4_g30 = float3( 0,0,0 );
-				{
-				BlendLayers(VertexID4_g30, TileSize4_g30, BaseUV4_g30, DefaultBlendColor4_g30, Texture4_g30, NormalTexture4_g30, Sampler4_g30, NormalSampler4_g30, RGBA4_g30, Normal4_g30);
-				}
-				float4 temp_output_2_0_g28 = RGBA4_g30;
+				float localBlendLayers4_g34 = ( 0.0 );
+				int VertexID4_g34 = input.ase_texcoord3.x;
+				float2 TileSize4_g34 = _TileSize;
+				float2 BaseUV4_g34 = input.ase_texcoord3.yz;
+				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g34) = _MainTex;
+				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
+				SamplerState Sampler4_g34 = sampler_MainTex;
+				SamplerState NormalSampler4_g34 = sampler_NormalMap;
+				float4 RGBA4_g34 = float4( 0,0,0,0 );
+				float3 Normal4_g34 = float3( 0,0,0 );
+				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
+				float4 temp_output_2_0_g31 = RGBA4_g34;
 				
 
-				float Alpha = (temp_output_2_0_g28).w;
+				float Alpha = (temp_output_2_0_g31).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 				#endif
@@ -4054,11 +4034,11 @@ Shader "TerrainShader"
 }
 /*ASEBEGIN
 Version=19912
-{"type":"AmplifyShaderEditor.ColorNode, AmplifyShaderEditor","id":84,"pos":[-304,-144],"params":["Inherit","False","Property","_DefaultBlendColor","DefaultBlendColor","4","0","Create","True","0","0","0","False","0","False","Object","-1","","0,0,0,1","0.7686275,0.4352941,0.3058823,1","True","True","0","6","COLOR","0","FLOAT","1","FLOAT","2","FLOAT","3","FLOAT","4","FLOAT3","5"]}
 {"type":"AmplifyShaderEditor.TexturePropertyNode, AmplifyShaderEditor","id":50,"pos":[-304,64],"params":["Inherit","True","Property","_MainTex","MainTex","0","0","Create","True","0","0","0","False","0","False","","None","None","False","white","Auto","Texture2D","False","-1","0","2","SAMPLER2D","0","SAMPLERSTATE","1"]}
 {"type":"AmplifyShaderEditor.TexturePropertyNode, AmplifyShaderEditor","id":90,"pos":[-304,264],"params":["Inherit","True","Property","_NormalMap","NormalMap","1","0","Create","True","0","0","0","False","0","False","","None","None","False","white","Auto","Texture2D","False","-1","0","2","SAMPLER2D","0","SAMPLERSTATE","1"]}
-{"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":91,"pos":[-48,-16],"params":["Inherit","False","MosaicBlendLayers","2","","30","34be181aab269424fa7648145160b7fa","0","5","10","FLOAT4","0,0,0,0","False","8","SAMPLER2D","0","False","9","SAMPLERSTATE","0","False","11","SAMPLER2D","_Sampler1191","False","13","SAMPLERSTATE","0","False","2","FLOAT3","12","FLOAT4","7"]}
-{"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":55,"pos":[288,8],"params":["Inherit","False","Alpha Split","-1","","28","07dab7960105b86429ac8eebd729ed6d","0","1","2","FLOAT4","0,0,0,0","False","2","FLOAT3","0","FLOAT","6"]}
+{"type":"AmplifyShaderEditor.ColorNode, AmplifyShaderEditor","id":84,"pos":[-312,-144],"params":["Inherit","False","Property","_DefaultBlendColor","DefaultBlendColor","4","0","Create","True","0","0","0","False","0","False","Object","-1","","0,0,0,1","0.7686275,0.435294,0.3058823,1","True","True","0","6","COLOR","0","FLOAT","1","FLOAT","2","FLOAT","3","FLOAT","4","FLOAT3","5"]}
+{"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":95,"pos":[-48,-16],"params":["Inherit","False","MosaicBlendLayers","2","","34","34be181aab269424fa7648145160b7fa","0","5","10","FLOAT4","0,0,0,0","False","8","SAMPLER2D","0","False","9","SAMPLERSTATE","0","False","11","SAMPLER2D","0","False","13","SAMPLERSTATE","0","False","2","FLOAT3","12","FLOAT4","7"]}
+{"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":55,"pos":[288,8],"params":["Inherit","False","Alpha Split","-1","","31","07dab7960105b86429ac8eebd729ed6d","0","1","2","FLOAT4","0,0,0,0","False","2","FLOAT3","0","FLOAT","6"]}
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":0,"pos":[32,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ExtraPrePass","0","0","ExtraPrePass","6","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","0","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","0","False","False","0","","0","0","Standard","0","False","0"]}
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":2,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ShadowCaster","0","2","ShadowCaster","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","True","False","False","False","False","0","False","","False","False","False","False","False","False","False","False","False","True","1","False","","True","3","False","","False","False","True","1","LightMode=ShadowCaster","False","False","0","","0","0","Standard","0","False","0"]}
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":3,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","DepthOnly","0","3","DepthOnly","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","True","True","False","False","False","0","False","","False","False","False","False","False","False","False","False","False","True","1","False","","False","False","False","True","1","LightMode=DepthOnly","False","False","0","","0","0","Standard","0","False","0"]}
@@ -4070,15 +4050,15 @@ Version=19912
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":9,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ScenePickingPass","0","9","ScenePickingPass","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=Picking","False","False","0","","0","0","Standard","0","False","0"]}
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":10,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","MotionVectors","0","10","MotionVectors","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","False","False","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=MotionVectors","False","False","0","","0","0","Standard","0","False","0"]}
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":11,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","XRMotionVectors","0","11","XRMotionVectors","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","True","1","False","","255","False","","1","False","","7","False","","3","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","False","False","False","False","True","1","LightMode=XRMotionVectors","False","False","0","","0","0","Standard","0","False","0"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":1,"pos":[496,-128],"params":["Float","False","True","-1","3","UnityEditor.ShaderGraphLitGUI","0","18","TerrainShader","94348b07e5e8bab40bd6c8a1e3df54cd","True","Forward","0","1","Forward","22","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=UniversalForward","False","False","2","Include","","False","","Native","False","0","0","","Include","","True","f407207b82532924f9f8f903a9f29c32","Custom","False","0","0","","","0","0","Standard","52","Category","0","0","  Instanced Terrain Normals","1","0","Lighting Model","0","0","Workflow","1","0","Surface","0","0","  Keep Alpha","0","0","  Refraction Model","0","0","  Blend","0","0","Two Sided","1","0","Alpha Clipping","0","638918163137198311","  Use Shadow Threshold","0","638913139129558050","Fragment Normal Space","0","0","Forward Only","0","0","Transmission","0","0","  Transmission Shadow","0.5,False,","0","Translucency","0","0","  Translucency Strength","1,False,","0","  Normal Distortion","0.5,False,","0","  Scattering","2,False,","0","  Direct","0.9,False,","0","  Ambient","0.1,False,","0","  Shadow","0.5,False,","0","Cast Shadows","1","0","Receive Shadows","2","0","Specular Highlights","2","0","Environment Reflections","2","0","Receive SSAO","1","0","Motion Vectors","1","0","  Additional Motion Vectors","1","0","  Alembic Motion Vectors","0","0","  XR Motion Vectors","0","0","GPU Instancing","0","638913139400457197","LOD CrossFade","0","638913139434204775","Built-in Fog","1","638913139484284097","_FinalColorxAlpha","0","0","Meta Pass","1","0","Override Baked GI","0","0","Extra Pre Pass","0","0","Tessellation","0","0","  Phong","0","0","  Strength","0.5,False,","0","  Type","0","0","  Tess","16,False,","0","  Min","10,False,","0","  Max","25,False,","0","  Edge Length","16,False,","0","  Max Displacement","25,False,","0","Write Depth","0","0","  Conservative","0","0","Vertex Position","1","0","Debug Display","1","0","Clear Coat","0","0","0","12","False","True","True","True","True","True","True","True","True","True","True","False","False","","True","0"]}
-{"wire":[91,10,84,0]}
-{"wire":[91,8,50,0]}
-{"wire":[91,9,50,1]}
-{"wire":[91,11,90,0]}
-{"wire":[91,13,90,1]}
-{"wire":[55,2,91,7]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":1,"pos":[496,-128],"params":["Float","False","True","-1","3","UnityEditor.ShaderGraphLitGUI","0","18","TerrainShader","94348b07e5e8bab40bd6c8a1e3df54cd","True","Forward","0","1","Forward","22","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=UniversalForward","False","False","0","","0","0","Standard","52","Category","0","0","  Instanced Terrain Normals","1","0","Lighting Model","0","0","Workflow","1","0","Surface","0","0","  Keep Alpha","0","0","  Refraction Model","0","0","  Blend","0","0","Two Sided","1","0","Alpha Clipping","0","638918163137198311","  Use Shadow Threshold","0","638913139129558050","Fragment Normal Space","0","0","Forward Only","0","0","Transmission","0","0","  Transmission Shadow","0.5,False,","0","Translucency","0","0","  Translucency Strength","1,False,","0","  Normal Distortion","0.5,False,","0","  Scattering","2,False,","0","  Direct","0.9,False,","0","  Ambient","0.1,False,","0","  Shadow","0.5,False,","0","Cast Shadows","1","0","Receive Shadows","2","0","Specular Highlights","2","0","Environment Reflections","2","0","Receive SSAO","1","0","Motion Vectors","1","0","  Additional Motion Vectors","1","0","  Alembic Motion Vectors","0","0","  XR Motion Vectors","0","0","GPU Instancing","0","638913139400457197","LOD CrossFade","0","638913139434204775","Built-in Fog","1","638913139484284097","_FinalColorxAlpha","0","0","Meta Pass","1","0","Override Baked GI","0","0","Extra Pre Pass","0","0","Tessellation","0","0","  Phong","0","0","  Strength","0.5,False,","0","  Type","0","0","  Tess","16,False,","0","  Min","10,False,","0","  Max","25,False,","0","  Edge Length","16,False,","0","  Max Displacement","25,False,","0","Write Depth","0","0","  Conservative","0","0","Vertex Position","1","0","Debug Display","1","0","Clear Coat","0","0","0","12","False","True","True","True","True","True","True","True","True","True","True","False","False","","True","0"]}
+{"wire":[95,10,84,0]}
+{"wire":[95,8,50,0]}
+{"wire":[95,9,50,1]}
+{"wire":[95,11,90,0]}
+{"wire":[95,13,90,1]}
+{"wire":[55,2,95,7]}
 {"wire":[1,0,55,0]}
-{"wire":[1,1,91,12]}
+{"wire":[1,1,95,12]}
 {"wire":[1,6,55,6]}
 ASEEND*/
-//CHKSM=1E67D5391CFFABD48A221BAA61BB2EAB5457D8F7
+//CHKSM=D03B7C1646EC023920B387976ABAD80B798564E3

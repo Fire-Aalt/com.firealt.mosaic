@@ -66,7 +66,7 @@ inline float2 RotateNormalXY(float2 normal_xy, uint rot) {
 // Unity's normal-map import can decode the generated neutral 128/255 channel
 // into the neighbouring signed 8-bit bin. Keep a neutral layer neutral so a
 // random result mirror cannot turn that representation error into lighting.
-inline float3 DecodeTerrainNormal(float4 packed_normal) {
+inline float3 UnpackTilemapNormal(float4 packed_normal) {
   float3 normal = UnpackNormal(packed_normal);
   const float center_bin = 1.0 / 255.0;
   if (all(abs(normal.xy) <= center_bin))
@@ -141,8 +141,7 @@ inline void BlendLayers(
     ComputeLayer(index, TileSize, BaseUV, uv);
     
     float4 layer = SAMPLE_TEXTURE2D(Texture, Sampler, uv);
-    float3 layer_normal = DecodeTerrainNormal(
-      SAMPLE_TEXTURE2D(NormalTexture, NormalSampler, uv));
+    float3 layer_normal = UnpackTilemapNormal(SAMPLE_TEXTURE2D(NormalTexture, NormalSampler, uv));
 
     uint flags = _TerrainTileBuffer[index].flags;
     float2 flip = float2(GetFlipX(flags), GetFlipY(flags));
