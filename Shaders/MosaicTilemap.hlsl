@@ -6,10 +6,11 @@
 // random result mirror cannot turn that representation error into lighting.
 inline float3 UnpackTilemapNormal(float4 packed_normal) {
   float3 normal = UnpackNormal(packed_normal);
-  const float center_bin = 1.0 / 255.0;
-  if (all(abs(normal.xy) <= center_bin))
-    return float3(0.0, 0.0, 1.0);
-  return normal;
+  const float NEUTRAL_BIN_CUTOFF = 1.5 / 255.0;
+
+  return all(abs(normal.xy) < NEUTRAL_BIN_CUTOFF)
+      ? float3(0.0, 0.0, 1.0)
+      : normal;
 }
 
 inline float3 SampleTilemapNormalMap(Texture2D Texture, float2 UV, float NormalStrength, SamplerState Sampler) {
