@@ -59,6 +59,7 @@ namespace FireAlt.Mosaic
             var rulesBufferLookup = SystemAPI.GetBufferLookup<RuleBlobReferenceElement>(true);
             var refreshOffsetsBufferLookup = SystemAPI.GetBufferLookup<RefreshPositionElement>(true);
             var entitiesBufferLookup = SystemAPI.GetBufferLookup<WeightedEntityElement>(true);
+            var tilemapTransformLookup = SystemAPI.GetComponentLookup<TilemapTransform>(true);
             
             state.Dependency = new ClearAndFindRefreshPositionsJob
             {
@@ -79,6 +80,7 @@ namespace FireAlt.Mosaic
                 TilemapData = tilemapDataLookup,
                 RulesBufferLookup = rulesBufferLookup,
                 EntitiesBufferLookup = entitiesBufferLookup,
+                TilemapTransformLookup = tilemapTransformLookup,
                 IntGridLayers = dataSingleton.IntGridLayers,
                 EntityCommands = dataSingleton.EntityCommands.AsThreadWriter(),
                 Seed = seed,
@@ -183,6 +185,8 @@ namespace FireAlt.Mosaic
         [BurstCompile]
         private struct ExecuteRulesJob : IJobParallelForDefer
         {
+            private const int STANDING_TRANSFORM_COUNT = 7;
+
             public NativeArray<Entity> IntGridEntities;
             [ReadOnly]
             public ComponentLookup<IntGridData> TilemapData;
@@ -190,6 +194,8 @@ namespace FireAlt.Mosaic
             public BufferLookup<RuleBlobReferenceElement> RulesBufferLookup;
             [ReadOnly]
             public BufferLookup<WeightedEntityElement> EntitiesBufferLookup;
+            [ReadOnly]
+            public ComponentLookup<TilemapTransform> TilemapTransformLookup;
             
             [NativeDisableParallelForRestriction]
             public NativeHashMap<Hash128, TilemapIntGridSingleton.IntGridLayer> IntGridLayers;
@@ -198,7 +204,10 @@ namespace FireAlt.Mosaic
             public uint Seed;
 
             private Hash128 _intGridHash;
+            private Entity _intGridEntity;
+            private bool _standingTile;
             private uint _layerSeed;
+
             [ReadOnly]
             private DynamicBuffer<RuleBlobReferenceElement> _rulesBuffer;
             [ReadOnly]
@@ -211,8 +220,10 @@ namespace FireAlt.Mosaic
                 var intGridEntity = IntGridEntities[index];
                 
                 _intGridHash = TilemapData[intGridEntity].Hash;
+                _intGridEntity = intGridEntity;
                 _layerSeed = Seed ^ math.hash(_intGridHash.Value);
                 ref var dataLayer = ref IntGridLayers.GetValueAsRef(_intGridHash);
+                _standingTile = MosaicUtils.IsStandingTile(TilemapTransformLookup[intGridEntity]);
                 var forceRuleRefresh = dataLayer.ForceRuleRefresh;
                 dataLayer.ForceRuleRefresh = false;
                 
@@ -226,10 +237,10 @@ namespace FireAlt.Mosaic
 
                 foreach (var posToRefresh in dataLayer.PositionsToRefresh)
                 {
-                    var ruleHashExists = dataLayer.RuleGrid.TryGetValue(posToRefresh, out var ruleHash);
+                    var ruleHashExists = dataLayer.RuleGrid.TryGetValue(posToRefresh, out var ruleState);
                     
                     var positionStillValid = RefreshPosition(
-                        ref dataLayer, posToRefresh, ruleHashExists, ruleHash, forceRuleRefresh);
+                        ref dataLayer, posToRefresh, ruleHashExists, ruleState, forceRuleRefresh);
 
                     if (ruleHashExists && !positionStillValid)
                     {
@@ -242,7 +253,7 @@ namespace FireAlt.Mosaic
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             private bool RefreshPosition(ref TilemapIntGridSingleton.IntGridLayer dataLayer, int2 posToRefresh,
-                bool ruleHashExists, int ruleHash, bool forceRuleRefresh)
+                bool ruleHashExists, RuleResultState ruleState, bool forceRuleRefresh)
             {
                 for (var ruleIndex = 0; ruleIndex < _rulesBuffer.Length; ruleIndex++)
                 {
@@ -256,26 +267,102 @@ namespace FireAlt.Mosaic
                     if (random.NextFloat() * 100f > rule.Chance)
                         continue;
 
-                    if (!ExecuteRules(ref rule, posToRefresh, out var appliedRotation, out var appliedMirror))
+                    byte selectedSlots = 0;
+                    var appliedRotation = 0;
+                    var appliedMirror = new bool2();
+                    if (_standingTile)
+                    {
+                        selectedSlots = ExecuteStandingRules(ref rule, posToRefresh);
+                        if (selectedSlots == 0) continue;
+                    }
+                    else if (!ExecuteRules(ref rule, posToRefresh, out appliedRotation, out appliedMirror))
+                    {
                         continue;
+                    }
 
-                    var currentRuleHash = ruleHashExists ? ruleHash : 0;
-                    var newRuleHash = MosaicUtils.Hash(ruleIndex, appliedMirror, appliedRotation);
+                    var currentRuleHash = ruleHashExists ? ruleState.Hash : 0;
+                    var newRuleHash = _standingTile ? MosaicUtils.Hash(ruleIndex, default, selectedSlots)
+                        : MosaicUtils.Hash(ruleIndex, appliedMirror, appliedRotation);
                         
                     if (!RuleResultChanged(currentRuleHash, newRuleHash, forceRuleRefresh))
                         return true;
                     
                     dataLayer.RefreshedPositions.Add(posToRefresh);
-                    dataLayer.RuleGrid[posToRefresh] = newRuleHash;
-                        
-                    TryAddEntity(ref rule, ref random, posToRefresh);
-                    TryAddSpriteMesh(ref dataLayer, ref rule, ref random, posToRefresh, appliedMirror, appliedRotation);
+                    var version = ++dataLayer.NextRuleVersion;
+                    dataLayer.RuleGrid[posToRefresh] = new RuleResultState { Hash = newRuleHash, Version = version };
+                    dataLayer.RenderedSprites.Remove(posToRefresh);
+
+                    if (_standingTile)
+                    {
+                        var emittedPrefab = false;
+                        for (var slot = 0; slot < STANDING_TRANSFORM_COUNT; slot++)
+                        {
+                            if ((selectedSlots & (1 << slot)) == 0) continue;
+                            GetStandingTransform(rule.RuleTransform, slot, out _, out appliedMirror, out appliedRotation);
+                            var face = MosaicUtils.StandingTileFace(appliedMirror, appliedRotation);
+                            var faceSeed = _layerSeed ^ (uint)(ruleIndex * 431 + slot * 701);
+                            var entityRandom = new Random(MosaicUtils.Hash(faceSeed, posToRefresh));
+                            var spriteRandom = new Random(MosaicUtils.Hash(faceSeed ^ 0x9E3779B9u, posToRefresh));
+                            if (!rule.UniquePrefabPerCell || !emittedPrefab)
+                            {
+                                TryAddEntity(ref rule, ref entityRandom, posToRefresh, version, face, appliedMirror, appliedRotation);
+                                emittedPrefab = true;
+                            }
+                            TryAddSpriteMesh(ref dataLayer, ref rule, ref spriteRandom, posToRefresh, appliedMirror, appliedRotation);
+                        }
+                    }
+                    else
+                    {
+                        TryAddEntity(ref rule, ref random, posToRefresh, version, 0, appliedMirror, appliedRotation);
+                        TryAddSpriteMesh(ref dataLayer, ref rule, ref random, posToRefresh, appliedMirror, appliedRotation);
+                    }
                     
                     return true;
                 }
                 return false;
             }
-            
+
+            private byte ExecuteStandingRules(ref RuleBlob rule, int2 posToRefresh)
+            {
+                byte selectedSlots = 0;
+                byte faces = 0;
+                for (var slot = 0; slot < STANDING_TRANSFORM_COUNT; slot++)
+                {
+                    if (!GetStandingTransform(rule.RuleTransform, slot, out var patternOffset, out var mirror, out var rotation)) continue;
+                    var face = MosaicUtils.StandingTileFace(mirror, rotation);
+                    var faceBit = (byte)(1 << face);
+                    if ((faces & faceBit) != 0) continue;
+                    if (!ExecuteRule(ref rule, posToRefresh, patternOffset)) continue;
+                    faces |= faceBit;
+                    selectedSlots |= (byte)(1 << slot);
+                }
+                return selectedSlots;
+            }
+
+            private static bool GetStandingTransform(Transformation transforms, int slot, out int patternOffset,
+                out bool2 mirror, out int rotation)
+            {
+                patternOffset = 0;
+                mirror = default;
+                rotation = 0;
+                if (slot == 0) return true;
+                var mirrorX = transforms.IsMirroredX();
+                var mirrorY = transforms.IsMirroredY();
+                if (slot == 1 && mirrorX) { patternOffset = 1; mirror.x = true; return true; }
+                if (mirrorX) patternOffset++;
+                if (slot == 2 && mirrorY) { patternOffset++; mirror.y = true; return true; }
+                if (mirrorY) patternOffset++;
+                if (slot == 3 && mirrorX && mirrorY) { patternOffset++; mirror = new bool2(true, true); return true; }
+                if (mirrorX && mirrorY) patternOffset++;
+                if (slot >= 4 && transforms.HasFlagBurst(Transformation.Rotated))
+                {
+                    rotation = slot - 3;
+                    patternOffset += rotation;
+                    return true;
+                }
+                return false;
+            }
+
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             private bool ExecuteRules(ref RuleBlob rule, int2 posToRefresh, out int appliedRotation, out bool2 appliedMirror)
             {
@@ -330,7 +417,8 @@ namespace FireAlt.Mosaic
             }
             
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            private void TryAddEntity(ref RuleBlob rule, ref Random random, int2 posToRefresh)
+            private void TryAddEntity(ref RuleBlob rule, ref Random random, int2 posToRefresh, uint version,
+                byte face, bool2 appliedMirror, int appliedRotation)
             {
                 if (rule.TryGetEntity(ref random, _entityBuffer, out var newEntity))
                 {
@@ -338,7 +426,12 @@ namespace FireAlt.Mosaic
                     {
                         SrcEntity = newEntity,
                         Position = posToRefresh,
-                        IntGridHash = _intGridHash
+                        IntGridHash = _intGridHash,
+                        IntGridEntity = _intGridEntity,
+                        RuleVersion = version,
+                        Face = face,
+                        MatchedMirror = appliedMirror,
+                        MatchedRotation = appliedRotation
                     });
                 }
             }
@@ -365,15 +458,13 @@ namespace FireAlt.Mosaic
                     }
                             
                     newSprite.Flip = appliedMirror ^ resultFlip;
+                    newSprite.MatchedMirror = appliedMirror;
+                    newSprite.MatchedRotation = appliedRotation;
                     newSprite.Rotation = appliedRotation + resultRotation;
                     if (newSprite.Rotation > 3)
                         newSprite.Rotation -= 4;
                             
-                    dataLayer.RenderedSprites[posToRefresh] = newSprite;
-                }
-                else
-                {
-                    dataLayer.RenderedSprites.Remove(posToRefresh);
+                    dataLayer.RenderedSprites.Add(posToRefresh, newSprite);
                 }
             }
 

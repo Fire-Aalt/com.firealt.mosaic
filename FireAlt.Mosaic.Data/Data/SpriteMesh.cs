@@ -14,6 +14,8 @@ namespace FireAlt.Mosaic.Data
 
         public bool2 Flip;
         public int Rotation;
+        public bool2 MatchedMirror;
+        public int MatchedRotation;
 
         public SpriteMesh(Sprite sprite)
         {
@@ -33,6 +35,8 @@ namespace FireAlt.Mosaic.Data
             }
             Flip = default;
             Rotation = default;
+            MatchedMirror = default;
+            MatchedRotation = default;
         }
 
         public bool Equals(SpriteMesh other)
@@ -42,12 +46,14 @@ namespace FireAlt.Mosaic.Data
                    && MinUv.Equals(other.MinUv) 
                    && MaxUv.Equals(other.MaxUv) 
                    && Flip.Equals(other.Flip) 
-                   && Rotation.Equals(other.Rotation);
+                   && Rotation.Equals(other.Rotation)
+                   && MatchedMirror.Equals(other.MatchedMirror)
+                   && MatchedRotation.Equals(other.MatchedRotation);
         }
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(NormalizedPivot, RectScale, MinUv, MaxUv, Flip, Rotation);
+            return HashCode.Combine(NormalizedPivot, RectScale, MinUv, MaxUv, Flip, Rotation, MatchedMirror, MatchedRotation);
         }
     }
 }

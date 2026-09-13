@@ -151,7 +151,7 @@ namespace FireAlt.Mosaic.Editor
 
             foreach (var spawnedEntity in layer.SpawnedEntities)
             {
-                SetHierarchyVisibility(entityManager, spawnedEntity.Value, hidden, subSceneOnly);
+                SetHierarchyVisibility(entityManager, spawnedEntity.Value.Entity, hidden, subSceneOnly);
             }
         }
 

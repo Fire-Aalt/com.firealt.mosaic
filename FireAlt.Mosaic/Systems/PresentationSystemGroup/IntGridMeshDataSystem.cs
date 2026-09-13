@@ -25,12 +25,12 @@ namespace FireAlt.Mosaic
 		    {
 			    public Entity IntGridEntity;
 			    
-			    public UnsafeHashMap<int2, SpriteMesh> SpriteMeshes;
+			    public UnsafeParallelMultiHashMap<int2, SpriteMesh> SpriteMeshes;
 	            
 			    public IntGrid(Entity intGridEntity, int capacity, Allocator allocator)
 			    {
 				    IntGridEntity = intGridEntity;
-				    SpriteMeshes = new UnsafeHashMap<int2, SpriteMesh>(capacity, allocator);
+				    SpriteMeshes = new UnsafeParallelMultiHashMap<int2, SpriteMesh>(capacity, allocator);
 			    }
 	            
 			    public void Dispose()
@@ -52,7 +52,7 @@ namespace FireAlt.Mosaic
 			    Layout = new NativeArray<VertexAttributeDescriptor>(4, Allocator.Persistent);
 			    Layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position);
 			    Layout[1] = new VertexAttributeDescriptor(VertexAttribute.Normal);
-			    Layout[2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.Float32, 4);
+			    Layout[2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.SNorm8, 4);
 			    Layout[3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
 
 			    HashesToUpdate = new NativeList<Hash128>(capacity, allocator);
@@ -219,7 +219,7 @@ namespace FireAlt.Mosaic
 		        ref var intGrid = ref Tilemaps.GetValueAsRef(hash);
 		        var rendererData = TilemapTransformLookup[intGrid.IntGridEntity];
 
-				var quadCount = intGrid.SpriteMeshes.Count;
+				var quadCount = intGrid.SpriteMeshes.Count();
                 
 				var vertexCount = quadCount * 4;
 				var indexCount = quadCount * 6;
@@ -238,6 +238,12 @@ namespace FireAlt.Mosaic
 		        {
 			        var spriteMesh = kvp.Value;
 			        var orientation = rendererData.Orientation;
+			        var standingTile = MosaicUtils.IsStandingTile(rendererData);
+			        if (standingTile)
+			        {
+				        spriteMesh.Flip ^= spriteMesh.MatchedMirror;
+				        spriteMesh.Rotation = (spriteMesh.Rotation - spriteMesh.MatchedRotation) & 3;
+			        }
 			        
 			        MosaicUtils.GetSpriteMeshTranslation(spriteMesh, out var meshTranslation);
 
@@ -266,14 +272,25 @@ namespace FireAlt.Mosaic
 			        var vertex1 = worldPos + MosaicUtils.Rotate(up + right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
 			        var vertex2 = worldPos + MosaicUtils.Rotate(right - pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
 			        var vertex3 = worldPos + MosaicUtils.Rotate(-pivotPoint, spriteMesh.Rotation, orientation) + pivotPoint;
-			        var tangent = MosaicUtils.CalculateTangent(normal, vertex0, vertex1, vertex3, minUv, maxUv);
+
+			        if (standingTile)
+			        {
+				        var center = MosaicUtils.ToWorldSpace(kvp.Key + new float2(0.5f), rendererData);
+				        vertex0 = center + MosaicUtils.TransformStandingTile(vertex0 - center, spriteMesh.MatchedMirror, spriteMesh.MatchedRotation);
+				        vertex1 = center + MosaicUtils.TransformStandingTile(vertex1 - center, spriteMesh.MatchedMirror, spriteMesh.MatchedRotation);
+				        vertex2 = center + MosaicUtils.TransformStandingTile(vertex2 - center, spriteMesh.MatchedMirror, spriteMesh.MatchedRotation);
+				        vertex3 = center + MosaicUtils.TransformStandingTile(vertex3 - center, spriteMesh.MatchedMirror, spriteMesh.MatchedRotation);
+				        normal = MosaicUtils.TransformStandingTile(normal, spriteMesh.MatchedMirror, spriteMesh.MatchedRotation);
+			        }
+			        var tangent = new PackedTangent(
+			        	MosaicUtils.CalculateTangent(normal, vertex0, vertex1, vertex3, minUv, maxUv));
 
 			        minPos = math.min(minPos, math.min(math.min(vertex0, vertex1), math.min(vertex2, vertex3)));
 			        maxPos = math.max(maxPos, math.max(math.max(vertex0, vertex1), math.max(vertex2, vertex3)));
 			        
 			        vertices[vc + 0] = new Vertex
         			{
-					        Position = vertex0,
+				        Position = vertex0,
 				        Normal = normal,
 				        Tangent = tangent,
         				TexCoord0 = new float2(minUv.x, maxUv.y)
@@ -281,7 +298,7 @@ namespace FireAlt.Mosaic
 
 			        vertices[vc + 1] = new Vertex
         			{
-					        Position = vertex1,
+				        Position = vertex1,
 				        Normal = normal,
 				        Tangent = tangent,
         				TexCoord0 = new float2(maxUv.x, maxUv.y)
@@ -289,7 +306,7 @@ namespace FireAlt.Mosaic
 
 			        vertices[vc + 2] = new Vertex
         			{
-					        Position = vertex2,
+				        Position = vertex2,
 				        Normal = normal,
 				        Tangent = tangent,
         				TexCoord0 = new float2(maxUv.x, minUv.y)
@@ -297,19 +314,20 @@ namespace FireAlt.Mosaic
 
 			        vertices[vc + 3] = new Vertex
         			{
-					        Position = vertex3,
+				        Position = vertex3,
 				        Normal = normal,
 				        Tangent = tangent,
-        				TexCoord0 = new float2(minUv.x, minUv.y)
-        			};
-				        
-        			indices[tc + 0] = (vc + 0);
-			        indices[tc + 1] = (vc + 1);
-			        indices[tc + 2] = (vc + 2);
+				        TexCoord0 = new float2(minUv.x, minUv.y)
+			        };
 
-			        indices[tc + 3] = (vc + 0);
-			        indices[tc + 4] = (vc + 2);
-			        indices[tc + 5] = (vc + 3);
+			        var reverseWinding = standingTile && spriteMesh.MatchedMirror.x != spriteMesh.MatchedMirror.y;
+			        indices[tc + 0] = vc + 0;
+			        indices[tc + 1] = vc + (reverseWinding ? 2 : 1);
+			        indices[tc + 2] = vc + (reverseWinding ? 1 : 2);
+
+			        indices[tc + 3] = vc + 0;
+			        indices[tc + 4] = vc + (reverseWinding ? 3 : 2);
+			        indices[tc + 5] = vc + (reverseWinding ? 2 : 3);
 
 			        quadIndex++;
 		        }
@@ -341,8 +359,25 @@ namespace FireAlt.Mosaic
 	    {
 	        public float3 Position;
 	        public float3 Normal;
-	        public float4 Tangent;
+	        public PackedTangent Tangent;
 	        public float2 TexCoord0;
 	    }
+
+		[StructLayout(LayoutKind.Sequential, Pack = 1)]
+		private struct PackedTangent
+		{
+			public sbyte X;
+			public sbyte Y;
+			public sbyte Z;
+			public sbyte W;
+
+			public PackedTangent(float4 tangent)
+			{
+				X = (sbyte)(tangent.x * sbyte.MaxValue);
+				Y = (sbyte)(tangent.y * sbyte.MaxValue);
+				Z = (sbyte)(tangent.z * sbyte.MaxValue);
+				W = (sbyte)(tangent.w * sbyte.MaxValue);
+			}
+		}
     }
 }

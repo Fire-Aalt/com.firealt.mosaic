@@ -21,6 +21,7 @@ namespace FireAlt.Mosaic.Data
         public float Chance;
         public Transformation RuleTransform;
         public Transformation ResultTransform;
+        public bool UniquePrefabPerCell;
 
         public bool TryGetEntity(ref Random random, in DynamicBuffer<WeightedEntityElement> entityBuffer, out Entity entity)
         {

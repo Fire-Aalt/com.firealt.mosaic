@@ -26,9 +26,9 @@ namespace FireAlt.Mosaic
 	            public Entity TerrainEntity;
 		        
 #if MOSAIC_BLEND_128
-	            public UnsafeHashMap<int2, FixedList128Bytes<GpuTerrainTile>> RawTilesToBlend;
+	            public UnsafeHashMap<int3, FixedList128Bytes<GpuTerrainTile>> RawTilesToBlend;
 #else
-	            public UnsafeHashMap<int2, FixedList64Bytes<GpuTerrainTile>> RawTilesToBlend;
+	            public UnsafeHashMap<int3, FixedList64Bytes<GpuTerrainTile>> RawTilesToBlend;
 #endif
 
 	            public UnsafeList<GpuTerrainTile> TileBuffer;
@@ -39,9 +39,9 @@ namespace FireAlt.Mosaic
 		            TerrainEntity = terrainEntity;
 	                
 #if MOSAIC_BLEND_128
-	                RawTilesToBlend = new UnsafeHashMap<int2, FixedList128Bytes<GpuTerrainTile>>(capacity, allocator);
+	                RawTilesToBlend = new UnsafeHashMap<int3, FixedList128Bytes<GpuTerrainTile>>(capacity, allocator);
 #else
-	                RawTilesToBlend = new UnsafeHashMap<int2, FixedList64Bytes<GpuTerrainTile>>(capacity, allocator);
+	                RawTilesToBlend = new UnsafeHashMap<int3, FixedList64Bytes<GpuTerrainTile>>(capacity, allocator);
 #endif
 
 	                TileBuffer = new UnsafeList<GpuTerrainTile>(capacity, allocator);
@@ -67,11 +67,10 @@ namespace FireAlt.Mosaic
 
 	        public Singleton(int capacity, Allocator allocator)
 	        {
-	            Layout = new NativeArray<VertexAttributeDescriptor>(4, allocator);
+	            Layout = new NativeArray<VertexAttributeDescriptor>(3, allocator);
 	            Layout[0] = new VertexAttributeDescriptor(VertexAttribute.Position);
 	            Layout[1] = new VertexAttributeDescriptor(VertexAttribute.Normal);
-	            Layout[2] = new VertexAttributeDescriptor(VertexAttribute.Tangent, VertexAttributeFormat.Float32, 4);
-	            Layout[3] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
+	            Layout[2] = new VertexAttributeDescriptor(VertexAttribute.TexCoord0, VertexAttributeFormat.Float32, 2);
 
 	            HashesToUpdate = new NativeList<Hash128>(capacity, allocator);
 	            MeshDataArray = default;
@@ -136,6 +135,7 @@ namespace FireAlt.Mosaic
 	            TerrainDataLookup = terrainDataLookup,
 	            TerrainLayersBufferLookup = SystemAPI.GetBufferLookup<TilemapTerrainLayerElement>(true),
 	            IntGridDataLookup = SystemAPI.GetComponentLookup<IntGridData>(true),
+	            TilemapTransformLookup = SystemAPI.GetComponentLookup<TilemapTransform>(true),
 	            IntGridLayers = dataSingleton.IntGridLayers,
 	            HashesToUpdate = singleton.HashesToUpdate.AsDeferredJobArray(),
 	            Terrains = singleton.Terrains,
@@ -216,6 +216,8 @@ namespace FireAlt.Mosaic
             public BufferLookup<TilemapTerrainLayerElement> TerrainLayersBufferLookup;
             [ReadOnly]
             public ComponentLookup<IntGridData> IntGridDataLookup;
+            [ReadOnly]
+            public ComponentLookup<TilemapTransform> TilemapTransformLookup;
             
             [ReadOnly]
             public NativeArray<Hash128> HashesToUpdate;
@@ -232,6 +234,7 @@ namespace FireAlt.Mosaic
                 ref var terrainData = ref Terrains.GetValueAsRef(HashesToUpdate[index]);
                 var terrainLayersBuffer = TerrainLayersBufferLookup[terrainData.TerrainEntity];
                 var maxLayersBlend = TerrainDataLookup[terrainData.TerrainEntity].MaxLayersBlend;
+                var standingTile = MosaicUtils.IsStandingTile(TilemapTransformLookup[terrainData.TerrainEntity]);
                 
                 terrainData.RawTilesToBlend.Clear();
                 
@@ -244,17 +247,34 @@ namespace FireAlt.Mosaic
                     {
 	                    if (!CullingBounds.Contains(kvp.Key)) continue;
 	                    
-	                    ref var layers = ref terrainData.RawTilesToBlend.GetOrAddRefUnsafe(kvp.Key);
+	                    var spriteMesh = kvp.Value;
+	                    var face = standingTile ? MosaicUtils.StandingTileFace(spriteMesh.MatchedMirror, spriteMesh.MatchedRotation) : (byte)0;
+	                    ref var layers = ref terrainData.RawTilesToBlend.GetOrAddRefUnsafe(new int3(kvp.Key, face));
 
 	                    if (layers.Length == maxLayersBlend)
 	                    {
 		                    continue;
 	                    }
 	                    
-	                    var spriteMesh = kvp.Value;
-	                    layers.Add(new GpuTerrainTile(spriteMesh.MinUv, spriteMesh.Flip, spriteMesh.Rotation));
+	                    layers.Add(standingTile ? CreateStandingTerrainTile(spriteMesh, face)
+	                        : new GpuTerrainTile(spriteMesh.MinUv, spriteMesh.Flip, spriteMesh.Rotation));
                     }
                 }
+            }
+
+            private static GpuTerrainTile CreateStandingTerrainTile(SpriteMesh spriteMesh, byte face)
+            {
+                var flip = spriteMesh.Flip ^ spriteMesh.MatchedMirror;
+                var rotation = (spriteMesh.Rotation - spriteMesh.MatchedRotation) & 3;
+                var matchedRight = MosaicUtils.TransformStandingTile(new float3(1f, 0f, 0f),
+                    spriteMesh.MatchedMirror, spriteMesh.MatchedRotation);
+                var faceRight = MosaicUtils.Rotate(new float3(1f, 0f, 0f), face, Orientation.XZ);
+                if (math.dot(matchedRight, faceRight) < 0f)
+                {
+                    if ((rotation & 1) == 0) flip.x = !flip.x;
+                    else flip.y = !flip.y;
+                }
+                return new GpuTerrainTile(spriteMesh.MinUv, flip, rotation);
             }
         }
         
@@ -299,13 +319,14 @@ namespace FireAlt.Mosaic
 
 		        var quadIndex = 0;
 		        var orientation = rendererData.Orientation;
+		        var standingTile = MosaicUtils.IsStandingTile(rendererData);
 		        
 		        var minPos = new float3(float.MaxValue, float.MaxValue, float.MaxValue);
 		        var maxPos = new float3(float.MinValue, float.MinValue, float.MinValue);
 		        
 		        foreach (var kvp in terrainData.RawTilesToBlend)
 		        {
-			        var worldPos = MosaicUtils.ToWorldSpace(kvp.Key, rendererData)
+			        var worldPos = MosaicUtils.ToWorldSpace(kvp.Key.xy, rendererData)
 			                         + MosaicUtils.ApplyOrientation(float2.zero, orientation);
 
 			        var rectSize = MosaicUtils.ApplySwizzle(rendererData.CellSize, rendererData.Swizzle).xy;
@@ -318,40 +339,44 @@ namespace FireAlt.Mosaic
 			        var vc = 4 * quadIndex;
 			        var tc = 6 * quadIndex;
 			        
-			        var minVertexPos = worldPos;
-			        var maxVertexPos = worldPos + up + right;
-			        var tangent = MosaicUtils.CalculateTangent(normal, worldPos + up, maxVertexPos, minVertexPos,
-			            float2.zero, tileSize);
-
-			        minPos = math.min(minPos, minVertexPos);
-			        maxPos = math.max(maxPos, maxVertexPos);
+			        var vertex0 = worldPos + up;
+			        var vertex1 = vertex0 + right;
+			        var vertex2 = worldPos + right;
+			        var vertex3 = worldPos;
+			        if (standingTile)
+			        {
+				        var center = MosaicUtils.ToWorldSpace((float2)kvp.Key.xy + new float2(0.5f), rendererData);
+				        vertex0 = center + MosaicUtils.Rotate(vertex0 - center, kvp.Key.z, Orientation.XZ);
+				        vertex1 = center + MosaicUtils.Rotate(vertex1 - center, kvp.Key.z, Orientation.XZ);
+				        vertex2 = center + MosaicUtils.Rotate(vertex2 - center, kvp.Key.z, Orientation.XZ);
+				        vertex3 = center + MosaicUtils.Rotate(vertex3 - center, kvp.Key.z, Orientation.XZ);
+				        normal = MosaicUtils.Rotate(normal, kvp.Key.z, Orientation.XZ);
+			        }
+			        minPos = math.min(minPos, math.min(math.min(vertex0, vertex1), math.min(vertex2, vertex3)));
+			        maxPos = math.max(maxPos, math.max(math.max(vertex0, vertex1), math.max(vertex2, vertex3)));
 			        
 			        vertices[vc + 0] = new Vertex
 			        {
-				        Position = worldPos + up,
+				        Position = vertex0,
 				        Normal = normal,
-				        Tangent = tangent,
 				        TexCoord0 = new float2(0f, tileSize.y)
 			        };
 			        vertices[vc + 1] = new Vertex
 			        {
-				        Position = maxVertexPos,
+				        Position = vertex1,
 				        Normal = normal,
-				        Tangent = tangent,
 				        TexCoord0 = new float2(tileSize.x, tileSize.y)
 			        };
 			        vertices[vc + 2] = new Vertex
 			        {
-				        Position = worldPos + right,
+				        Position = vertex2,
 				        Normal = normal,
-				        Tangent = tangent,
 				        TexCoord0 = new float2(tileSize.x, 0f)
 			        };
 			        vertices[vc + 3] = new Vertex
 			        {
-				        Position = minVertexPos,
+				        Position = vertex3,
 				        Normal = normal,
-				        Tangent = tangent,
 				        TexCoord0 = new float2(0f, 0f)
 			        };
 
@@ -406,7 +431,6 @@ namespace FireAlt.Mosaic
 	    {
 		    public float3 Position;
 		    public float3 Normal;
-		    public float4 Tangent;
 		    public float2 TexCoord0;
 	    }
     }

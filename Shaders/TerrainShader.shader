@@ -304,6 +304,8 @@ Shader "TerrainShader"
 
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_NORMAL
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
 
 
@@ -353,6 +355,7 @@ Shader "TerrainShader"
 					float4 probeOcclusion : TEXCOORD6;
 				#endif
 				float4 ase_texcoord7 : TEXCOORD7;
+				float3 ase_normal : NORMAL;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
@@ -406,8 +409,24 @@ Shader "TerrainShader"
 				UNITY_TRANSFER_INSTANCE_ID(input, output);
 				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_vertexId;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.texcoord.xy;
+				float3 ObjectNormal4_g38 = input.normalOS;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				
 				output.ase_texcoord7.x = input.ase_vertexId;
 				output.ase_texcoord7.yz = input.texcoord.xy;
+				output.ase_normal = input.normalOS;
 				
 				//setting value to unused interpolator channels and avoid initialization warnings
 				output.ase_texcoord7.w = 0;
@@ -426,7 +445,7 @@ Shader "TerrainShader"
 					input.positionOS.xyz += vertexValue;
 				#endif
 				input.normalOS = input.normalOS;
-				input.tangentOS = input.tangentOS;
+				input.tangentOS = Tangent4_g38;
 
 				#ifdef ASE_CUSTOM_MOTION_VECTOR
 					// Declared so the Motion Vector output port surfaces on the master node; only consumed by the motion vector passes.
@@ -622,29 +641,31 @@ Shader "TerrainShader"
 					BitangentWS = cross(NormalWS, -TangentWS);
 				#endif
 
-				float localBlendLayers4_g34 = ( 0.0 );
-				int VertexID4_g34 = input.ase_texcoord7.x;
-				float2 TileSize4_g34 = _TileSize;
-				float2 BaseUV4_g34 = input.ase_texcoord7.yz;
-				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g34) = _MainTex;
-				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
-				SamplerState Sampler4_g34 = sampler_MainTex;
-				SamplerState NormalSampler4_g34 = sampler_NormalMap;
-				float4 RGBA4_g34 = float4( 0,0,0,0 );
-				float3 Normal4_g34 = float3( 0,0,0 );
-				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
-				float4 temp_output_2_0_g31 = RGBA4_g34;
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_texcoord7.x;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord7.yz;
+				float3 ObjectNormal4_g38 = input.ase_normal;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				float4 temp_output_2_0_g35 = RGBA4_g38;
 				
 
-				float3 BaseColor = (temp_output_2_0_g31).xyz;
-				float3 Normal = Normal4_g34;
+				float3 BaseColor = (temp_output_2_0_g35).xyz;
+				float3 Normal = Normal4_g38;
 				float3 Specular = 0.5;
 				float Metallic = 0;
 				float Smoothness = 0.5;
 				float Occlusion = 1;
 				float3 Emission = 0;
-				float Alpha = (temp_output_2_0_g31).w;
+				float Alpha = (temp_output_2_0_g35).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 					float AlphaClipThresholdShadow = 0.5;
@@ -964,6 +985,8 @@ Shader "TerrainShader"
 
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_NORMAL
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
 
 
@@ -990,6 +1013,7 @@ Shader "TerrainShader"
 				ASE_SV_POSITION_QUALIFIERS float4 positionCS : SV_POSITION;
 				float3 positionWS : TEXCOORD0;
 				float4 ase_texcoord1 : TEXCOORD1;
+				float3 ase_normal : NORMAL;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
@@ -1046,8 +1070,24 @@ Shader "TerrainShader"
 				UNITY_TRANSFER_INSTANCE_ID(input, output);
 				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO( output );
 
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_vertexId;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord.xy;
+				float3 ObjectNormal4_g38 = input.normalOS;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				
 				output.ase_texcoord1.x = input.ase_vertexId;
 				output.ase_texcoord1.yz = input.ase_texcoord.xy;
+				output.ase_normal = input.normalOS;
 				
 				//setting value to unused interpolator channels and avoid initialization warnings
 				output.ase_texcoord1.w = 0;
@@ -1066,7 +1106,7 @@ Shader "TerrainShader"
 				#endif
 
 				input.normalOS = input.normalOS;
-				input.tangentOS = input.tangentOS;
+				input.tangentOS = Tangent4_g38;
 
 				float3 positionWS = TransformObjectToWorld( input.positionOS.xyz );
 				float3 normalWS = TransformObjectToWorldDir(input.normalOS);
@@ -1195,22 +1235,24 @@ Shader "TerrainShader"
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 				float4 ScreenPos = ComputeScreenPos( ClipPos );
 
-				float localBlendLayers4_g34 = ( 0.0 );
-				int VertexID4_g34 = input.ase_texcoord1.x;
-				float2 TileSize4_g34 = _TileSize;
-				float2 BaseUV4_g34 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g34) = _MainTex;
-				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
-				SamplerState Sampler4_g34 = sampler_MainTex;
-				SamplerState NormalSampler4_g34 = sampler_NormalMap;
-				float4 RGBA4_g34 = float4( 0,0,0,0 );
-				float3 Normal4_g34 = float3( 0,0,0 );
-				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
-				float4 temp_output_2_0_g31 = RGBA4_g34;
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_texcoord1.x;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord1.yz;
+				float3 ObjectNormal4_g38 = input.ase_normal;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				float4 temp_output_2_0_g35 = RGBA4_g38;
 				
 
-				float Alpha = (temp_output_2_0_g31).w;
+				float Alpha = (temp_output_2_0_g35).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 					float AlphaClipThresholdShadow = 0.5;
@@ -1297,6 +1339,8 @@ Shader "TerrainShader"
 
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_NORMAL
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
 
 
@@ -1323,6 +1367,7 @@ Shader "TerrainShader"
 				ASE_SV_POSITION_QUALIFIERS float4 positionCS : SV_POSITION;
 				float3 positionWS : TEXCOORD0;
 				float4 ase_texcoord1 : TEXCOORD1;
+				float3 ase_normal : NORMAL;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
@@ -1376,8 +1421,24 @@ Shader "TerrainShader"
 				UNITY_TRANSFER_INSTANCE_ID(input, output);
 				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_vertexId;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord.xy;
+				float3 ObjectNormal4_g38 = input.normalOS;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				
 				output.ase_texcoord1.x = input.ase_vertexId;
 				output.ase_texcoord1.yz = input.ase_texcoord.xy;
+				output.ase_normal = input.normalOS;
 				
 				//setting value to unused interpolator channels and avoid initialization warnings
 				output.ase_texcoord1.w = 0;
@@ -1397,7 +1458,7 @@ Shader "TerrainShader"
 				#endif
 
 				input.normalOS = input.normalOS;
-				input.tangentOS = input.tangentOS;
+				input.tangentOS = Tangent4_g38;
 
 				VertexPositionInputs vertexInput = GetVertexPositionInputs( input.positionOS.xyz );
 
@@ -1514,22 +1575,24 @@ Shader "TerrainShader"
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 				float4 ScreenPos = ComputeScreenPos( ClipPos );
 
-				float localBlendLayers4_g34 = ( 0.0 );
-				int VertexID4_g34 = input.ase_texcoord1.x;
-				float2 TileSize4_g34 = _TileSize;
-				float2 BaseUV4_g34 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g34) = _MainTex;
-				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
-				SamplerState Sampler4_g34 = sampler_MainTex;
-				SamplerState NormalSampler4_g34 = sampler_NormalMap;
-				float4 RGBA4_g34 = float4( 0,0,0,0 );
-				float3 Normal4_g34 = float3( 0,0,0 );
-				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
-				float4 temp_output_2_0_g31 = RGBA4_g34;
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_texcoord1.x;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord1.yz;
+				float3 ObjectNormal4_g38 = input.ase_normal;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				float4 temp_output_2_0_g35 = RGBA4_g38;
 				
 
-				float Alpha = (temp_output_2_0_g31).w;
+				float Alpha = (temp_output_2_0_g35).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 				#endif
@@ -1605,6 +1668,8 @@ Shader "TerrainShader"
 
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_NORMAL
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
 
 
@@ -1629,6 +1694,7 @@ Shader "TerrainShader"
 					float4 LightCoord : TEXCOORD2;
 				#endif
 				float4 ase_texcoord3 : TEXCOORD3;
+				float3 ase_normal : NORMAL;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
@@ -1682,8 +1748,24 @@ Shader "TerrainShader"
 				UNITY_TRANSFER_INSTANCE_ID(input, output);
 				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_vertexId;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.texcoord.xy;
+				float3 ObjectNormal4_g38 = input.normalOS;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				
 				output.ase_texcoord3.x = input.ase_vertexId;
 				output.ase_texcoord3.yz = input.texcoord.xy;
+				output.ase_normal = input.normalOS;
 				
 				//setting value to unused interpolator channels and avoid initialization warnings
 				output.ase_texcoord3.w = 0;
@@ -1703,7 +1785,7 @@ Shader "TerrainShader"
 				#endif
 
 				input.normalOS = input.normalOS;
-				input.tangentOS = input.tangentOS;
+				input.tangentOS = Tangent4_g38;
 
 				#ifdef EDITOR_VISUALIZATION
 					float2 VizUV = 0;
@@ -1825,24 +1907,26 @@ Shader "TerrainShader"
 				float3 PositionRWS = GetCameraRelativePositionWS( input.positionWS );
 				float4 ShadowCoord = shadowCoord;
 
-				float localBlendLayers4_g34 = ( 0.0 );
-				int VertexID4_g34 = input.ase_texcoord3.x;
-				float2 TileSize4_g34 = _TileSize;
-				float2 BaseUV4_g34 = input.ase_texcoord3.yz;
-				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g34) = _MainTex;
-				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
-				SamplerState Sampler4_g34 = sampler_MainTex;
-				SamplerState NormalSampler4_g34 = sampler_NormalMap;
-				float4 RGBA4_g34 = float4( 0,0,0,0 );
-				float3 Normal4_g34 = float3( 0,0,0 );
-				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
-				float4 temp_output_2_0_g31 = RGBA4_g34;
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_texcoord3.x;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord3.yz;
+				float3 ObjectNormal4_g38 = input.ase_normal;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				float4 temp_output_2_0_g35 = RGBA4_g38;
 				
 
-				float3 BaseColor = (temp_output_2_0_g31).xyz;
+				float3 BaseColor = (temp_output_2_0_g35).xyz;
 				float3 Emission = 0;
-				float Alpha = (temp_output_2_0_g31).w;
+				float Alpha = (temp_output_2_0_g35).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 				#endif
@@ -1917,6 +2001,8 @@ Shader "TerrainShader"
 
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_NORMAL
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
 
 
@@ -1935,6 +2021,7 @@ Shader "TerrainShader"
 				float4 positionCS : SV_POSITION;
 				float3 positionWS : TEXCOORD0;
 				float4 ase_texcoord1 : TEXCOORD1;
+				float3 ase_normal : NORMAL;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
@@ -1988,8 +2075,24 @@ Shader "TerrainShader"
 				UNITY_TRANSFER_INSTANCE_ID( input, output );
 				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO( output );
 
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_vertexId;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord.xy;
+				float3 ObjectNormal4_g38 = input.normalOS;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				
 				output.ase_texcoord1.x = input.ase_vertexId;
 				output.ase_texcoord1.yz = input.ase_texcoord.xy;
+				output.ase_normal = input.normalOS;
 				
 				//setting value to unused interpolator channels and avoid initialization warnings
 				output.ase_texcoord1.w = 0;
@@ -2009,7 +2112,7 @@ Shader "TerrainShader"
 				#endif
 
 				input.normalOS = input.normalOS;
-				input.tangentOS = input.tangentOS;
+				input.tangentOS = Tangent4_g38;
 
 				VertexPositionInputs vertexInput = GetVertexPositionInputs( input.positionOS.xyz );
 
@@ -2119,23 +2222,25 @@ Shader "TerrainShader"
 				float3 PositionRWS = GetCameraRelativePositionWS( input.positionWS );
 				float4 ShadowCoord = shadowCoord;
 
-				float localBlendLayers4_g34 = ( 0.0 );
-				int VertexID4_g34 = input.ase_texcoord1.x;
-				float2 TileSize4_g34 = _TileSize;
-				float2 BaseUV4_g34 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g34) = _MainTex;
-				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
-				SamplerState Sampler4_g34 = sampler_MainTex;
-				SamplerState NormalSampler4_g34 = sampler_NormalMap;
-				float4 RGBA4_g34 = float4( 0,0,0,0 );
-				float3 Normal4_g34 = float3( 0,0,0 );
-				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
-				float4 temp_output_2_0_g31 = RGBA4_g34;
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_texcoord1.x;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord1.yz;
+				float3 ObjectNormal4_g38 = input.ase_normal;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				float4 temp_output_2_0_g35 = RGBA4_g38;
 				
 
-				float3 BaseColor = (temp_output_2_0_g31).xyz;
-				float Alpha = (temp_output_2_0_g31).w;
+				float3 BaseColor = (temp_output_2_0_g35).xyz;
+				float Alpha = (temp_output_2_0_g35).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 				#endif
@@ -2214,6 +2319,8 @@ Shader "TerrainShader"
 
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_NORMAL
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
 
 
@@ -2242,6 +2349,7 @@ Shader "TerrainShader"
 				half3 normalWS : TEXCOORD1;
 				float4 tangentWS : TEXCOORD2; // holds terrainUV ifdef ENABLE_TERRAIN_PERPIXEL_NORMAL
 				float4 ase_texcoord3 : TEXCOORD3;
+				float3 ase_normal : NORMAL;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
@@ -2295,8 +2403,24 @@ Shader "TerrainShader"
 				UNITY_TRANSFER_INSTANCE_ID(input, output);
 				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_vertexId;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.texcoord.xy;
+				float3 ObjectNormal4_g38 = input.normalOS;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				
 				output.ase_texcoord3.x = input.ase_vertexId;
 				output.ase_texcoord3.yz = input.texcoord.xy;
+				output.ase_normal = input.normalOS;
 				
 				//setting value to unused interpolator channels and avoid initialization warnings
 				output.ase_texcoord3.w = 0;
@@ -2315,7 +2439,7 @@ Shader "TerrainShader"
 				#endif
 
 				input.normalOS = input.normalOS;
-				input.tangentOS = input.tangentOS;
+				input.tangentOS = Tangent4_g38;
 
 				VertexPositionInputs vertexInput = GetVertexPositionInputs( input.positionOS.xyz );
 				VertexNormalInputs normalInput = GetVertexNormalInputs( input.normalOS, input.tangentOS );
@@ -2461,24 +2585,26 @@ Shader "TerrainShader"
 					BitangentWS = cross(NormalWS, -TangentWS);
 				#endif
 
-				float localBlendLayers4_g34 = ( 0.0 );
-				int VertexID4_g34 = input.ase_texcoord3.x;
-				float2 TileSize4_g34 = _TileSize;
-				float2 BaseUV4_g34 = input.ase_texcoord3.yz;
-				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g34) = _MainTex;
-				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
-				SamplerState Sampler4_g34 = sampler_MainTex;
-				SamplerState NormalSampler4_g34 = sampler_NormalMap;
-				float4 RGBA4_g34 = float4( 0,0,0,0 );
-				float3 Normal4_g34 = float3( 0,0,0 );
-				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_texcoord3.x;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord3.yz;
+				float3 ObjectNormal4_g38 = input.ase_normal;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
 				
-				float4 temp_output_2_0_g31 = RGBA4_g34;
+				float4 temp_output_2_0_g35 = RGBA4_g38;
 				
 
-				float3 Normal = Normal4_g34;
-				float Alpha = (temp_output_2_0_g31).w;
+				float3 Normal = Normal4_g38;
+				float Alpha = (temp_output_2_0_g35).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 				#endif
@@ -2640,6 +2766,8 @@ Shader "TerrainShader"
 
 			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
 			#define ASE_NEEDS_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_VERT_NORMAL
 			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
 
 
@@ -2684,6 +2812,7 @@ Shader "TerrainShader"
 					float4 probeOcclusion : TEXCOORD6;
 				#endif
 				float4 ase_texcoord7 : TEXCOORD7;
+				float3 ase_normal : NORMAL;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
@@ -2743,8 +2872,24 @@ Shader "TerrainShader"
 				UNITY_TRANSFER_INSTANCE_ID(input, output);
 				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
 
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_vertexId;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.texcoord.xy;
+				float3 ObjectNormal4_g38 = input.normalOS;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				
 				output.ase_texcoord7.x = input.ase_vertexId;
 				output.ase_texcoord7.yz = input.texcoord.xy;
+				output.ase_normal = input.normalOS;
 				
 				//setting value to unused interpolator channels and avoid initialization warnings
 				output.ase_texcoord7.w = 0;
@@ -2763,7 +2908,7 @@ Shader "TerrainShader"
 				#endif
 
 				input.normalOS = input.normalOS;
-				input.tangentOS = input.tangentOS;
+				input.tangentOS = Tangent4_g38;
 
 				#ifdef ASE_CUSTOM_MOTION_VECTOR
 					// Declared so the Motion Vector output port surfaces on the master node; only consumed by the motion vector passes.
@@ -2950,29 +3095,31 @@ Shader "TerrainShader"
 					BitangentWS = cross(NormalWS, -TangentWS);
 				#endif
 
-				float localBlendLayers4_g34 = ( 0.0 );
-				int VertexID4_g34 = input.ase_texcoord7.x;
-				float2 TileSize4_g34 = _TileSize;
-				float2 BaseUV4_g34 = input.ase_texcoord7.yz;
-				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g34) = _MainTex;
-				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
-				SamplerState Sampler4_g34 = sampler_MainTex;
-				SamplerState NormalSampler4_g34 = sampler_NormalMap;
-				float4 RGBA4_g34 = float4( 0,0,0,0 );
-				float3 Normal4_g34 = float3( 0,0,0 );
-				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
-				float4 temp_output_2_0_g31 = RGBA4_g34;
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_texcoord7.x;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord7.yz;
+				float3 ObjectNormal4_g38 = input.ase_normal;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				float4 temp_output_2_0_g35 = RGBA4_g38;
 				
 
-				float3 BaseColor = (temp_output_2_0_g31).xyz;
-				float3 Normal = Normal4_g34;
+				float3 BaseColor = (temp_output_2_0_g35).xyz;
+				float3 Normal = Normal4_g38;
 				float3 Specular = 0.5;
 				float Metallic = 0;
 				float Smoothness = 0.5;
 				float Occlusion = 1;
 				float3 Emission = 0;
-				float Alpha = (temp_output_2_0_g31).w;
+				float Alpha = (temp_output_2_0_g35).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 					float AlphaClipThresholdShadow = 0.5;
@@ -3195,6 +3342,7 @@ Shader "TerrainShader"
 				ASE_SV_POSITION_QUALIFIERS float4 positionCS : SV_POSITION;
 				float3 positionWS : TEXCOORD0;
 				float4 ase_texcoord1 : TEXCOORD1;
+				float3 ase_normal : NORMAL;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
@@ -3258,6 +3406,7 @@ Shader "TerrainShader"
 
 				output.ase_texcoord1.x = input.ase_vertexId;
 				output.ase_texcoord1.yz = input.ase_texcoord.xy;
+				output.ase_normal = input.normalOS;
 				
 				//setting value to unused interpolator channels and avoid initialization warnings
 				output.ase_texcoord1.w = 0;
@@ -3384,22 +3533,24 @@ Shader "TerrainShader"
 				float4 ScreenPosNorm = float4( GetNormalizedScreenSpaceUV( input.positionCS ), input.positionCS.zw );
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 
-				float localBlendLayers4_g34 = ( 0.0 );
-				int VertexID4_g34 = input.ase_texcoord1.x;
-				float2 TileSize4_g34 = _TileSize;
-				float2 BaseUV4_g34 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g34) = _MainTex;
-				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
-				SamplerState Sampler4_g34 = sampler_MainTex;
-				SamplerState NormalSampler4_g34 = sampler_NormalMap;
-				float4 RGBA4_g34 = float4( 0,0,0,0 );
-				float3 Normal4_g34 = float3( 0,0,0 );
-				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
-				float4 temp_output_2_0_g31 = RGBA4_g34;
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_texcoord1.x;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord1.yz;
+				float3 ObjectNormal4_g38 = input.ase_normal;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				float4 temp_output_2_0_g35 = RGBA4_g38;
 				
 
-				surfaceDescription.Alpha = (temp_output_2_0_g31).w;
+				surfaceDescription.Alpha = (temp_output_2_0_g35).w;
 				#if defined( _ALPHATEST_ON )
 					surfaceDescription.AlphaClipThreshold = _Cutoff;
 				#endif
@@ -3502,6 +3653,7 @@ Shader "TerrainShader"
 				ASE_SV_POSITION_QUALIFIERS float4 positionCS : SV_POSITION;
 				float3 positionWS : TEXCOORD0;
 				float4 ase_texcoord1 : TEXCOORD1;
+				float3 ase_normal : NORMAL;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
@@ -3565,6 +3717,7 @@ Shader "TerrainShader"
 
 				output.ase_texcoord1.x = input.ase_vertexId;
 				output.ase_texcoord1.yz = input.ase_texcoord.xy;
+				output.ase_normal = input.normalOS;
 				
 				//setting value to unused interpolator channels and avoid initialization warnings
 				output.ase_texcoord1.w = 0;
@@ -3691,22 +3844,24 @@ Shader "TerrainShader"
 				float4 ScreenPosNorm = float4( GetNormalizedScreenSpaceUV( input.positionCS ), input.positionCS.zw );
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 
-				float localBlendLayers4_g34 = ( 0.0 );
-				int VertexID4_g34 = input.ase_texcoord1.x;
-				float2 TileSize4_g34 = _TileSize;
-				float2 BaseUV4_g34 = input.ase_texcoord1.yz;
-				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g34) = _MainTex;
-				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
-				SamplerState Sampler4_g34 = sampler_MainTex;
-				SamplerState NormalSampler4_g34 = sampler_NormalMap;
-				float4 RGBA4_g34 = float4( 0,0,0,0 );
-				float3 Normal4_g34 = float3( 0,0,0 );
-				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
-				float4 temp_output_2_0_g31 = RGBA4_g34;
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_texcoord1.x;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord1.yz;
+				float3 ObjectNormal4_g38 = input.ase_normal;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				float4 temp_output_2_0_g35 = RGBA4_g38;
 				
 
-				surfaceDescription.Alpha = (temp_output_2_0_g31).w;
+				surfaceDescription.Alpha = (temp_output_2_0_g35).w;
 				#if defined( _ALPHATEST_ON )
 					surfaceDescription.AlphaClipThreshold = _Cutoff;
 				#endif
@@ -3822,6 +3977,7 @@ Shader "TerrainShader"
 				float4 previousPositionCSNoJitter : TEXCOORD1;
 				float3 positionWS : TEXCOORD2;
 				float4 ase_texcoord3 : TEXCOORD3;
+				float3 ase_normal : NORMAL;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
@@ -3877,6 +4033,7 @@ Shader "TerrainShader"
 
 				output.ase_texcoord3.x = input.ase_vertexId;
 				output.ase_texcoord3.yz = input.ase_texcoord.xy;
+				output.ase_normal = input.normalOS;
 				
 				//setting value to unused interpolator channels and avoid initialization warnings
 				output.ase_texcoord3.w = 0;
@@ -3969,22 +4126,24 @@ Shader "TerrainShader"
 				float4 ScreenPosNorm = float4( GetNormalizedScreenSpaceUV( input.positionCS ), input.positionCS.zw );
 				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
 
-				float localBlendLayers4_g34 = ( 0.0 );
-				int VertexID4_g34 = input.ase_texcoord3.x;
-				float2 TileSize4_g34 = _TileSize;
-				float2 BaseUV4_g34 = input.ase_texcoord3.yz;
-				float4 DefaultBlendColor4_g34 = _DefaultBlendColor;
-				TEXTURE2D(Texture4_g34) = _MainTex;
-				TEXTURE2D(NormalTexture4_g34) = _NormalMap;
-				SamplerState Sampler4_g34 = sampler_MainTex;
-				SamplerState NormalSampler4_g34 = sampler_NormalMap;
-				float4 RGBA4_g34 = float4( 0,0,0,0 );
-				float3 Normal4_g34 = float3( 0,0,0 );
-				BlendLayers( VertexID4_g34 , TileSize4_g34 , BaseUV4_g34 , DefaultBlendColor4_g34 , Texture4_g34 , NormalTexture4_g34 , Sampler4_g34 , NormalSampler4_g34 , RGBA4_g34 , Normal4_g34 );
-				float4 temp_output_2_0_g31 = RGBA4_g34;
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_texcoord3.x;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord3.yz;
+				float3 ObjectNormal4_g38 = input.ase_normal;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				float4 temp_output_2_0_g35 = RGBA4_g38;
 				
 
-				float Alpha = (temp_output_2_0_g31).w;
+				float Alpha = (temp_output_2_0_g35).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
 				#endif
@@ -4037,8 +4196,8 @@ Version=19912
 {"type":"AmplifyShaderEditor.TexturePropertyNode, AmplifyShaderEditor","id":50,"pos":[-304,64],"params":["Inherit","True","Property","_MainTex","MainTex","0","0","Create","True","0","0","0","False","0","False","","None","None","False","white","Auto","Texture2D","False","-1","0","2","SAMPLER2D","0","SAMPLERSTATE","1"]}
 {"type":"AmplifyShaderEditor.TexturePropertyNode, AmplifyShaderEditor","id":90,"pos":[-304,264],"params":["Inherit","True","Property","_NormalMap","NormalMap","1","0","Create","True","0","0","0","False","0","False","","None","None","False","white","Auto","Texture2D","False","-1","0","2","SAMPLER2D","0","SAMPLERSTATE","1"]}
 {"type":"AmplifyShaderEditor.ColorNode, AmplifyShaderEditor","id":84,"pos":[-312,-144],"params":["Inherit","False","Property","_DefaultBlendColor","DefaultBlendColor","4","0","Create","True","0","0","0","False","0","False","Object","-1","","0,0,0,1","0.7686275,0.435294,0.3058823,1","True","True","0","6","COLOR","0","FLOAT","1","FLOAT","2","FLOAT","3","FLOAT","4","FLOAT3","5"]}
-{"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":95,"pos":[-48,-16],"params":["Inherit","False","MosaicBlendLayers","2","","34","34be181aab269424fa7648145160b7fa","0","5","10","FLOAT4","0,0,0,0","False","8","SAMPLER2D","0","False","9","SAMPLERSTATE","0","False","11","SAMPLER2D","0","False","13","SAMPLERSTATE","0","False","2","FLOAT3","12","FLOAT4","7"]}
-{"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":55,"pos":[288,8],"params":["Inherit","False","Alpha Split","-1","","31","07dab7960105b86429ac8eebd729ed6d","0","1","2","FLOAT4","0,0,0,0","False","2","FLOAT3","0","FLOAT","6"]}
+{"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":98,"pos":[-48,-16],"params":["Inherit","False","MosaicBlendLayers","2","","38","34be181aab269424fa7648145160b7fa","0","5","10","FLOAT4","0,0,0,0","False","8","SAMPLER2D","0","False","9","SAMPLERSTATE","0","False","11","SAMPLER2D","0","False","13","SAMPLERSTATE","0","False","3","FLOAT3","12","FLOAT4","7","FLOAT4","15"]}
+{"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":55,"pos":[304,8],"params":["Inherit","False","Alpha Split","-1","","35","07dab7960105b86429ac8eebd729ed6d","0","1","2","FLOAT4","0,0,0,0","False","2","FLOAT3","0","FLOAT","6"]}
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":0,"pos":[32,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ExtraPrePass","0","0","ExtraPrePass","6","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","0","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","0","False","False","0","","0","0","Standard","0","False","0"]}
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":2,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ShadowCaster","0","2","ShadowCaster","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","True","False","False","False","False","0","False","","False","False","False","False","False","False","False","False","False","True","1","False","","True","3","False","","False","False","True","1","LightMode=ShadowCaster","False","False","0","","0","0","Standard","0","False","0"]}
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":3,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","DepthOnly","0","3","DepthOnly","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","True","True","False","False","False","0","False","","False","False","False","False","False","False","False","False","False","True","1","False","","False","False","False","True","1","LightMode=DepthOnly","False","False","0","","0","0","Standard","0","False","0"]}
@@ -4051,14 +4210,15 @@ Version=19912
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":10,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","MotionVectors","0","10","MotionVectors","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","False","False","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=MotionVectors","False","False","0","","0","0","Standard","0","False","0"]}
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":11,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","XRMotionVectors","0","11","XRMotionVectors","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","True","1","False","","255","False","","1","False","","7","False","","3","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","False","False","False","False","True","1","LightMode=XRMotionVectors","False","False","0","","0","0","Standard","0","False","0"]}
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":1,"pos":[496,-128],"params":["Float","False","True","-1","3","UnityEditor.ShaderGraphLitGUI","0","18","TerrainShader","94348b07e5e8bab40bd6c8a1e3df54cd","True","Forward","0","1","Forward","22","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=UniversalForward","False","False","0","","0","0","Standard","52","Category","0","0","  Instanced Terrain Normals","1","0","Lighting Model","0","0","Workflow","1","0","Surface","0","0","  Keep Alpha","0","0","  Refraction Model","0","0","  Blend","0","0","Two Sided","1","0","Alpha Clipping","0","638918163137198311","  Use Shadow Threshold","0","638913139129558050","Fragment Normal Space","0","0","Forward Only","0","0","Transmission","0","0","  Transmission Shadow","0.5,False,","0","Translucency","0","0","  Translucency Strength","1,False,","0","  Normal Distortion","0.5,False,","0","  Scattering","2,False,","0","  Direct","0.9,False,","0","  Ambient","0.1,False,","0","  Shadow","0.5,False,","0","Cast Shadows","1","0","Receive Shadows","2","0","Specular Highlights","2","0","Environment Reflections","2","0","Receive SSAO","1","0","Motion Vectors","1","0","  Additional Motion Vectors","1","0","  Alembic Motion Vectors","0","0","  XR Motion Vectors","0","0","GPU Instancing","0","638913139400457197","LOD CrossFade","0","638913139434204775","Built-in Fog","1","638913139484284097","_FinalColorxAlpha","0","0","Meta Pass","1","0","Override Baked GI","0","0","Extra Pre Pass","0","0","Tessellation","0","0","  Phong","0","0","  Strength","0.5,False,","0","  Type","0","0","  Tess","16,False,","0","  Min","10,False,","0","  Max","25,False,","0","  Edge Length","16,False,","0","  Max Displacement","25,False,","0","Write Depth","0","0","  Conservative","0","0","Vertex Position","1","0","Debug Display","1","0","Clear Coat","0","0","0","12","False","True","True","True","True","True","True","True","True","True","True","False","False","","True","0"]}
-{"wire":[95,10,84,0]}
-{"wire":[95,8,50,0]}
-{"wire":[95,9,50,1]}
-{"wire":[95,11,90,0]}
-{"wire":[95,13,90,1]}
-{"wire":[55,2,95,7]}
+{"wire":[98,10,84,0]}
+{"wire":[98,8,50,0]}
+{"wire":[98,9,50,1]}
+{"wire":[98,11,90,0]}
+{"wire":[98,13,90,1]}
+{"wire":[55,2,98,7]}
 {"wire":[1,0,55,0]}
-{"wire":[1,1,95,12]}
+{"wire":[1,1,98,12]}
 {"wire":[1,6,55,6]}
+{"wire":[1,30,98,15]}
 ASEEND*/
-//CHKSM=D03B7C1646EC023920B387976ABAD80B798564E3
+//CHKSM=248D00A9C6E0310CA5AFA037E4037F3D8AEC57A6

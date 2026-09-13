@@ -16,6 +16,7 @@ namespace FireAlt.Mosaic.Tests
             {
                 Assert.That(singleton.Layout.Length, Is.EqualTo(4));
                 Assert.That(singleton.Layout[2].attribute, Is.EqualTo(VertexAttribute.Tangent));
+                Assert.That(singleton.Layout[2].format, Is.EqualTo(VertexAttributeFormat.SNorm8));
                 Assert.That(singleton.Layout[2].dimension, Is.EqualTo(4));
             }
             finally { singleton.Dispose(); }
@@ -45,30 +46,41 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
-        public void TerrainTangentLayoutAndBasisMatchQuadGeometryAndUvs()
+        public void TerrainLayoutOmitsTangentData()
         {
             var singleton = new TerrainMeshDataSystem.Singleton(1, Allocator.Persistent);
             try
             {
-                Assert.That(singleton.Layout.Length, Is.EqualTo(4));
-                Assert.That(singleton.Layout[2].attribute, Is.EqualTo(VertexAttribute.Tangent));
-                Assert.That(singleton.Layout[2].dimension, Is.EqualTo(4));
+                Assert.That(singleton.Layout.Length, Is.EqualTo(3));
+                Assert.That(singleton.Layout[0].attribute, Is.EqualTo(VertexAttribute.Position));
+                Assert.That(singleton.Layout[1].attribute, Is.EqualTo(VertexAttribute.Normal));
+                Assert.That(singleton.Layout[2].attribute, Is.EqualTo(VertexAttribute.TexCoord0));
             }
             finally { singleton.Dispose(); }
+        }
 
-            foreach (var orientation in new[] { Orientation.XY, Orientation.XZ })
+        [Test]
+        public void StandingWallTransforms_TurnFacesAroundCellCenterWithoutTiltingArtwork()
+        {
+            var baseNormal = new float3(0f, 0f, -1f);
+            var baseTop = new float3(-0.5f, 1f, -0.5f);
+            var expectedNormals = new[]
             {
-                var normal = MosaicUtils.ApplyOrientation(new float3(0, 0, 1), orientation);
-                var up = MosaicUtils.ApplyOrientation(new float3(0, 1, 0), orientation);
-                var right = MosaicUtils.ApplyOrientation(new float3(1, 0, 0), orientation);
-                var tangent = MosaicUtils.CalculateTangent(
-                    normal, up, up + right, float3.zero, float2.zero, new float2(1));
-                var bitangent = math.cross(normal, tangent.xyz) * tangent.w;
-
-                Assert.That(math.dot(tangent.xyz, right), Is.EqualTo(1).Within(0.0001f));
-                Assert.That(math.dot(bitangent, up), Is.EqualTo(1).Within(0.0001f));
-                Assert.That(tangent.w, Is.EqualTo(-1));
+                new float3(0f, 0f, -1f), new float3(-1f, 0f, 0f),
+                new float3(0f, 0f, 1f), new float3(1f, 0f, 0f)
+            };
+            for (var rotation = 0; rotation < 4; rotation++)
+            {
+                var normal = MosaicUtils.TransformStandingTile(baseNormal, default, rotation);
+                var top = MosaicUtils.TransformStandingTile(baseTop, default, rotation);
+                Assert.That(math.distance(normal, expectedNormals[rotation]), Is.LessThan(0.0001f));
+                Assert.That(top.y, Is.EqualTo(1f));
+                Assert.That(MosaicUtils.StandingTileFace(default, rotation), Is.EqualTo(rotation));
             }
+
+            Assert.That(MosaicUtils.StandingTileFace(new bool2(true, false), 0), Is.EqualTo(0));
+            Assert.That(MosaicUtils.StandingTileFace(new bool2(false, true), 0), Is.EqualTo(2));
+            Assert.That(MosaicUtils.TransformStandingTile(baseTop, new bool2(true, false), 0).x, Is.EqualTo(0.5f));
         }
     }
 }

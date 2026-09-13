@@ -573,6 +573,42 @@ namespace FireAlt.Mosaic.Tests
         }
 
         [Test]
+        public void UniquePrefabResult_DefaultsOffAndBindsToCurrentRule()
+        {
+            var ruleGroup = ScriptableObject.CreateInstance<RuleGroup>();
+            var window = EditorWindow.CreateWindow<CallbackTestWindow>();
+            ruleGroup.rules.Add(new RuleGroup.Rule());
+            ruleGroup.rules.Add(new RuleGroup.Rule());
+            Assert.IsFalse(ruleGroup.rules[0].uniquePrefabPerCell);
+            Assert.IsNotNull(EditorResources.UniquePrefabSprite);
+            var button = new UniquePrefabButton(EditorResources.UniquePrefabSprite);
+            window.rootVisualElement.Add(button);
+            window.Show();
+
+            try
+            {
+                var serialized = new SerializedObject(ruleGroup);
+                var rules = serialized.FindProperty(nameof(RuleGroup.rules));
+                button.Bind(rules.GetArrayElementAtIndex(0)
+                    .FindPropertyRelative(nameof(RuleGroup.Rule.uniquePrefabPerCell)));
+                button.Bind(rules.GetArrayElementAtIndex(1)
+                    .FindPropertyRelative(nameof(RuleGroup.Rule.uniquePrefabPerCell)));
+                using (var click = ClickEvent.GetPooled())
+                {
+                    click.target = button;
+                    button.SendEvent(click);
+                }
+                Assert.IsFalse(ruleGroup.rules[0].uniquePrefabPerCell);
+                Assert.IsTrue(ruleGroup.rules[1].uniquePrefabPerCell);
+            }
+            finally
+            {
+                window.Close();
+                Object.DestroyImmediate(ruleGroup);
+            }
+        }
+
+        [Test]
         public void TilemapBake_ExpandsPackedRectanglesIntoInitialValues()
         {
             var tilemap = CreateTilemap("Packed Tilemap").GetComponent<TilemapAuthoring>();

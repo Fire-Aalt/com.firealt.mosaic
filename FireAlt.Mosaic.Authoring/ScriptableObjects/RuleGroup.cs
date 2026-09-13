@@ -45,6 +45,7 @@ namespace FireAlt.Mosaic.Authoring
             
             [FormerlySerializedAs("resultTransform")]
             public Transformation resultTransformation;
+            public bool uniquePrefabPerCell;
 
 #pragma warning disable CS0612 // Type or member is obsolete
             [SerializeField, FormerlySerializedAs("ruleTransform")]

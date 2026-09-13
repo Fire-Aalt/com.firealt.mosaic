@@ -17,6 +17,7 @@ namespace FireAlt.Mosaic.Editor
         public static readonly Texture HorizontalSprite;
         public static readonly Texture VerticalSprite;
         public static readonly Texture RotatedSprite;
+        public static readonly Texture UniquePrefabSprite;
         
         public static readonly StyleSheet StyleSheet;
         public static readonly StyleSheet PaintingStyleSheet;
@@ -34,6 +35,7 @@ namespace FireAlt.Mosaic.Editor
             HorizontalSprite = Load<Texture>("Horizontal.png");
             VerticalSprite = Load<Texture>("Vertical.png");
             RotatedSprite = Load<Texture>("Rotated.png");
+            UniquePrefabSprite = Load<Texture>("UniquePrefab.png");
             
             StyleSheet = Load<StyleSheet>("IntGridMatrix.uss");
             PaintingStyleSheet = Load<StyleSheet>("MosaicPainting.uss");

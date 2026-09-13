@@ -18,6 +18,7 @@ namespace FireAlt.Mosaic.Authoring
             root.Chance = rule.ruleChance;
             root.RuleTransform = rule.ruleTransformation;
             root.ResultTransform = rule.resultTransformation;
+            root.UniquePrefabPerCell = rule.uniquePrefabPerCell;
             
             AddPatterns(ref builder, ref root, rule, refreshPositions);
             AddResults(ref builder, ref root, rule, entityCount);

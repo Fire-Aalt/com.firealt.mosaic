@@ -112,17 +112,26 @@ void BlendColor(float4 color, inout float a_accumulated, inout float3 rgb)
   a_accumulated += (1.0 - a_accumulated) * a_effective;
 }
 
+inline float4 ReconstructTerrainTangent(float3 normal) {
+  float3 tangent = abs(normal.y) > 0.5
+    ? float3(1.0, 0.0, 0.0)
+    : cross(normal, float3(0.0, 1.0, 0.0));
+  return float4(tangent, -1.0);
+}
+
 inline void BlendLayers(
   uint VertexID,
   float2 TileSize,
   float2 BaseUV,
+  float3 ObjectNormal,
   float4 DefaultBlendColor,
   Texture2D Texture,
   Texture2D NormalTexture,
   SamplerState Sampler,
   SamplerState NormalSampler,
   out float4 RGBA,
-  out float3 Normal
+  out float3 Normal,
+  out float4 Tangent
 ) {
   uint blend_data_index = VertexID / 4;
   TerrainIndex indices = _TerrainIndexBuffer[blend_data_index];
@@ -164,6 +173,7 @@ inline void BlendLayers(
   Normal = normal_length_squared > 0.0
     ? normal_accumulated * rsqrt(normal_length_squared)
     : float3(0.0, 0.0, 1.0);
+  Tangent = ReconstructTerrainTangent(ObjectNormal);
 }
 
 #endif // MOSAICTERRAIN_INCLUDED

@@ -3,6 +3,7 @@ using FireAlt.Mosaic.Data;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Entities;
+using Unity.Mathematics;
 using Unity.Transforms;
 
 namespace FireAlt.Mosaic
@@ -22,7 +23,38 @@ namespace FireAlt.Mosaic
             _commandsList = dataSingleton.EntityCommands.List;
             _intGridLayers = dataSingleton.IntGridLayers;
             
-            if (_commandsList.Length == 0) return;
+            var queuedLength = _commandsList.Length;
+            if (queuedLength == 0) return;
+            var validCount = 0;
+            for (var i = 0; i < queuedLength; i++)
+            {
+                var command = _commandsList[i];
+                if (!_intGridLayers.TryGetValue(command.IntGridHash, out var layer)
+                    || layer.IntGridEntity != command.IntGridEntity
+                    || !layer.RuleGrid.TryGetValue(command.Position, out var rule)
+                    || rule.Version != command.RuleVersion) continue;
+
+                var alreadySpawned = false;
+                if (layer.SpawnedEntities.TryGetFirstValue(command.Position, out var spawned, out var iterator))
+                {
+                    do
+                    {
+                        if (spawned.RuleVersion == command.RuleVersion && spawned.Face == command.Face)
+                        {
+                            alreadySpawned = true;
+                            break;
+                        }
+                    }
+                    while (layer.SpawnedEntities.TryGetNextValue(out spawned, ref iterator));
+                }
+                if (!alreadySpawned) _commandsList[validCount++] = command;
+            }
+            _commandsList.ResizeUninitialized(validCount);
+            if (_commandsList.Length == 0)
+            {
+                dataSingleton.EntityCommands.Clear();
+                return;
+            }
             _commandsList.Sort(new DeferredCommandComparer());
             
             var beginBatchIndex = 0;
@@ -62,11 +94,20 @@ namespace FireAlt.Mosaic
                 var rendererData = state.EntityManager.GetComponentData<TilemapTransform>(dataLayer.IntGridEntity);
                 var tilemapTransform = state.EntityManager.GetComponentData<LocalToWorld>(dataLayer.IntGridEntity);
                 
+                var position = MosaicUtils.ToWorldSpace(cell, rendererData) + srcTransform.Position;
+                var rotation = srcTransform.Rotation;
+                if (MosaicUtils.IsStandingTile(rendererData))
+                {
+                    var center = MosaicUtils.ToWorldSpace(cell + new float2(0.5f), rendererData);
+                    position = center + MosaicUtils.TransformStandingTile(position - center, currentCommand.MatchedMirror, currentCommand.MatchedRotation);
+                    rotation = math.mul(quaternion.RotateY(currentCommand.Face * (math.PI / 2f)), rotation);
+                }
+
                 state.EntityManager.SetComponentData(instance, new LocalTransform
                 {
-                    Position = MosaicUtils.ToWorldSpace(cell, rendererData) + srcTransform.Position + tilemapTransform.Position, 
+                    Position = position + tilemapTransform.Position,
                     Scale = srcTransform.Scale,
-                    Rotation = srcTransform.Rotation
+                    Rotation = rotation
                 });
                 if (hasTilemapCellComponent)
                 {
@@ -77,7 +118,12 @@ namespace FireAlt.Mosaic
                     });
                 }
                 
-                dataLayer.SpawnedEntities[cell] = instance;
+                dataLayer.SpawnedEntities.Add(cell, new TilemapIntGridSingleton.SpawnedEntity
+                {
+                    Entity = instance,
+                    RuleVersion = currentCommand.RuleVersion,
+                    Face = currentCommand.Face
+                });
             }
         }
     }

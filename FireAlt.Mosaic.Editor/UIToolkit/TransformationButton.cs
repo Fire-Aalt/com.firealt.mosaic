@@ -1,5 +1,6 @@
 using FireAlt.Mosaic.Data;
 using UnityEditor;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace FireAlt.Mosaic.Editor
@@ -59,6 +60,41 @@ namespace FireAlt.Mosaic.Editor
                 DisableIconButton();
             }
             _property.serializedObject.ApplyModifiedProperties();
+        }
+    }
+
+    public class UniquePrefabButton : Image
+    {
+        private const string DISABLED = "icon-button-disabled";
+        private const string ENABLED = "icon-button-enabled";
+
+        private SerializedProperty _property;
+
+        public UniquePrefabButton(Texture image)
+        {
+            this.image = image;
+            tooltip = "Only 1 unique prefab per cell for this rule. Matching faces still render, but only the first face spawns a prefab.";
+            AddToClassList("icon-button");
+            RegisterCallback<ClickEvent>(OnClicked);
+        }
+
+        public void Bind(SerializedProperty property)
+        {
+            _property = property;
+            Refresh();
+        }
+
+        private void OnClicked(ClickEvent _)
+        {
+            _property.boolValue = !_property.boolValue;
+            _property.serializedObject.ApplyModifiedProperties();
+            Refresh();
+        }
+
+        private void Refresh()
+        {
+            EnableInClassList(ENABLED, _property.boolValue);
+            EnableInClassList(DISABLED, !_property.boolValue);
         }
     }
 }

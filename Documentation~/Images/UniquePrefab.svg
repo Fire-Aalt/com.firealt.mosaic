@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 128 128">
+  <title>One unique prefab per cell</title>
+  <defs>
+    <mask id="badge-clearance">
+      <rect width="128" height="128" fill="white"/>
+      <circle cx="96" cy="96" r="27" fill="black"/>
+    </mask>
+    <mask id="badge-number">
+      <rect width="128" height="128" fill="white"/>
+      <path d="M89 90 L96 85 L98 85 L98 107 M90 107 H104"
+            fill="none" stroke="black" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    </mask>
+  </defs>
+  <g fill="none" stroke="#fff" stroke-width="6" stroke-linejoin="round" stroke-linecap="round"
+     mask="url(#badge-clearance)">
+    <path d="M56 15 L94 37 L94 81 L56 103 L18 81 L18 37 Z"/>
+    <path d="M18 37 L56 59 L94 37 M56 59 V103"/>
+  </g>
+  <circle cx="96" cy="96" r="21" fill="#fff" mask="url(#badge-number)"/>
+</svg>

@@ -1,3 +1,10 @@
+## [4.1.0] - 2026-09-14
+
+### Added
+* Added explicit support for "standing tiles" and correct result transformations. Added for better 2.5D games support and future SCGI support.
+* Added "Unique Prefab per cell" Result option for rules. Allows to restrict to having only a single prefab in rules, which have Rule transforms like Flip or Rotate.
+* Added missing Tangents for Tilemap and Terrain meshes, to have full support for Normal Maps. Tilemap uses packed 4 byte tangents per vertex and Terrain derives tangents in the shader.
+
 ## [4.0.2] - 2026-09-07
 
 ### Fixed

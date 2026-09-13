@@ -22,6 +22,7 @@ namespace FireAlt.Mosaic.Editor
         private TransformationButton _horizontalResultTransformation;
         private TransformationButton _verticalResultTransformation;
         private TransformationButton _rotationResultTransformation;
+        private UniquePrefabButton _uniquePrefabButton;
         
         private RuleGroup _ruleGroup;
         private int _ruleIndex;
@@ -70,6 +71,8 @@ namespace FireAlt.Mosaic.Editor
                 _horizontalResultTransformation = CreateIconButton(Transformation.MirrorX, horTooltip, root, EditorResources.HorizontalSprite);
                 _verticalResultTransformation = CreateIconButton(Transformation.MirrorY, verTooltip, root, EditorResources.VerticalSprite);
                 _rotationResultTransformation = CreateIconButton(Transformation.Rotated, rotTooltip, root, EditorResources.RotatedSprite);
+                _uniquePrefabButton = new UniquePrefabButton(EditorResources.UniquePrefabSprite);
+                root.Add(_uniquePrefabButton);
             }
         }
 
@@ -110,6 +113,7 @@ namespace FireAlt.Mosaic.Editor
             _horizontalResultTransformation.Bind(resultTransformationProperty);
             _verticalResultTransformation.Bind(resultTransformationProperty);
             _rotationResultTransformation.Bind(resultTransformationProperty);
+            _uniquePrefabButton.Bind(_ruleProperty.FindPropertyRelative(nameof(RuleGroup.Rule.uniquePrefabPerCell)));
         }
         
         private void OnEnableFieldChange(ChangeEvent<bool> evt)

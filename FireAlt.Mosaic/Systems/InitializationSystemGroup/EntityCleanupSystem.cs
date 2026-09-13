@@ -45,7 +45,7 @@ namespace FireAlt.Mosaic
                 {
                     foreach (var spawnedEntity in spawnedEntities)
                     {
-                        if (entityLookup.Exists(spawnedEntity.Value)) _entitiesToDelete.Add(spawnedEntity.Value);
+                        if (entityLookup.Exists(spawnedEntity.Value.Entity)) _entitiesToDelete.Add(spawnedEntity.Value.Entity);
                     }
 
                     spawnedEntities.Clear();
@@ -54,11 +54,11 @@ namespace FireAlt.Mosaic
                 }
 
                 if (dataLayer.DestroySpawnedEntities ||
-                    dataLayer.RuleGrid.Count == 0 && dataLayer.SpawnedEntities.Count != 0)
+                    dataLayer.RuleGrid.Count == 0 && dataLayer.SpawnedEntities.Count() != 0)
                 {
                     foreach (var kvPair in dataLayer.SpawnedEntities)
                     {
-                        if (entityLookup.Exists(kvPair.Value)) _entitiesToDelete.Add(kvPair.Value);
+                        if (entityLookup.Exists(kvPair.Value.Entity)) _entitiesToDelete.Add(kvPair.Value.Entity);
                     }
                     dataLayer.SpawnedEntities.Clear();
                     dataLayer.DestroySpawnedEntities = false;
@@ -67,10 +67,17 @@ namespace FireAlt.Mosaic
                 {
                     foreach (var removedPos in dataLayer.RefreshedPositions)
                     {
-                        if (!spawnedEntities.TryGetValue(removedPos, out var entity)) continue;
+                        if (!spawnedEntities.TryGetFirstValue(removedPos, out var spawned, out var iterator)) continue;
+                        do
+                        {
+                            if (entityLookup.Exists(spawned.Entity)) _entitiesToDelete.Add(spawned.Entity);
+                        }
+                        while (spawnedEntities.TryGetNextValue(out spawned, ref iterator));
                         spawnedEntities.Remove(removedPos);
-                        if (entityLookup.Exists(entity)) _entitiesToDelete.Add(entity);
                     }
+
+                    if (dataLayer.RuleGrid.Count == 0 && (dataLayer.Cleared || !dataLayer.RefreshedPositions.IsEmpty))
+                        spawnedEntities.Clear();
                 }
             }
 

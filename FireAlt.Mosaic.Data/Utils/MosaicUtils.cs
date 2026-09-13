@@ -83,8 +83,9 @@ namespace FireAlt.Mosaic.Data
         internal static float4 CalculateTangent(float3 normal, float3 vertex0, float3 vertex1,
             float3 vertex3, float2 minUv, float2 maxUv)
         {
-            var tangent = math.normalizesafe(vertex1 - vertex0) * math.sign(maxUv.x - minUv.x);
-            var bitangent = math.normalizesafe(vertex0 - vertex3) * math.sign(maxUv.y - minUv.y);
+            // Mosaic quads remain axis-aligned after their quarter turns and reflections.
+            var tangent = math.sign(vertex1 - vertex0) * math.sign(maxUv.x - minUv.x);
+            var bitangent = math.sign(vertex0 - vertex3) * math.sign(maxUv.y - minUv.y);
             var handedness = math.dot(math.cross(normal, tangent), bitangent) < 0 ? -1f : 1f;
             return new float4(tangent, handedness);
         }
@@ -107,6 +108,11 @@ namespace FireAlt.Mosaic.Data
                 Swizzle.XZY => pos.xzy,
                 _ => float3.zero
             };
+        }
+
+        public static bool IsStandingTile(in TilemapTransform transform)
+        {
+            return transform is { Orientation: Orientation.XY, Swizzle: Swizzle.XZY };
         }
         
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -137,6 +143,22 @@ namespace FireAlt.Mosaic.Data
             }
 
             return dir;
+        }
+
+        public static float3 TransformStandingTile(float3 offset, bool2 mirror, int rotation)
+        {
+            if (mirror.x) offset.x = -offset.x;
+            if (mirror.y) offset.z = -offset.z;
+            return Rotate(offset, rotation, Orientation.XZ);
+        }
+
+        public static byte StandingTileFace(bool2 mirror, int rotation)
+        {
+            var normal = TransformStandingTile(new float3(0f, 0f, -1f), mirror, rotation);
+            if (normal.z < -0.5f) return 0;
+            if (normal.x < -0.5f) return 1;
+            if (normal.z > 0.5f) return 2;
+            return 3;
         }
     }
 }

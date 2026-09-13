@@ -8,15 +8,29 @@ using Unity.Mathematics;
 
 namespace FireAlt.Mosaic.Data
 {
+    public struct RuleResultState
+    {
+        public int Hash;
+        public uint Version;
+    }
+
     public struct TilemapIntGridSingleton : IComponentData, IDisposable
     {
+        public struct SpawnedEntity
+        {
+            public Entity Entity;
+            public uint RuleVersion;
+            public byte Face;
+        }
+
         public struct IntGridLayer : IDisposable
         {
             public UnsafeHashMap<int2, IntGridValue> IntGrid;
-            public UnsafeHashMap<int2, int> RuleGrid;
+            public UnsafeHashMap<int2, RuleResultState> RuleGrid;
+            public uint NextRuleVersion;
         
-            public UnsafeHashMap<int2, SpriteMesh> RenderedSprites;
-            public UnsafeHashMap<int2, Entity> SpawnedEntities;
+            public UnsafeParallelMultiHashMap<int2, SpriteMesh> RenderedSprites;
+            public UnsafeParallelMultiHashMap<int2, SpawnedEntity> SpawnedEntities;
 
             public UnsafeHashSet<int2> ChangedPositions;
             public UnsafeHashSet<int2> PositionsToRefresh;
@@ -33,13 +47,14 @@ namespace FireAlt.Mosaic.Data
             public IntGridLayer(int capacity, Allocator allocator, IntGridData intGridData, bool isTerrainLayer, Entity intGridEntity)
             {
                 IntGrid = new UnsafeHashMap<int2, IntGridValue>(capacity, allocator);
-                RuleGrid = new UnsafeHashMap<int2, int>(capacity, allocator);
+                RuleGrid = new UnsafeHashMap<int2, RuleResultState>(capacity, allocator);
+                NextRuleVersion = 0;
                 
                 ChangedPositions = new UnsafeHashSet<int2>(capacity, allocator);
                 PositionsToRefresh = new UnsafeHashSet<int2>(capacity, allocator);
             
-                SpawnedEntities = new UnsafeHashMap<int2, Entity>(capacity, allocator);
-                RenderedSprites = new UnsafeHashMap<int2, SpriteMesh>(capacity, allocator);
+                SpawnedEntities = new UnsafeParallelMultiHashMap<int2, SpawnedEntity>(capacity, allocator);
+                RenderedSprites = new UnsafeParallelMultiHashMap<int2, SpriteMesh>(capacity, allocator);
             
                 RefreshedPositions = new UnsafeList<int2>(capacity, allocator);
 
@@ -62,7 +77,7 @@ namespace FireAlt.Mosaic.Data
                 RefreshedPositions.Clear();
 
                 Cleared = true;
-                DestroySpawnedEntities = SpawnedEntities.Count != 0;
+                DestroySpawnedEntities = SpawnedEntities.Count() != 0;
                 ForceRuleRefresh = false;
                 DualGrid = intGridData.DualGrid;
                 IsTerrainLayer = isTerrainLayer;
