@@ -30,8 +30,7 @@
     "autoReferenced": false,
     "defineConstraints": [
         "BL_ANCHOR",
-        "UNITY_EDITOR || BL_DEBUG",
-        "UNITY_EDITOR || !APP_UI_EDITOR_ONLY"
+        "UNITY_INCLUDE_INSTRUMENTATION"
     ],
     "versionDefines": [
         {

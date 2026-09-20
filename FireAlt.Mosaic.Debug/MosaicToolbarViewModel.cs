@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using BovineLabs.Anchor;
+using BovineLabs.Anchor.Debug.Toolbar;
+using UnityEngine.UIElements;
 using Unity.AppUI.UI;
 using Unity.Collections;
 using Unity.Entities;
@@ -8,8 +10,13 @@ using Unity.Properties;
 
 namespace FireAlt.Mosaic.Debug
 {
-    public partial class MosaicToolbarViewModel : SystemObservableObject<MosaicToolbarViewModel.Data>, ILoadable
+    public partial class MosaicToolbarViewModel : SystemObservableObject<MosaicToolbarViewModel.Data>, ILoadable, IToolbarElement
     {
+        public VisualElement CreateElement()
+        {
+            return new MosaicToolbarView(this);
+        }
+
         [CreateProperty]
         public UIArray<Data.IntGridName> IntGrids => Value.IntGrids;
 

@@ -2,20 +2,22 @@ using System;
 using System.ComponentModel;
 using BovineLabs.Anchor;
 using Unity.AppUI.UI;
+using UnityEngine.UIElements;
 
 namespace FireAlt.Mosaic.Debug
 {
-    [Transient]
-    public class MosaicToolbarView : View<MosaicToolbarViewModel>, IDisposable
+    public class MosaicToolbarView : VisualElement, IDisposable
     {
-        public const string UssClassName = "bl-quality-tab";
+        public const string USS_CLASS_NAME = "bl-quality-tab";
 
         private readonly Dropdown _dropdown;
         
-        public MosaicToolbarView()
-            : base(new MosaicToolbarViewModel())
+        private MosaicToolbarViewModel ViewModel => (MosaicToolbarViewModel)dataSource;
+
+        public MosaicToolbarView(MosaicToolbarViewModel viewModel)
         {
-            AddToClassList(UssClassName);
+            dataSource = viewModel;
+            AddToClassList(USS_CLASS_NAME);
             
             _dropdown = new Dropdown
             {
@@ -25,6 +27,8 @@ namespace FireAlt.Mosaic.Debug
                 defaultMessage = "Draw IntGrids",
                 bindTitle = (item, _) => item.labelElement.text = "Draw IntGrids",
                 bindItem = ViewModel.BindItem,
+                sourceItems = ViewModel.IntGrids,
+                value = ViewModel.IntGridValues,
             };
 
             _dropdown.SetBindingTwoWay(nameof(Dropdown.value), nameof(MosaicToolbarViewModel.IntGridValues));

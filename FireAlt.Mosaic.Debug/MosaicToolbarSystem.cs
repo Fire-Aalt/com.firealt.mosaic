@@ -20,13 +20,13 @@ namespace FireAlt.Mosaic.Debug
     [UpdateInGroup(typeof(ToolbarSystemGroup))]
     public partial struct MosaicToolbarSystem : ISystem, ISystemStartStop
     {
-        private ToolbarHelper<MosaicToolbarView, MosaicToolbarViewModel, MosaicToolbarViewModel.Data> _toolbar;
+        private ToolbarHelper<MosaicToolbarViewModel, MosaicToolbarViewModel.Data> _toolbar;
         
         private NativeList<MosaicToolbarViewModel.Data.IntGridName> _intGridsBuffer;
         
         public void OnCreate(ref SystemState state)
         {
-            _toolbar = new ToolbarHelper<MosaicToolbarView, MosaicToolbarViewModel, MosaicToolbarViewModel.Data>(ref state, "Mosaic");
+            _toolbar = new ToolbarHelper<MosaicToolbarViewModel, MosaicToolbarViewModel.Data>(ref state, "Mosaic");
             
             _intGridsBuffer = new NativeList<MosaicToolbarViewModel.Data.IntGridName>(Allocator.Persistent);
             
