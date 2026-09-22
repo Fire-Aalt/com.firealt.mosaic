@@ -208,7 +208,7 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
 			#define ASE_VERSION 19912
-			#define ASE_SRP_VERSION 170600
+			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -944,7 +944,7 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
 			#define ASE_VERSION 19912
-			#define ASE_SRP_VERSION 170600
+			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -1299,7 +1299,7 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
 			#define ASE_VERSION 19912
-			#define ASE_SRP_VERSION 170600
+			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -1630,7 +1630,7 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
 			#define ASE_VERSION 19912
-			#define ASE_SRP_VERSION 170600
+			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -1964,7 +1964,7 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
 			#define ASE_VERSION 19912
-			#define ASE_SRP_VERSION 170600
+			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -2270,7 +2270,7 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
 			#define ASE_VERSION 19912
-			#define ASE_SRP_VERSION 170600
+			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -2675,7 +2675,7 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
 			#define ASE_VERSION 19912
-			#define ASE_SRP_VERSION 170600
+			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -3271,7 +3271,7 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
 			#define ASE_VERSION 19912
-			#define ASE_SRP_VERSION 170600
+			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -3518,6 +3518,7 @@ Shader "TerrainShader"
 				#endif
 				 ) : SV_Target
 			{
+				UNITY_SETUP_INSTANCE_ID(input);
 				SurfaceDescription surfaceDescription = (SurfaceDescription)0;
 
 				float3 PositionWS = input.positionWS;
@@ -3581,7 +3582,7 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
 			#define ASE_VERSION 19912
-			#define ASE_SRP_VERSION 170600
+			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
 
@@ -3828,6 +3829,7 @@ Shader "TerrainShader"
 				#endif
 				 ) : SV_Target
 			{
+				UNITY_SETUP_INSTANCE_ID(input);
 				SurfaceDescription surfaceDescription = (SurfaceDescription)0;
 
 				float3 PositionWS = input.positionWS;
@@ -3889,7 +3891,7 @@ Shader "TerrainShader"
 Version=19912
 {"type":"AmplifyShaderEditor.TexturePropertyNode, AmplifyShaderEditor","id":50,"pos":[-304,64],"params":["Inherit","True","Property","_MainTex","MainTex","0","0","Create","True","0","0","0","False","0","False","","None","None","False","white","Auto","Texture2D","False","-1","0","2","SAMPLER2D","0","SAMPLERSTATE","1"]}
 {"type":"AmplifyShaderEditor.TexturePropertyNode, AmplifyShaderEditor","id":90,"pos":[-304,264],"params":["Inherit","True","Property","_NormalMap","NormalMap","1","0","Create","True","0","0","0","False","0","False","","None","None","False","white","Auto","Texture2D","False","-1","0","2","SAMPLER2D","0","SAMPLERSTATE","1"]}
-{"type":"AmplifyShaderEditor.ColorNode, AmplifyShaderEditor","id":84,"pos":[-312,-144],"params":["Inherit","False","Property","_DefaultBlendColor","DefaultBlendColor","4","0","Create","True","0","0","0","False","0","False","Object","-1","","0,0,0,1","0.7686275,0.435294,0.3058823,1","True","True","0","6","COLOR","0","FLOAT","1","FLOAT","2","FLOAT","3","FLOAT","4","FLOAT3","5"]}
+{"type":"AmplifyShaderEditor.ColorNode, AmplifyShaderEditor","id":84,"pos":[-304,-152],"params":["Inherit","False","Property","_DefaultBlendColor","DefaultBlendColor","4","0","Create","True","0","0","0","False","0","False","Object","-1","","0,0,0,1","0.7686275,0.435294,0.3058823,1","True","True","0","6","COLOR","0","FLOAT","1","FLOAT","2","FLOAT","3","FLOAT","4","FLOAT3","5"]}
 {"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":98,"pos":[-48,-16],"params":["Inherit","False","MosaicBlendLayers","2","","38","34be181aab269424fa7648145160b7fa","0","5","10","FLOAT4","0,0,0,0","False","8","SAMPLER2D","0","False","9","SAMPLERSTATE","0","False","11","SAMPLER2D","0","False","13","SAMPLERSTATE","0","False","3","FLOAT3","12","FLOAT4","7","FLOAT4","15"]}
 {"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":55,"pos":[304,8],"params":["Inherit","False","Alpha Split","-1","","39","07dab7960105b86429ac8eebd729ed6d","0","1","2","FLOAT4","0,0,0,0","False","2","FLOAT3","0","FLOAT","6"]}
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":0,"pos":[32,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ExtraPrePass","0","0","ExtraPrePass","6","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","0","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","0","False","False","0","","0","0","Standard","0","False","0"]}
@@ -3915,4 +3917,4 @@ Version=19912
 {"wire":[1,6,55,6]}
 {"wire":[1,30,98,15]}
 ASEEND*/
-//CHKSM=7207CB7EA82D9C30DDDA608B49D41BC61FFB6DC0
+//CHKSM=D22FEB02992C61B195B7AB55327D7E3D7E88C4A1
