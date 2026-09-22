@@ -725,22 +725,25 @@ Shader "TerrainShader"
 					float3 SH = input.lightmapUVOrVertexSH.xyz;
 				#endif
 
-				#if defined(_SCREEN_SPACE_IRRADIANCE) && ( UNITY_VERSION >= 60030000 )
-					#if ( UNITY_VERSION >= 60060000 )
-						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS));
-					#else
+				#if defined(_SCREEN_SPACE_IRRADIANCE)
+					#if ( UNITY_VERSION >= 60070000 )
+						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS, GetInvPreExposureMultiplier());
+					#elif ( UNITY_VERSION >= 60060000 )
+						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS);
+					#elif ( UNITY_VERSION >= 60030000 )
 						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy);
 					#endif
 				#elif defined(DYNAMICLIGHTMAP_ON)
 					inputData.bakedGI = SAMPLE_GI(input.lightmapUVOrVertexSH.xy, input.dynamicLightmapUV.xy, SH, inputData.normalWS);
 					inputData.shadowMask = SAMPLE_SHADOWMASK(input.lightmapUVOrVertexSH.xy);
 				#elif !defined(LIGHTMAP_ON) && (defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2))
-					inputData.bakedGI = SAMPLE_GI( SH, GetAbsolutePositionWS(inputData.positionWS),
+					inputData.bakedGI = SAMPLE_GI(SH,
+						GetAbsolutePositionWS(inputData.positionWS),
 						inputData.normalWS,
 						inputData.viewDirectionWS,
 						input.positionCS.xy,
 						input.probeOcclusion,
-						inputData.shadowMask );
+						inputData.shadowMask);
 				#else
 					inputData.bakedGI = SAMPLE_GI(input.lightmapUVOrVertexSH.xy, SH, inputData.normalWS);
 					inputData.shadowMask = SAMPLE_SHADOWMASK(input.lightmapUVOrVertexSH.xy);
@@ -3169,10 +3172,12 @@ Shader "TerrainShader"
 					float3 SH = input.lightmapUVOrVertexSH.xyz;
 				#endif
 
-				#if defined(_SCREEN_SPACE_IRRADIANCE) && ( UNITY_VERSION >= 60030000 )
-					#if ( UNITY_VERSION >= 60060000 )
-						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS));
-					#else
+				#if defined(_SCREEN_SPACE_IRRADIANCE)
+					#if ( UNITY_VERSION >= 60070000 )
+						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS, GetInvPreExposureMultiplier());
+					#elif ( UNITY_VERSION >= 60060000 )
+						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS);
+					#elif ( UNITY_VERSION >= 60030000 )
 						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy);
 					#endif
 				#elif defined(DYNAMICLIGHTMAP_ON)
@@ -3917,4 +3922,4 @@ Version=19912
 {"wire":[1,6,55,6]}
 {"wire":[1,30,98,15]}
 ASEEND*/
-//CHKSM=D22FEB02992C61B195B7AB55327D7E3D7E88C4A1
+//CHKSM=9B0CA7E24970AD7F95711147D089E43C6DA8D79B
