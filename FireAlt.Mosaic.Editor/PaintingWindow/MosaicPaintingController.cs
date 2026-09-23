@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using FireAlt.Core;
@@ -16,8 +17,8 @@ using Hash128 = Unity.Entities.Hash128;
 
 namespace FireAlt.Mosaic.Editor
 {
-    [InitializeOnLoad]
-    internal static class MosaicPaintingController
+    [NoAutoStaticsCleanup]
+    internal static partial class MosaicPaintingController
     {
         public const int MIN_BRUSH_SIZE = 1;
         public const int MAX_BRUSH_SIZE = 10;
@@ -49,7 +50,8 @@ namespace FireAlt.Mosaic.Editor
 
         internal static int SnapshotRevision { get; private set; }
 
-        static MosaicPaintingController()
+        [OnCodeInitializing]
+        private static void Initialize()
         {
             _stage = StageUtility.GetCurrentStageHandle();
             _prefabStage = PrefabStageUtility.GetCurrentPrefabStage();
@@ -62,8 +64,22 @@ namespace FireAlt.Mosaic.Editor
             EditorSceneManager.sceneOpened += OnSceneOpened;
             EditorSceneManager.sceneClosing += OnSceneClosing;
             EditorSceneManager.sceneClosed += OnSceneClosed;
-            AssemblyReloadEvents.beforeAssemblyReload += Preview.Dispose;
             QueueRefresh();
+        }
+
+        [OnCodeUnloading]
+        private static void Unload()
+        {
+            EditorApplication.projectChanged -= QueueRefresh;
+            EditorApplication.update -= OnEditorUpdate;
+            EditorApplication.playModeStateChanged -= OnPlayModeChanged;
+            ObjectChangeEvents.changesPublished -= OnObjectChanges;
+            Undo.postprocessModifications -= OnPostprocessModifications;
+            Undo.undoRedoEvent -= OnUndoRedo;
+            EditorSceneManager.sceneOpened -= OnSceneOpened;
+            EditorSceneManager.sceneClosing -= OnSceneClosing;
+            EditorSceneManager.sceneClosed -= OnSceneClosed;
+            Preview.Dispose();
         }
 
         internal static event Action SnapshotChanged;

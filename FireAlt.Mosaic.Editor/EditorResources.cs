@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using FireAlt.Core.Editor;
 using UnityEditor;
 using UnityEngine;
@@ -5,26 +6,28 @@ using UnityEngine.UIElements;
 
 namespace FireAlt.Mosaic.Editor
 {
-    [InitializeOnLoad]
-    public static class EditorResources
+    
+    [NoAutoStaticsCleanup]
+    public static partial class EditorResources
     {
-        public static readonly Texture MosaicPaintingToolIcon;
+        public static Texture MosaicPaintingToolIcon;
         
-        public static readonly Texture NotTexture;
-        public static readonly Texture AnyTexture;
-        public static readonly Texture MatrixCenterTexture;
+        public static Texture NotTexture;
+        public static Texture AnyTexture;
+        public static Texture MatrixCenterTexture;
         
-        public static readonly Texture HorizontalSprite;
-        public static readonly Texture VerticalSprite;
-        public static readonly Texture RotatedSprite;
-        public static readonly Texture UniquePrefabSprite;
+        public static Texture HorizontalSprite;
+        public static Texture VerticalSprite;
+        public static Texture RotatedSprite;
+        public static Texture UniquePrefabSprite;
         
-        public static readonly StyleSheet StyleSheet;
-        public static readonly StyleSheet PaintingStyleSheet;
-        public static readonly VisualTreeAsset WeightedListElementAsset;
-        public static readonly VisualTreeAsset RuleGroupElementAsset;
+        public static StyleSheet StyleSheet;
+        public static StyleSheet PaintingStyleSheet;
+        public static VisualTreeAsset WeightedListElementAsset;
+        public static VisualTreeAsset RuleGroupElementAsset;
         
-        static EditorResources()
+        [OnCodeInitializing]
+        private static void Initialize()
         {
             MosaicPaintingToolIcon = Load<Texture>("MosaicPaintingIcon.png");
             

@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
@@ -6,6 +7,7 @@ using FireAlt.Core.Extensions;
 
 namespace FireAlt.Mosaic.Data
 {
+    [NoAutoStaticsCleanup]
     public class TilemapTerrainRenderingData : ScriptableObject, IDisposable
     {
         private static readonly int TileSizeId = Shader.PropertyToID("_TileSize");

@@ -1,3 +1,4 @@
+using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
 using FireAlt.Mosaic.Authoring;
@@ -23,6 +24,7 @@ namespace FireAlt.Mosaic.Editor
         public bool active => MosaicPaintingWindow.ActiveWindow != null;
     }
 
+    [NoAutoStaticsCleanup]
     public sealed class MosaicPaintingWindow : EditorWindow
     {
         private const string SELECTED_CLASS = "mosaic-paint-value--selected";
