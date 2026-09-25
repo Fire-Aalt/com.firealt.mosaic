@@ -9,7 +9,7 @@ namespace FireAlt.Mosaic.Authoring
 {
     public struct RuleBlobCreator
     {
-        public static BlobAssetReference<RuleBlob> Create(RuleGroup.Rule rule, int entityCount,
+        public static BlobAssetReference<RuleBlob> Create(IBaker baker, RuleGroup.Rule rule, int entityCount,
             NativeHashSet<int2> refreshPositions)
         {
             var builder = new BlobBuilder(Allocator.Temp);
@@ -20,23 +20,26 @@ namespace FireAlt.Mosaic.Authoring
             root.ResultTransform = rule.resultTransformation;
             root.UniquePrefabPerCell = rule.uniquePrefabPerCell;
             
-            AddPatterns(ref builder, ref root, rule, refreshPositions);
+            AddPatterns(baker, ref builder, ref root, rule, refreshPositions);
             AddResults(ref builder, ref root, rule, entityCount);
 
             return builder.CreateBlobAssetReference<RuleBlob>(Allocator.Persistent);
         }
 
-        private static void AddPatterns(ref BlobBuilder builder, ref RuleBlob root, RuleGroup.Rule rule, NativeHashSet<int2> refreshPositions)
+        private static void AddPatterns(IBaker baker, ref BlobBuilder builder, ref RuleBlob root,
+            RuleGroup.Rule rule, NativeHashSet<int2> refreshPositions)
         {
             var cells = new NativeList<RuleCell>(Allocator.Temp);
             
-            AddMirrorPattern(true, rule, cells, refreshPositions, default);
+            AddMirrorPattern(baker, true, rule, cells, refreshPositions, default);
             root.CellsToCheckCount = cells.Length;
             
-            AddMirrorPattern(rule.ruleTransformation.IsMirroredX(), rule, cells, refreshPositions, new bool2(true, false));
-            AddMirrorPattern(rule.ruleTransformation.IsMirroredY(), rule, cells, refreshPositions, new bool2(false, true));
-            AddMirrorPattern(rule.ruleTransformation.IsMirroredX() && rule.ruleTransformation.IsMirroredY(), rule, cells, refreshPositions, new bool2(true, true));
-            if (rule.ruleTransformation.HasFlagBurst(Transformation.Rotated)) AddRotatedPattern(rule, cells, refreshPositions);
+            AddMirrorPattern(baker, rule.ruleTransformation.IsMirroredX(), rule, cells, refreshPositions, new bool2(true, false));
+            AddMirrorPattern(baker, rule.ruleTransformation.IsMirroredY(), rule, cells, refreshPositions, new bool2(false, true));
+            AddMirrorPattern(baker, rule.ruleTransformation.IsMirroredX() && rule.ruleTransformation.IsMirroredY(),
+                rule, cells, refreshPositions, new bool2(true, true));
+            if (rule.ruleTransformation.HasFlagBurst(Transformation.Rotated))
+                AddRotatedPattern(baker, rule, cells, refreshPositions);
 
             if (cells.Length != 0) builder.Construct(ref root.Cells, cells);
         }
@@ -75,20 +78,20 @@ namespace FireAlt.Mosaic.Authoring
             }
         }
         
-        private static void AddMirrorPattern(bool addToRuleCells, RuleGroup.Rule rule, NativeList<RuleCell> cells,
-            NativeHashSet<int2> refreshPositions, bool2 mirror)
+        private static void AddMirrorPattern(IBaker baker, bool addToRuleCells, RuleGroup.Rule rule,
+            NativeList<RuleCell> cells, NativeHashSet<int2> refreshPositions, bool2 mirror)
         {
-            var matrix = rule.ruleMatrix.GetCurrentMatrix(rule.BoundIntGridDefinition);
+            var matrix = rule.ruleMatrix.GetCurrentMatrix(baker, rule.BoundIntGridDefinition);
             for (var index = 0; index < matrix.Length; index++)
             {
                 ApplyTransformation(matrix, addToRuleCells, cells, refreshPositions, index, mirror, rule.GetOffsetFromCenterMirrored);
             }
         }
         
-        private static void AddRotatedPattern(RuleGroup.Rule rule, NativeList<RuleCell> cells,
+        private static void AddRotatedPattern(IBaker baker, RuleGroup.Rule rule, NativeList<RuleCell> cells,
             NativeHashSet<int2> refreshPositions)
         {
-            var matrix = rule.ruleMatrix.GetCurrentMatrix(rule.BoundIntGridDefinition);
+            var matrix = rule.ruleMatrix.GetCurrentMatrix(baker, rule.BoundIntGridDefinition);
             for (int rotation = 1; rotation < 4; rotation++)
             {
                 for (var index = 0; index < matrix.Length; index++)

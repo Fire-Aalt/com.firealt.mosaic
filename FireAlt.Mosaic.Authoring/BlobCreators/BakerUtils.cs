@@ -42,6 +42,7 @@ namespace FireAlt.Mosaic.Authoring
                 throw new Exception("Material is null");
             }
             baker.DependsOn(renderingData.material);
+            baker.DependsOn(gameObject);
             
             baker.AddComponent(entity, new TilemapRendererData
             {
@@ -64,7 +65,7 @@ namespace FireAlt.Mosaic.Authoring
             Hash128 runtimeHash, RefSprite refSprite, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize,
             IReadOnlyList<SerializedIntGridRectangle> initialValues, Func<GameObject, Entity> entityResolver)
         {
-            if (!TryValidateRuleResults(intGrid, out var validationError))
+            if (!TryValidateRuleResults(baker, intGrid, out var validationError))
             {
                 throw new InvalidOperationException(validationError);
             }
@@ -109,9 +110,10 @@ namespace FireAlt.Mosaic.Authoring
             {
                 foreach (var group in intGrid.ruleGroups)
                 {
+                    baker.DependsOn(group);
                     foreach (var rule in group.rules)
                     {
-                        var blob = RuleBlobCreator.Create(rule, entityCount, refreshPositions);
+                        var blob = RuleBlobCreator.Create(baker, rule, entityCount, refreshPositions);
                         baker.AddBlobAsset(ref blob, out _);
 
                         ruleBlobBuffer.Add(new RuleBlobReferenceElement
@@ -120,8 +122,8 @@ namespace FireAlt.Mosaic.Authoring
                             Value = blob
                         });
                         
-                        AddResults(rule, weightedEntityBuffer, refSprite, constPivotAndSize, ref tilePivot, ref tileSize,
-                            entityResolver);
+                        AddResults(baker, rule, weightedEntityBuffer, refSprite, constPivotAndSize, ref tilePivot,
+                            ref tileSize, entityResolver);
                         entityCount += rule.TileEntities.Count;
                     }
                 }
@@ -156,6 +158,26 @@ namespace FireAlt.Mosaic.Authoring
             }
         }
 
+        internal static bool TryValidateRuleResults(IBaker baker, IntGridDefinition intGrid, out string error)
+        {
+            baker.DependsOn(intGrid);
+            for (var groupIndex = 0; groupIndex < intGrid.ruleGroups.Count; groupIndex++)
+            {
+                var group = intGrid.ruleGroups[groupIndex];
+                if (group == null)
+                {
+                    error = $"IntGrid '{intGrid.name}' has no RuleGroup assigned at index {groupIndex}.";
+                    return false;
+                }
+
+                baker.DependsOn(group);
+                if (!TryValidateRuleGroup(group, out error)) return false;
+            }
+
+            error = null;
+            return true;
+        }
+
         internal static bool TryValidateRuleResults(IntGridDefinition intGrid, out string error)
         {
             for (var groupIndex = 0; groupIndex < intGrid.ruleGroups.Count; groupIndex++)
@@ -167,30 +189,38 @@ namespace FireAlt.Mosaic.Authoring
                     return false;
                 }
 
-                for (var ruleIndex = 0; ruleIndex < group.rules.Count; ruleIndex++)
+                if (!TryValidateRuleGroup(group, out error)) return false;
+            }
+
+            error = null;
+            return true;
+        }
+
+        private static bool TryValidateRuleGroup(RuleGroup group, out string error)
+        {
+            for (var ruleIndex = 0; ruleIndex < group.rules.Count; ruleIndex++)
+            {
+                var rule = group.rules[ruleIndex];
+                if (rule == null)
                 {
-                    var rule = group.rules[ruleIndex];
-                    if (rule == null)
-                    {
-                        error = $"RuleGroup '{group.name}' has no rule assigned at index {ruleIndex}.";
-                        return false;
-                    }
+                    error = $"RuleGroup '{group.name}' has no rule assigned at index {ruleIndex}.";
+                    return false;
+                }
 
-                    for (var resultIndex = 0; resultIndex < rule.TileSprites.Count; resultIndex++)
-                    {
-                        if (rule.TileSprites[resultIndex]?.result != null) continue;
-                        error = $"RuleGroup '{group.name}' rule {ruleIndex} tile sprite {resultIndex} has no Sprite " +
-                                "assigned. Assign a Sprite or remove the entry.";
-                        return false;
-                    }
+                for (var resultIndex = 0; resultIndex < rule.TileSprites.Count; resultIndex++)
+                {
+                    if (rule.TileSprites[resultIndex]?.result != null) continue;
+                    error = $"RuleGroup '{group.name}' rule {ruleIndex} tile sprite {resultIndex} has no Sprite " +
+                            "assigned. Assign a Sprite or remove the entry.";
+                    return false;
+                }
 
-                    for (var resultIndex = 0; resultIndex < rule.TileEntities.Count; resultIndex++)
-                    {
-                        if (rule.TileEntities[resultIndex]?.result != null) continue;
-                        error = $"RuleGroup '{group.name}' rule {ruleIndex} tile entity {resultIndex} has no prefab " +
-                                "assigned. Assign a prefab or remove the entry.";
-                        return false;
-                    }
+                for (var resultIndex = 0; resultIndex < rule.TileEntities.Count; resultIndex++)
+                {
+                    if (rule.TileEntities[resultIndex]?.result != null) continue;
+                    error = $"RuleGroup '{group.name}' rule {ruleIndex} tile entity {resultIndex} has no prefab " +
+                            "assigned. Assign a prefab or remove the entry.";
+                    return false;
                 }
             }
 
@@ -203,9 +233,9 @@ namespace FireAlt.Mosaic.Authoring
             Debug.LogError($"Mosaic did not bake '{context.name}': {error}", context);
         }
         
-        private static void AddResults(RuleGroup.Rule rule, DynamicBuffer<WeightedEntityElement> weightedEntityBuffer,
-            RefSprite refSprite, bool constPivotAndSize, ref float2 tilePivot, ref float2 tileSize,
-            Func<GameObject, Entity> entityResolver)
+        private static void AddResults(IBaker baker, RuleGroup.Rule rule,
+            DynamicBuffer<WeightedEntityElement> weightedEntityBuffer, RefSprite refSprite, bool constPivotAndSize,
+            ref float2 tilePivot, ref float2 tileSize, Func<GameObject, Entity> entityResolver)
         {
             for (var i = 0; i < rule.TileEntities.Count; i++)
             {
@@ -218,6 +248,7 @@ namespace FireAlt.Mosaic.Authoring
             for (int i = 0; i < rule.TileSprites.Count; i++)
             {
                 var sprite = rule.TileSprites[i].result;
+                baker.DependsOn(sprite);
 
                 if (constPivotAndSize)
                 {
@@ -250,9 +281,14 @@ namespace FireAlt.Mosaic.Authoring
                 {
                     refSprite.Sprite = sprite;
                 }
-                else if (refSprite.Sprite.texture != sprite.texture)
+                else
                 {
-                    throw new Exception("Different textures in one tilemap. This is not supported");
+                    var referenceSprite = refSprite.Sprite;
+                    baker.DependsOn(referenceSprite);
+                    if (referenceSprite.texture != sprite.texture)
+                    {
+                        throw new Exception("Different textures in one tilemap. This is not supported");
+                    }
                 }
             }
         }
@@ -260,6 +296,13 @@ namespace FireAlt.Mosaic.Authoring
         public static Hash128 GetHash(IntGridDefinition intGrid, bool isGlobal)
         {
             return intGrid != null && isGlobal ? intGrid.Hash : default;
-        } 
+        }
+
+        public static Hash128 GetHash(IBaker baker, IntGridDefinition intGrid, bool isGlobal)
+        {
+            if (intGrid == null) return default;
+            baker.DependsOn(intGrid);
+            return isGlobal ? intGrid.Hash : default;
+        }
     }
 }

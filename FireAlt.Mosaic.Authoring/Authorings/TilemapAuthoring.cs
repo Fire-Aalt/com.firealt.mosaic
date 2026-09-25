@@ -26,7 +26,7 @@ namespace FireAlt.Mosaic.Authoring
             {
                 BakerUtils.RegisterDependencies(this, authoring.intGrid);
                 if (authoring.intGrid == null) return;
-                var includeRules = BakerUtils.TryValidateRuleResults(authoring.intGrid, out var validationError);
+                var includeRules = BakerUtils.TryValidateRuleResults(this, authoring.intGrid, out var validationError);
                 if (!includeRules)
                 {
                     BakerUtils.LogBakingError(authoring, validationError);
@@ -44,7 +44,7 @@ namespace FireAlt.Mosaic.Authoring
                 var tilePivot = float2.zero;
                 var tileSize = float2.zero;
                 var refSprite = new RefSprite();
-                var runtimeHash = BakerUtils.GetHash(authoring.intGrid, authoring.isGlobal);
+                var runtimeHash = BakerUtils.GetHash(this, authoring.intGrid, authoring.isGlobal);
                 
                 BakerUtils.AddTilemapTransform(this, entity, gridEntity, authoring.renderingData);
                 if (includeRules)

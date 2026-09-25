@@ -46,6 +46,19 @@ namespace FireAlt.Mosaic.Authoring
             }
         }
 
+        internal static void ValidateUniqueLayers(IBaker baker, IReadOnlyList<ValidLayer> validLayers)
+        {
+            var uniqueDefinitions = new HashSet<IntGridDefinition>();
+            foreach (var layer in validLayers)
+            {
+                if (!uniqueDefinitions.Add(layer.Definition))
+                {
+                    baker.DependsOn(layer.Definition);
+                    throw new Exception($"Duplicate IntGridDefinition '{layer.Definition.name}' in terrain layers");
+                }
+            }
+        }
+
         private IReadOnlyList<SerializedIntGridRectangle> FindPaintedRectangles(IntGridDefinition definition)
         {
             foreach (var layer in _paintedLayers)
@@ -122,7 +135,7 @@ namespace FireAlt.Mosaic.Authoring
                 var includeRules = true;
                 foreach (var layer in validLayers)
                 {
-                    if (BakerUtils.TryValidateRuleResults(layer.Definition, out var validationError)) continue;
+                    if (BakerUtils.TryValidateRuleResults(this, layer.Definition, out var validationError)) continue;
                     BakerUtils.LogBakingError(authoring, validationError);
                     includeRules = false;
                     break;
@@ -137,7 +150,7 @@ namespace FireAlt.Mosaic.Authoring
                 var terrainEntity = GetEntity(TransformUsageFlags.Dynamic);
                 var gridEntity = GetEntity(gridAuthoring, TransformUsageFlags.None);
                 
-                ValidateUniqueLayers(validLayers);
+                ValidateUniqueLayers(this, validLayers);
 
                 var layerEntities = new NativeArray<Entity>(validLayers.Length, Allocator.Temp);
                 for (var i = 0; i < layerEntities.Length; i++)
@@ -153,7 +166,7 @@ namespace FireAlt.Mosaic.Authoring
                 foreach (var layer in validLayers)
                 {
                     var intGridDefinition = layer.Definition;
-                    var runtimeHash = BakerUtils.GetHash(intGridDefinition, authoring.isGlobal);
+                    var runtimeHash = BakerUtils.GetHash(this, intGridDefinition, authoring.isGlobal);
                     if (layer.Index == 0) rendererHash = runtimeHash;
 
                     var entity = layerEntities[layer.Index];
