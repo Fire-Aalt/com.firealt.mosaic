@@ -40,8 +40,8 @@ Shader "TerrainShader"
         [HideInInspector][NoScaleOffset] unity_LightmapsInd("unity_LightmapsInd", 2DArray) = "" {}
         [HideInInspector][NoScaleOffset] unity_ShadowMasks("unity_ShadowMasks", 2DArray) = "" {}
 
-		[HideInInspector][ToggleUI] _AddPrecomputedVelocity("Add Precomputed Velocity", Float) = 1
-		[HideInInspector] _XRMotionVectorsPass("_XRMotionVectorsPass", Float) = 1
+		//[HideInInspector][ToggleUI] _AddPrecomputedVelocity("Add Precomputed Velocity", Float) = 1
+		//[HideInInspector] _XRMotionVectorsPass("_XRMotionVectorsPass", Float) = 1
 
 		//[HideInInspector] _AlphaClip("__clip", Float) = 0.0
 	}
@@ -77,109 +77,114 @@ Shader "TerrainShader"
 		#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 		#include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Filtering.hlsl"
 
-		#define ASE_ADJUST_CLIP_POSITION( x ) x
+		#ifndef GLOBAL_HEADER_INCLUDED
+		#define GLOBAL_HEADER_INCLUDED
 
-		#ifndef ASE_TESS_FUNCS
-		#define ASE_TESS_FUNCS
-		float4 FixedTess( float tessValue )
-		{
-			return tessValue;
-		}
+			#define ASE_ADJUST_CLIP_POSITION( x ) x
 
-		float CalcDistanceTessFactor (float4 vertex, float minDist, float maxDist, float tess, float4x4 o2w, float3 cameraPos )
-		{
-			float3 wpos = mul(o2w,vertex).xyz;
-			float dist = distance (wpos, cameraPos);
-			float f = clamp(1.0 - (dist - minDist) / (maxDist - minDist), 0.01, 1.0) * tess;
-			return f;
-		}
-
-		float4 CalcTriEdgeTessFactors (float3 triVertexFactors)
-		{
-			float4 tess;
-			tess.x = 0.5 * (triVertexFactors.y + triVertexFactors.z);
-			tess.y = 0.5 * (triVertexFactors.x + triVertexFactors.z);
-			tess.z = 0.5 * (triVertexFactors.x + triVertexFactors.y);
-			tess.w = (triVertexFactors.x + triVertexFactors.y + triVertexFactors.z) / 3.0f;
-			return tess;
-		}
-
-		float CalcEdgeTessFactor (float3 wpos0, float3 wpos1, float edgeLen, float3 cameraPos, float4 scParams )
-		{
-			float dist = distance (0.5 * (wpos0+wpos1), cameraPos);
-			float len = distance(wpos0, wpos1);
-			float f = max(len * scParams.y / (edgeLen * dist), 1.0);
-			return f;
-		}
-
-		float DistanceFromPlane (float3 pos, float4 plane)
-		{
-			float d = dot (float4(pos,1.0f), plane);
-			return d;
-		}
-
-		bool WorldViewFrustumCull (float3 wpos0, float3 wpos1, float3 wpos2, float cullEps, float4 planes[6] )
-		{
-			float4 planeTest;
-			planeTest.x = (( DistanceFromPlane(wpos0, planes[0]) > -cullEps) ? 1.0f : 0.0f ) +
-							(( DistanceFromPlane(wpos1, planes[0]) > -cullEps) ? 1.0f : 0.0f ) +
-							(( DistanceFromPlane(wpos2, planes[0]) > -cullEps) ? 1.0f : 0.0f );
-			planeTest.y = (( DistanceFromPlane(wpos0, planes[1]) > -cullEps) ? 1.0f : 0.0f ) +
-							(( DistanceFromPlane(wpos1, planes[1]) > -cullEps) ? 1.0f : 0.0f ) +
-							(( DistanceFromPlane(wpos2, planes[1]) > -cullEps) ? 1.0f : 0.0f );
-			planeTest.z = (( DistanceFromPlane(wpos0, planes[2]) > -cullEps) ? 1.0f : 0.0f ) +
-							(( DistanceFromPlane(wpos1, planes[2]) > -cullEps) ? 1.0f : 0.0f ) +
-							(( DistanceFromPlane(wpos2, planes[2]) > -cullEps) ? 1.0f : 0.0f );
-			planeTest.w = (( DistanceFromPlane(wpos0, planes[3]) > -cullEps) ? 1.0f : 0.0f ) +
-							(( DistanceFromPlane(wpos1, planes[3]) > -cullEps) ? 1.0f : 0.0f ) +
-							(( DistanceFromPlane(wpos2, planes[3]) > -cullEps) ? 1.0f : 0.0f );
-			return !all (planeTest);
-		}
-
-		float4 DistanceBasedTess( float4 v0, float4 v1, float4 v2, float tess, float minDist, float maxDist, float4x4 o2w, float3 cameraPos )
-		{
-			float3 f;
-			f.x = CalcDistanceTessFactor (v0,minDist,maxDist,tess,o2w,cameraPos);
-			f.y = CalcDistanceTessFactor (v1,minDist,maxDist,tess,o2w,cameraPos);
-			f.z = CalcDistanceTessFactor (v2,minDist,maxDist,tess,o2w,cameraPos);
-
-			return CalcTriEdgeTessFactors (f);
-		}
-
-		float4 EdgeLengthBasedTess( float4 v0, float4 v1, float4 v2, float edgeLength, float4x4 o2w, float3 cameraPos, float4 scParams )
-		{
-			float3 pos0 = mul(o2w,v0).xyz;
-			float3 pos1 = mul(o2w,v1).xyz;
-			float3 pos2 = mul(o2w,v2).xyz;
-			float4 tess;
-			tess.x = CalcEdgeTessFactor (pos1, pos2, edgeLength, cameraPos, scParams);
-			tess.y = CalcEdgeTessFactor (pos2, pos0, edgeLength, cameraPos, scParams);
-			tess.z = CalcEdgeTessFactor (pos0, pos1, edgeLength, cameraPos, scParams);
-			tess.w = (tess.x + tess.y + tess.z) / 3.0f;
-			return tess;
-		}
-
-		float4 EdgeLengthBasedTessCull( float4 v0, float4 v1, float4 v2, float edgeLength, float maxDisplacement, float4x4 o2w, float3 cameraPos, float4 scParams, float4 planes[6] )
-		{
-			float3 pos0 = mul(o2w,v0).xyz;
-			float3 pos1 = mul(o2w,v1).xyz;
-			float3 pos2 = mul(o2w,v2).xyz;
-			float4 tess;
-
-			if (WorldViewFrustumCull(pos0, pos1, pos2, maxDisplacement, planes))
+			#ifndef ASE_TESS_FUNCS
+			#define ASE_TESS_FUNCS
+			float4 FixedTess( float tessValue )
 			{
-				tess = 0.0f;
+				return tessValue;
 			}
-			else
+
+			float CalcDistanceTessFactor (float4 vertex, float minDist, float maxDist, float tess, float4x4 o2w, float3 cameraPos )
 			{
+				float3 wpos = mul(o2w,vertex).xyz;
+				float dist = distance (wpos, cameraPos);
+				float f = clamp(1.0 - (dist - minDist) / (maxDist - minDist), 0.01, 1.0) * tess;
+				return f;
+			}
+
+			float4 CalcTriEdgeTessFactors (float3 triVertexFactors)
+			{
+				float4 tess;
+				tess.x = 0.5 * (triVertexFactors.y + triVertexFactors.z);
+				tess.y = 0.5 * (triVertexFactors.x + triVertexFactors.z);
+				tess.z = 0.5 * (triVertexFactors.x + triVertexFactors.y);
+				tess.w = (triVertexFactors.x + triVertexFactors.y + triVertexFactors.z) / 3.0f;
+				return tess;
+			}
+
+			float CalcEdgeTessFactor (float3 wpos0, float3 wpos1, float edgeLen, float3 cameraPos, float4 scParams )
+			{
+				float dist = distance (0.5 * (wpos0+wpos1), cameraPos);
+				float len = distance(wpos0, wpos1);
+				float f = max(len * scParams.y / (edgeLen * dist), 1.0);
+				return f;
+			}
+
+			float DistanceFromPlane (float3 pos, float4 plane)
+			{
+				float d = dot (float4(pos,1.0f), plane);
+				return d;
+			}
+
+			bool WorldViewFrustumCull (float3 wpos0, float3 wpos1, float3 wpos2, float cullEps, float4 planes[6] )
+			{
+				float4 planeTest;
+				planeTest.x = (( DistanceFromPlane(wpos0, planes[0]) > -cullEps) ? 1.0f : 0.0f ) +
+								(( DistanceFromPlane(wpos1, planes[0]) > -cullEps) ? 1.0f : 0.0f ) +
+								(( DistanceFromPlane(wpos2, planes[0]) > -cullEps) ? 1.0f : 0.0f );
+				planeTest.y = (( DistanceFromPlane(wpos0, planes[1]) > -cullEps) ? 1.0f : 0.0f ) +
+								(( DistanceFromPlane(wpos1, planes[1]) > -cullEps) ? 1.0f : 0.0f ) +
+								(( DistanceFromPlane(wpos2, planes[1]) > -cullEps) ? 1.0f : 0.0f );
+				planeTest.z = (( DistanceFromPlane(wpos0, planes[2]) > -cullEps) ? 1.0f : 0.0f ) +
+								(( DistanceFromPlane(wpos1, planes[2]) > -cullEps) ? 1.0f : 0.0f ) +
+								(( DistanceFromPlane(wpos2, planes[2]) > -cullEps) ? 1.0f : 0.0f );
+				planeTest.w = (( DistanceFromPlane(wpos0, planes[3]) > -cullEps) ? 1.0f : 0.0f ) +
+								(( DistanceFromPlane(wpos1, planes[3]) > -cullEps) ? 1.0f : 0.0f ) +
+								(( DistanceFromPlane(wpos2, planes[3]) > -cullEps) ? 1.0f : 0.0f );
+				return !all (planeTest);
+			}
+
+			float4 DistanceBasedTess( float4 v0, float4 v1, float4 v2, float tess, float minDist, float maxDist, float4x4 o2w, float3 cameraPos )
+			{
+				float3 f;
+				f.x = CalcDistanceTessFactor (v0,minDist,maxDist,tess,o2w,cameraPos);
+				f.y = CalcDistanceTessFactor (v1,minDist,maxDist,tess,o2w,cameraPos);
+				f.z = CalcDistanceTessFactor (v2,minDist,maxDist,tess,o2w,cameraPos);
+
+				return CalcTriEdgeTessFactors (f);
+			}
+
+			float4 EdgeLengthBasedTess( float4 v0, float4 v1, float4 v2, float edgeLength, float4x4 o2w, float3 cameraPos, float4 scParams )
+			{
+				float3 pos0 = mul(o2w,v0).xyz;
+				float3 pos1 = mul(o2w,v1).xyz;
+				float3 pos2 = mul(o2w,v2).xyz;
+				float4 tess;
 				tess.x = CalcEdgeTessFactor (pos1, pos2, edgeLength, cameraPos, scParams);
 				tess.y = CalcEdgeTessFactor (pos2, pos0, edgeLength, cameraPos, scParams);
 				tess.z = CalcEdgeTessFactor (pos0, pos1, edgeLength, cameraPos, scParams);
 				tess.w = (tess.x + tess.y + tess.z) / 3.0f;
+				return tess;
 			}
-			return tess;
-		}
-		#endif //ASE_TESS_FUNCS
+
+			float4 EdgeLengthBasedTessCull( float4 v0, float4 v1, float4 v2, float edgeLength, float maxDisplacement, float4x4 o2w, float3 cameraPos, float4 scParams, float4 planes[6] )
+			{
+				float3 pos0 = mul(o2w,v0).xyz;
+				float3 pos1 = mul(o2w,v1).xyz;
+				float3 pos2 = mul(o2w,v2).xyz;
+				float4 tess;
+
+				if (WorldViewFrustumCull(pos0, pos1, pos2, maxDisplacement, planes))
+				{
+					tess = 0.0f;
+				}
+				else
+				{
+					tess.x = CalcEdgeTessFactor (pos1, pos2, edgeLength, cameraPos, scParams);
+					tess.y = CalcEdgeTessFactor (pos2, pos0, edgeLength, cameraPos, scParams);
+					tess.z = CalcEdgeTessFactor (pos0, pos1, edgeLength, cameraPos, scParams);
+					tess.w = (tess.x + tess.y + tess.z) / 3.0f;
+				}
+				return tess;
+			}
+			#endif //ASE_TESS_FUNCS
+
+		#endif //GLOBAL_HEADER_INCLUDED
 		ENDHLSL
 
 		
@@ -204,6 +209,7 @@ Shader "TerrainShader"
 			#pragma shader_feature_local_fragment _RECEIVE_SHADOWS_OFF
 			#pragma shader_feature_local_fragment _SPECULARHIGHLIGHTS_OFF
 			#pragma shader_feature_local_fragment _ENVIRONMENTREFLECTIONS_OFF
+			#define ASE_SSR
 			#pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
@@ -213,12 +219,28 @@ Shader "TerrainShader"
 			#define ASE_USING_SAMPLING_MACROS 1
 
 
+			#if ( UNITY_VERSION >= 60070000 )
+			#pragma multi_compile _ _EXPOSURE
+			#endif
+
 			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+
+			#if ( UNITY_VERSION >= 60070000 )
+			#pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX
+			#pragma multi_compile_fragment _ _ADDITIONAL_LIGHTS
+			#else
 			#pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+			#endif
+
+			#if ( UNITY_VERSION >= 60070000 )
+			#pragma multi_compile _ _LIGHT_FALLOFF_LINEAR
+			#endif
+
             #pragma multi_compile _ EVALUATE_SH_MIXED EVALUATE_SH_VERTEX
 			#pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
 			#pragma multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
 			#pragma multi_compile_fragment _ _REFLECTION_PROBE_BOX_PROJECTION
+
 			#if ( UNITY_VERSION >= 60010000 )
 			#pragma multi_compile_fragment _ _REFLECTION_PROBE_ATLAS
 			#endif
@@ -228,16 +250,32 @@ Shader "TerrainShader"
             #endif
 
 			#pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+
 			#if ( UNITY_VERSION >= 60030000 )
 			#pragma multi_compile_fragment _ _SCREEN_SPACE_IRRADIANCE
 			#endif
+
+			#if ( UNITY_VERSION >= 60060000 ) && defined( ASE_SSR )
+			#pragma multi_compile_fragment _ _SCREEN_SPACE_REFLECTION
+			#pragma shader_feature_local_fragment _SCREENSPACEREFLECTIONS_OFF
+			#endif
+
 			#pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
 			#pragma multi_compile _ _LIGHT_LAYERS
 			#pragma multi_compile_fragment _ _LIGHT_COOKIES
+
+			#if ( UNITY_VERSION >= 60070000 )
+			#pragma multi_compile_fragment _ _VOLUMETRIC_FOG
+			#endif
+
+			#if ( UNITY_VERSION >= 60070000 )
+			#pragma multi_compile_fragment _ _CLUSTER_LIGHT_LOOP
+			#else
 			#if ( UNITY_VERSION >= 60010000 )
 			#pragma multi_compile _ _CLUSTER_LIGHT_LOOP
 			#else
 			#pragma multi_compile _ _FORWARD_PLUS
+			#endif
 			#endif
 
             #if defined(UNITY_PLATFORM_META_QUEST) && ( UNITY_VERSION >= 60050000 )
@@ -249,13 +287,16 @@ Shader "TerrainShader"
 			#pragma multi_compile _ SHADOWS_SHADOWMASK
 			#pragma multi_compile _ DIRLIGHTMAP_COMBINED
 			#pragma multi_compile _ LIGHTMAP_ON
+			#pragma multi_compile _ DYNAMICLIGHTMAP_ON
+
 			#if ( UNITY_VERSION >= 60010000 )
 			#pragma multi_compile _ LIGHTMAP_BICUBIC_SAMPLING
 			#endif
+
 			#if ( UNITY_VERSION >= 60030000 )
 			#pragma multi_compile_fragment _ REFLECTION_PROBE_ROTATION
 			#endif
-			#pragma multi_compile _ DYNAMICLIGHTMAP_ON
+			
 			#pragma multi_compile _ USE_LEGACY_LIGHTMAPS
 
 			#pragma vertex vert
@@ -697,6 +738,9 @@ Shader "TerrainShader"
 				inputData.positionCS = input.positionCS;
 				inputData.normalizedScreenSpaceUV = ScreenPosNorm.xy;
 				inputData.viewDirectionWS = ViewDirWS;
+				#if ( UNITY_VERSION >= 60070000 )
+					inputData.preExposureMultiplier = GetPreExposureMultiplier();
+				#endif
 				inputData.shadowCoord = ShadowCoord;
 
 				#ifdef _NORMALMAP
@@ -718,6 +762,9 @@ Shader "TerrainShader"
 				#ifdef _ADDITIONAL_LIGHTS_VERTEX
 					inputData.vertexLighting = input.fogFactorAndVertexLight.yzw;
 				#endif
+				#if ( UNITY_VERSION >= 60070000 )
+					inputData.preExposureMultiplier = GetPreExposureMultiplier();
+				#endif
 
 				#if defined( ENABLE_TERRAIN_PERPIXEL_NORMAL )
 					float3 SH = SampleSH(inputData.normalWS.xyz);
@@ -725,25 +772,44 @@ Shader "TerrainShader"
 					float3 SH = input.lightmapUVOrVertexSH.xyz;
 				#endif
 
-				#if defined(_SCREEN_SPACE_IRRADIANCE)
-					#if ( UNITY_VERSION >= 60070000 )
-						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS, GetInvPreExposureMultiplier());
-					#elif ( UNITY_VERSION >= 60060000 )
+				#if ( UNITY_VERSION >= 60070000 )
+					GIParams giParams = (GIParams)0;
+					#if USE_LIGHTMAP_UV_INTERPOLATOR
+					giParams.staticLightmapUV = input.lightmapUVOrVertexSH.xy;
+					#endif
+					#if USE_VERTEX_SH_INTERPOLATOR
+					giParams.vertexSH = SH;
+					#endif
+					#if USE_DYNAMICLIGHTMAP_UV_INTERPOLATOR
+					giParams.dynamicLightmapUV = input.dynamicLightmapUV.xy;
+					#endif
+					#ifdef USE_APV_PROBE_OCCLUSION
+					giParams.vertexProbeOcclusion = input.probeOcclusion;
+					#endif
+					giParams.positionWS = inputData.positionWS;
+					giParams.normalWS = inputData.normalWS;
+					giParams.viewDirWS = inputData.viewDirectionWS;
+					giParams.positionSS = input.positionCS.xy;
+					#if defined(_SURFACE_TYPE_TRANSPARENT)
+					giParams.isSurfaceTypeTransparent = true;
+					#endif
+					InitializeBakedGI(giParams, inputData.bakedGI, inputData.shadowMask);
+				#elif defined(_SCREEN_SPACE_IRRADIANCE) && ( UNITY_VERSION >= 60030000 )
+					#if ( UNITY_VERSION >= 60060000 )
 						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS);
-					#elif ( UNITY_VERSION >= 60030000 )
+					#else
 						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy);
 					#endif
 				#elif defined(DYNAMICLIGHTMAP_ON)
 					inputData.bakedGI = SAMPLE_GI(input.lightmapUVOrVertexSH.xy, input.dynamicLightmapUV.xy, SH, inputData.normalWS);
 					inputData.shadowMask = SAMPLE_SHADOWMASK(input.lightmapUVOrVertexSH.xy);
 				#elif !defined(LIGHTMAP_ON) && (defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2))
-					inputData.bakedGI = SAMPLE_GI(SH,
-						GetAbsolutePositionWS(inputData.positionWS),
+					inputData.bakedGI = SAMPLE_GI( SH, GetAbsolutePositionWS(inputData.positionWS),
 						inputData.normalWS,
 						inputData.viewDirectionWS,
 						input.positionCS.xy,
 						input.probeOcclusion,
-						inputData.shadowMask);
+						inputData.shadowMask );
 				#else
 					inputData.bakedGI = SAMPLE_GI(input.lightmapUVOrVertexSH.xy, SH, inputData.normalWS);
 					inputData.shadowMask = SAMPLE_SHADOWMASK(input.lightmapUVOrVertexSH.xy);
@@ -904,6 +970,9 @@ Shader "TerrainShader"
 					#else
 						color.rgb = MixFog(color.rgb, inputData.fogCoord);
 					#endif
+				#endif
+				#if ( UNITY_VERSION >= 60070000 )
+					color.rgb = ClampExposed(inputData.preExposureMultiplier * color.rgb);
 				#endif
 
 				#if defined( ASE_WRITE_DEPTH )
@@ -2289,6 +2358,19 @@ Shader "TerrainShader"
 				#endif
 			#endif
 
+			#if ( UNITY_VERSION >= 60060000 )
+				#pragma multi_compile _ _WRITE_SMOOTHNESS
+			#endif
+
+			#if ( UNITY_VERSION >= 60060000 )
+				#pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
+			#endif
+
+			#if ( UNITY_VERSION >= 60060000 ) && defined( ASE_SSR )
+			#pragma multi_compile_fragment _ _SCREEN_SPACE_REFLECTION
+			#pragma shader_feature_local_fragment _SCREENSPACEREFLECTIONS_OFF
+			#endif
+
 			#define SHADERPASS SHADERPASS_DEPTHNORMALSONLY
 			//#define SHADERPASS SHADERPASS_DEPTHNORMALS
 
@@ -2305,6 +2387,10 @@ Shader "TerrainShader"
             #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/DebugMipmapStreamingMacros.hlsl"
 			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShaderGraphFunctions.hlsl"
 			#include "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/ShaderPass.hlsl"
+
+			#if ( UNITY_VERSION >= 60070000 )
+			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/PackNormalsTexture.hlsl"
+			#endif
 
 			#if defined(LOD_FADE_CROSSFADE)
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
@@ -2601,6 +2687,7 @@ Shader "TerrainShader"
 				
 
 				float3 Normal = Normal4_g38;
+				float Smoothness = 0.5;
 				float Alpha = (temp_output_2_0_g39).w;
 				#if defined( _ALPHATEST_ON )
 					float AlphaClipThreshold = _Cutoff;
@@ -2617,6 +2704,13 @@ Shader "TerrainShader"
 				#if defined(LOD_FADE_CROSSFADE)
 					LODFadeCrossFade( input.positionCS );
 				#endif
+
+			    #if ( UNITY_VERSION >= 60060000 )
+				   #if _SCREENSPACEREFLECTIONSCONTRIBUTETRANSPARENT_OFF_KEYWORD_DECLARED
+					   if (_SCREENSPACEREFLECTIONSCONTRIBUTETRANSPARENT_OFF)
+					   discard;
+				   #endif
+			    #endif
 
 				#if defined( ASE_WRITE_DEPTH )
 					outputDepth = input.positionCS.z;
@@ -2641,6 +2735,12 @@ Shader "TerrainShader"
 					#endif
 					outNormalWS = half4(NormalizeNormalPerPixel(normalWS), 0.0);
 				#endif
+
+			    #if ( UNITY_VERSION >= 60060000 )
+				   #if defined(_WRITE_SMOOTHNESS) && !defined(_SCREENSPACEREFLECTIONS_OFF)
+					   outNormalWS.a = saturate( Smoothness );
+				   #endif
+			    #endif
 
 				#ifdef _WRITE_RENDERING_LAYERS
 					#if ( UNITY_VERSION >= 60020000 )
@@ -2687,35 +2787,60 @@ Shader "TerrainShader"
 			// Desktop OpenGL, OpenGL ES 3.0, WebGL 2.0.
 			#pragma exclude_renderers glcore gles3 
 
+			#if ( UNITY_VERSION >= 60070000 )
+			#pragma multi_compile _ _EXPOSURE
+			#endif
+
 			#pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+
 			#if ( UNITY_VERSION >= 60000058 )
 			#pragma multi_compile _ EVALUATE_SH_MIXED EVALUATE_SH_VERTEX
 			#endif
+
 			#pragma multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
 			#pragma multi_compile_fragment _ _REFLECTION_PROBE_BOX_PROJECTION
 			#pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+
 			#if ( UNITY_VERSION >= 60030000 )
 			#pragma multi_compile_fragment _ _SCREEN_SPACE_IRRADIANCE
 			#endif
+
+			#if ( UNITY_VERSION >= 60060000 ) && defined( ASE_SSR )
+			#pragma multi_compile_fragment _ _SCREEN_SPACE_REFLECTION
+			#pragma shader_feature_local_fragment _SCREENSPACEREFLECTIONS_OFF
+			#endif
+
 			#pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
 			#pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
 			#pragma multi_compile_fragment _ _RENDER_PASS_ENABLED
+
+			#if ( UNITY_VERSION >= 60070000 )
+			#pragma multi_compile_fragment _ _CLUSTER_LIGHT_LOOP
+			#else
 			#if ( UNITY_VERSION >= 60010000 )
 			#pragma multi_compile _ _CLUSTER_LIGHT_LOOP
 			#endif
+			#endif
 
 			#pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
+
+			#if ( UNITY_VERSION < 60070000 )
 			#pragma multi_compile _ _MIXED_LIGHTING_SUBTRACTIVE
+			#endif
+
 			#pragma multi_compile _ SHADOWS_SHADOWMASK
 			#pragma multi_compile _ DIRLIGHTMAP_COMBINED
 			#pragma multi_compile _ USE_LEGACY_LIGHTMAPS
 			#pragma multi_compile _ LIGHTMAP_ON
+
 			#if ( UNITY_VERSION >= 60010000 )
 			#pragma multi_compile _ LIGHTMAP_BICUBIC_SAMPLING
 			#endif
+
 			#if ( UNITY_VERSION >= 60030000 )
 			#pragma multi_compile_fragment _ REFLECTION_PROBE_ROTATION
 			#endif
+
 			#pragma multi_compile _ DYNAMICLIGHTMAP_ON
 
 			#pragma vertex vert
@@ -2748,7 +2873,7 @@ Shader "TerrainShader"
 			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DBuffer.hlsl"
 			#include "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/ShaderPass.hlsl"
 
-			#if ( UNITY_VERSION >= 60030016 && UNITY_VERSION < 60040000 ) || ( UNITY_VERSION >= 60040010 )
+			#if ( UNITY_VERSION >= 60030017 && UNITY_VERSION < 60040000 ) || ( UNITY_VERSION >= 60040010 )
 			#include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/GBufferOutputFormat.hlsl"
 			#endif
 
@@ -3165,6 +3290,9 @@ Shader "TerrainShader"
 				#ifdef _ADDITIONAL_LIGHTS_VERTEX
 					inputData.vertexLighting = input.fogFactorAndVertexLight.yzw;
 				#endif
+				#if ( UNITY_VERSION >= 60070000 )
+					inputData.preExposureMultiplier = GetPreExposureMultiplier();
+				#endif
 
 				#if defined( ENABLE_TERRAIN_PERPIXEL_NORMAL )
 					float3 SH = SampleSH(inputData.normalWS.xyz);
@@ -3172,20 +3300,39 @@ Shader "TerrainShader"
 					float3 SH = input.lightmapUVOrVertexSH.xyz;
 				#endif
 
-				#if defined(_SCREEN_SPACE_IRRADIANCE)
-					#if ( UNITY_VERSION >= 60070000 )
-						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS, GetInvPreExposureMultiplier());
-					#elif ( UNITY_VERSION >= 60060000 )
+				#if ( UNITY_VERSION >= 60070000 )
+					GIParams giParams = (GIParams)0;
+					#if USE_LIGHTMAP_UV_INTERPOLATOR
+					giParams.staticLightmapUV = input.lightmapUVOrVertexSH.xy;
+					#endif
+					#if USE_VERTEX_SH_INTERPOLATOR
+					giParams.vertexSH = SH;
+					#endif
+					#if USE_DYNAMICLIGHTMAP_UV_INTERPOLATOR
+					giParams.dynamicLightmapUV = input.dynamicLightmapUV.xy;
+					#endif
+					#ifdef USE_APV_PROBE_OCCLUSION
+					giParams.vertexProbeOcclusion = input.probeOcclusion;
+					#endif
+					giParams.positionWS = inputData.positionWS;
+					giParams.normalWS = inputData.normalWS;
+					giParams.viewDirWS = inputData.viewDirectionWS;
+					giParams.positionSS = input.positionCS.xy;
+					#if defined(_SURFACE_TYPE_TRANSPARENT)
+					giParams.isSurfaceTypeTransparent = true;
+					#endif
+					InitializeBakedGI(giParams, inputData.bakedGI, inputData.shadowMask);
+				#elif defined(_SCREEN_SPACE_IRRADIANCE) && ( UNITY_VERSION >= 60030000 )
+					#if ( UNITY_VERSION >= 60060000 )
 						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS);
-					#elif ( UNITY_VERSION >= 60030000 )
+					#else
 						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy);
 					#endif
 				#elif defined(DYNAMICLIGHTMAP_ON)
 					inputData.bakedGI = SAMPLE_GI(input.lightmapUVOrVertexSH.xy, input.dynamicLightmapUV.xy, SH, inputData.normalWS);
 					inputData.shadowMask = SAMPLE_SHADOWMASK(input.lightmapUVOrVertexSH.xy);
 				#elif !defined(LIGHTMAP_ON) && (defined(PROBE_VOLUMES_L1) || defined(PROBE_VOLUMES_L2))
-					inputData.bakedGI = SAMPLE_GI(SH,
-						GetAbsolutePositionWS(inputData.positionWS),
+					inputData.bakedGI = SAMPLE_GI( SH, GetAbsolutePositionWS(inputData.positionWS),
 						inputData.normalWS,
 						inputData.viewDirectionWS,
 						input.positionCS.xy,
@@ -3249,7 +3396,9 @@ Shader "TerrainShader"
 					outputDepth = input.positionCS.z;
 				#endif
 
-			#if ( UNITY_VERSION >= 60010000 )
+			#if ( UNITY_VERSION >= 60070000 )
+				return PackGBuffersBRDFData(brdfData, inputData, Smoothness, ClampExposed(inputData.preExposureMultiplier * (Emission + color.rgb)), Occlusion);
+			#elif ( UNITY_VERSION >= 60010000 )
 				return PackGBuffersBRDFData(brdfData, inputData, Smoothness, Emission + color.rgb, Occlusion);
 			#else
 				return BRDFDataToGbuffer(brdfData, inputData, Smoothness, Emission + color.rgb, Occlusion);
@@ -3881,6 +4030,302 @@ Shader "TerrainShader"
 			ENDHLSL
 		}
 
+		
+		Pass
+		{
+			
+			Name "MotionVectors"
+			Tags { "LightMode"="MotionVectors" }
+
+			ColorMask RG
+
+			HLSLPROGRAM
+
+			#define ASE_GEOMETRY
+			#define _NORMAL_DROPOFF_TS 1
+			#define ASE_TIME_BASED_MOTION_VECTORS
+			#pragma multi_compile_fragment _ DEBUG_DISPLAY
+			#define _NORMALMAP 1
+			#define ASE_VERSION 19912
+			#define ASE_SRP_VERSION 170700
+			#define VERTEXID_SEMANTIC SV_VertexID
+			#define ASE_USING_SAMPLING_MACROS 1
+
+
+			#pragma vertex vert
+			#pragma fragment frag
+
+			#if defined( _SPECULAR_SETUP ) && defined( ASE_LIGHTING_SIMPLE )
+				#if defined( _SPECULARHIGHLIGHTS_OFF )
+					#undef _SPECULAR_COLOR
+				#else
+					#define _SPECULAR_COLOR
+				#endif
+			#endif
+
+            #define SHADERPASS SHADERPASS_MOTION_VECTORS
+
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DOTS.hlsl"
+			#include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
+		    #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Color.hlsl"
+		    #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Texture.hlsl"
+		    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+		    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+		    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Input.hlsl"
+		    #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/TextureStack.hlsl"
+            #include_with_pragmas "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRenderingKeywords.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/FoveatedRendering.hlsl"
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/DebugMipmapStreamingMacros.hlsl"
+		    #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/ShaderGraphFunctions.hlsl"
+		    #include "Packages/com.unity.render-pipelines.universal/Editor/ShaderGraph/Includes/ShaderPass.hlsl"
+
+			#if defined(LOD_FADE_CROSSFADE)
+				#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
+			#endif
+
+			#include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/MotionVectorsCommon.hlsl"
+
+			#include "Packages/com.firealt.mosaic/Shaders/MosaicTerrain.hlsl"
+			#define ASE_NEEDS_TEXTURE_COORDINATES0
+			#define ASE_NEEDS_FRAG_TEXTURE_COORDINATES0
+
+
+			#if defined(ASE_WRITE_DEPTH_CONSERVATIVE) && (SHADER_TARGET >= 45)
+				#define ASE_SV_DEPTH SV_DepthLessEqual
+				#define ASE_SV_POSITION_QUALIFIERS linear noperspective centroid
+			#else
+				#define ASE_SV_DEPTH SV_Depth
+				#define ASE_SV_POSITION_QUALIFIERS
+			#endif
+
+			#if ( UNITY_VERSION < 60010000 )
+				#define APPLICATION_SPACE_WARP_MOTION APLICATION_SPACE_WARP_MOTION
+			#endif
+
+			struct Attributes
+			{
+				float4 positionOS : POSITION;
+				float3 positionOld : TEXCOORD4;
+				#if _ADD_PRECOMPUTED_VELOCITY
+					float3 alembicMotionVector : TEXCOORD5;
+				#endif
+				half3 normalOS : NORMAL;
+				half4 tangentOS : TANGENT;
+				uint ase_vertexId : VERTEXID_SEMANTIC;
+				float4 ase_texcoord : TEXCOORD0;
+				UNITY_VERTEX_INPUT_INSTANCE_ID
+			};
+
+			struct PackedVaryings
+			{
+				ASE_SV_POSITION_QUALIFIERS float4 positionCS : SV_POSITION;
+				float4 positionCSNoJitter : TEXCOORD0;
+				float4 previousPositionCSNoJitter : TEXCOORD1;
+				float3 positionWS : TEXCOORD2;
+				float4 ase_texcoord3 : TEXCOORD3;
+				float3 ase_normal : NORMAL;
+				UNITY_VERTEX_INPUT_INSTANCE_ID
+				UNITY_VERTEX_OUTPUT_STEREO
+			};
+
+			CBUFFER_START(UnityPerMaterial)
+			float4 _DefaultBlendColor;
+			float2 _TileSize;
+			float _AlphaClip;
+			float _Cutoff;
+			#ifdef ASE_TRANSMISSION
+				float _TransmissionShadow;
+			#endif
+			#ifdef ASE_TRANSLUCENCY
+				float _TransStrength;
+				float _TransNormal;
+				float _TransScattering;
+				float _TransDirect;
+				float _TransAmbient;
+				float _TransShadow;
+			#endif
+			#ifdef ASE_TESSELLATION
+				float _TessPhongStrength;
+				float _TessValue;
+				float _TessMin;
+				float _TessMax;
+				float _TessEdgeLength;
+				float _TessMaxDisp;
+			#endif
+			CBUFFER_END
+
+			#ifdef SCENEPICKINGPASS
+				float4 _SelectionID;
+			#endif
+
+			#ifdef SCENESELECTIONPASS
+				int _ObjectId;
+				int _PassValue;
+			#endif
+
+			TEXTURE2D(_MainTex);
+			TEXTURE2D(_NormalMap);
+			SAMPLER(sampler_MainTex);
+			SAMPLER(sampler_NormalMap);
+
+
+			
+			// Applies the graph's vertex stage at a given time so the motion vector pass can
+			// evaluate the current frame and re-evaluate the previous frame (procedural / time-based animation).
+			Attributes ASEApplyVertexModification( Attributes input, float3 timeParameters, inout PackedVaryings output, out float3 customMotionVector  )
+			{
+				float3 currentTimeParameters = _TimeParameters.xyz;
+				//_TimeParameters.xyz = timeParameters;
+
+				output.ase_texcoord3.x = input.ase_vertexId;
+				output.ase_texcoord3.yz = input.ase_texcoord.xy;
+				output.ase_normal = input.normalOS;
+				
+				//setting value to unused interpolator channels and avoid initialization warnings
+				output.ase_texcoord3.w = 0;
+
+				#ifdef ASE_ABSOLUTE_VERTEX_POS
+					float3 defaultVertexValue = input.positionOS.xyz;
+				#else
+					float3 defaultVertexValue = float3(0, 0, 0);
+				#endif
+
+				float3 vertexValue = defaultVertexValue;
+
+				#ifdef ASE_ABSOLUTE_VERTEX_POS
+					input.positionOS.xyz = vertexValue;
+				#else
+					input.positionOS.xyz += vertexValue;
+				#endif
+
+				customMotionVector = float3(0, 0, 0);
+
+				//_TimeParameters.xyz = currentTimeParameters;
+				return input;
+			}
+
+			PackedVaryings VertexFunction( Attributes input )
+			{
+				PackedVaryings output = (PackedVaryings)0;
+				UNITY_SETUP_INSTANCE_ID(input);
+				UNITY_TRANSFER_INSTANCE_ID(input, output);
+				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(output);
+
+				Attributes defaultInput = input;
+				float3 currentMotionVector;
+				input = ASEApplyVertexModification( input, _TimeParameters.xyz, output, currentMotionVector );
+
+				VertexPositionInputs vertexInput = GetVertexPositionInputs( input.positionOS.xyz );
+
+				#if defined(APPLICATION_SPACE_WARP_MOTION)
+					float4 positionCSNoJitter = mul(_NonJitteredViewProjMatrix, mul(UNITY_MATRIX_M, input.positionOS));
+					float4 positionCS = positionCSNoJitter;
+				#else
+					float4 positionCS = vertexInput.positionCS;
+					float4 positionCSNoJitter = mul(_NonJitteredViewProjMatrix, mul(UNITY_MATRIX_M, input.positionOS));
+				#endif
+
+				// Custom output and automatic time-based motion are mutually exclusive.
+				#if defined(ASE_CUSTOM_MOTION_VECTOR)
+					float3 prevPositionOS = ( unity_MotionVectorsParams.x == 1 ) ? input.positionOld : input.positionOS.xyz;
+					prevPositionOS -= currentMotionVector;
+				#else
+					float3 prevPositionOS = ( unity_MotionVectorsParams.x == 1 ) ? input.positionOld : defaultInput.positionOS.xyz;
+					#ifdef ASE_TIME_BASED_MOTION_VECTORS
+						Attributes prevInput = defaultInput;
+						prevInput.positionOS.xyz = prevPositionOS;
+						PackedVaryings prevOutput = (PackedVaryings)0;
+						float3 prevMotionVector;
+						prevInput = ASEApplyVertexModification( prevInput, _LastTimeParameters.xyz, prevOutput, prevMotionVector );
+						prevPositionOS = prevInput.positionOS.xyz;
+					#endif
+				#endif
+				#if _ADD_PRECOMPUTED_VELOCITY
+					prevPositionOS -= input.alembicMotionVector;
+				#endif
+				float4 previousPositionCSNoJitter = mul( _PrevViewProjMatrix, mul( UNITY_PREV_MATRIX_M, float4( prevPositionOS, 1 ) ) );
+
+				output.positionCS = ASE_ADJUST_CLIP_POSITION( positionCS );
+				output.positionCSNoJitter = ASE_ADJUST_CLIP_POSITION( positionCSNoJitter );
+				output.previousPositionCSNoJitter = ASE_ADJUST_CLIP_POSITION( previousPositionCSNoJitter );
+				output.positionWS = vertexInput.positionWS;
+
+				return output;
+			}
+
+			PackedVaryings vert ( Attributes input )
+			{
+				return VertexFunction( input );
+			}
+
+			half4 frag(	PackedVaryings input
+				#if defined( ASE_WRITE_DEPTH )
+				,out float outputDepth : ASE_SV_DEPTH
+				#endif
+				 ) : SV_Target
+			{
+				UNITY_SETUP_INSTANCE_ID(input);
+				UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX( input );
+
+				float3 PositionWS = input.positionWS;
+				float3 PositionRWS = GetCameraRelativePositionWS( PositionWS );
+				float4 ScreenPosNorm = float4( GetNormalizedScreenSpaceUV( input.positionCS ), input.positionCS.zw );
+				float4 ClipPos = ComputeClipSpacePosition( ScreenPosNorm.xy, input.positionCS.z ) * input.positionCS.w;
+
+				float localBlendLayers4_g38 = ( 0.0 );
+				int VertexID4_g38 = input.ase_texcoord3.x;
+				float2 TileSize4_g38 = _TileSize;
+				float2 BaseUV4_g38 = input.ase_texcoord3.yz;
+				float3 ObjectNormal4_g38 = input.ase_normal;
+				float4 DefaultBlendColor4_g38 = _DefaultBlendColor;
+				TEXTURE2D(Texture4_g38) = _MainTex;
+				TEXTURE2D(NormalTexture4_g38) = _NormalMap;
+				SamplerState Sampler4_g38 = sampler_MainTex;
+				SamplerState NormalSampler4_g38 = sampler_NormalMap;
+				float4 RGBA4_g38 = float4( 0,0,0,0 );
+				float3 Normal4_g38 = float3( 0,0,0 );
+				float4 Tangent4_g38 = float4( 0,0,0,0 );
+				BlendLayers( VertexID4_g38 , TileSize4_g38 , BaseUV4_g38 , ObjectNormal4_g38 , DefaultBlendColor4_g38 , Texture4_g38 , NormalTexture4_g38 , Sampler4_g38 , NormalSampler4_g38 , RGBA4_g38 , Normal4_g38 , Tangent4_g38 );
+				float4 temp_output_2_0_g39 = RGBA4_g38;
+				
+
+				float Alpha = (temp_output_2_0_g39).w;
+				#if defined( _ALPHATEST_ON )
+					float AlphaClipThreshold = _Cutoff;
+				#endif
+
+				#if defined( ASE_WRITE_DEPTH )
+					input.positionCS.z = input.positionCS.z;
+				#endif
+
+				#ifdef _ALPHATEST_ON
+					clip(Alpha - AlphaClipThreshold);
+				#endif
+
+				#if defined(ASE_CHANGES_WORLD_POS)
+					float3 positionOS = mul( GetWorldToObjectMatrix(),  float4( PositionWS, 1.0 ) ).xyz;
+					float3 previousPositionWS = mul( GetPrevObjectToWorldMatrix(),  float4( positionOS, 1.0 ) ).xyz;
+					input.positionCSNoJitter = mul( _NonJitteredViewProjMatrix, float4( PositionWS, 1.0 ) );
+					input.previousPositionCSNoJitter = mul( _PrevViewProjMatrix, float4( previousPositionWS, 1.0 ) );
+				#endif
+
+				#if defined(LOD_FADE_CROSSFADE)
+					LODFadeCrossFade( input.positionCS );
+				#endif
+
+				#if defined( ASE_WRITE_DEPTH )
+					outputDepth = input.positionCS.z;
+				#endif
+
+				#if defined(APPLICATION_SPACE_WARP_MOTION)
+					return float4( CalcAswNdcMotionVectorFromCsPositions( input.positionCSNoJitter, input.previousPositionCSNoJitter ), 1 );
+				#else
+					return float4( CalcNdcMotionVectorFromCsPositions( input.positionCSNoJitter, input.previousPositionCSNoJitter ), 0, 0 );
+				#endif
+			}
+			ENDHLSL
+		}
+
 	
 	}
 	
@@ -3910,7 +4355,7 @@ Version=19912
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":9,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ScenePickingPass","0","9","ScenePickingPass","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=Picking","False","False","0","","0","0","Standard","0","False","0"]}
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":10,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","MotionVectors","0","10","MotionVectors","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","False","False","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=MotionVectors","False","False","0","","0","0","Standard","0","False","0"]}
 {"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":11,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","XRMotionVectors","0","11","XRMotionVectors","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","True","1","False","","255","False","","1","False","","7","False","","3","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","False","False","False","False","True","1","LightMode=XRMotionVectors","False","False","0","","0","0","Standard","0","False","0"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":1,"pos":[496,-128],"params":["Float","False","True","-1","3","UnityEditor.ShaderGraphLitGUI","0","18","TerrainShader","94348b07e5e8bab40bd6c8a1e3df54cd","True","Forward","0","1","Forward","22","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=UniversalForward","False","False","0","","0","0","Standard","52","Category","0","0","  Instanced Terrain Normals","1","0","Lighting Model","0","0","Workflow","1","0","Surface","0","0","  Keep Alpha","0","0","  Refraction Model","0","0","  Blend","0","0","Two Sided","1","0","Alpha Clipping","0","638918163137198311","  Use Shadow Threshold","0","638913139129558050","Fragment Normal Space","0","0","Forward Only","0","0","Transmission","0","0","  Transmission Shadow","0.5,False,","0","Translucency","0","0","  Translucency Strength","1,False,","0","  Normal Distortion","0.5,False,","0","  Scattering","2,False,","0","  Direct","0.9,False,","0","  Ambient","0.1,False,","0","  Shadow","0.5,False,","0","Cast Shadows","1","0","Receive Shadows","2","0","Specular Highlights","2","0","Environment Reflections","2","0","Receive SSAO","1","0","Motion Vectors","0","639249969632534347","  Additional Motion Vectors","1","0","  Alembic Motion Vectors","0","0","  XR Motion Vectors","0","0","GPU Instancing","0","638913139400457197","LOD CrossFade","0","638913139434204775","Built-in Fog","0","639249969624190811","_FinalColorxAlpha","0","0","Meta Pass","1","0","Override Baked GI","0","0","Extra Pre Pass","0","0","Tessellation","0","0","  Phong","0","0","  Strength","0.5,False,","0","  Type","0","0","  Tess","16,False,","0","  Min","10,False,","0","  Max","25,False,","0","  Edge Length","16,False,","0","  Max Displacement","25,False,","0","Write Depth","0","0","  Conservative","0","0","Vertex Position","1","0","Debug Display","1","0","Clear Coat","0","0","0","12","False","True","True","True","True","True","True","True","True","True","False","False","False","","True","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":1,"pos":[520,-128],"params":["Float","False","True","-1","3","UnityEditor.ShaderGraphLitGUI","0","18","TerrainShader","94348b07e5e8bab40bd6c8a1e3df54cd","True","Forward","0","1","Forward","22","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=UniversalForward","False","False","0","","0","0","Standard","52","Category","0","0","  Instanced Terrain Normals","1","0","Lighting Model","0","0","Workflow","1","0","Surface","0","0","  Keep Alpha","0","0","  Refraction Model","0","0","  Blend","0","0","Two Sided","1","0","Alpha Clipping","0","638918163137198311","  Use Shadow Threshold","0","638913139129558050","Fragment Normal Space","0","0","Forward Only","0","0","Transmission","0","0","  Transmission Shadow","0.5,False,","0","Translucency","0","0","  Translucency Strength","1,False,","0","  Normal Distortion","0.5,False,","0","  Scattering","2,False,","0","  Direct","0.9,False,","0","  Ambient","0.1,False,","0","  Shadow","0.5,False,","0","Cast Shadows","1","0","Receive Shadows","2","0","Specular Highlights","2","0","Environment Reflections","2","0","Screen Space Reflections","2","0","Receive SSAO","1","0","  Additional Motion Vectors","1","0","  Alembic Motion Vectors","0","0","  XR Motion Vectors","0","0","GPU Instancing","0","638913139400457197","LOD CrossFade","0","638913139434204775","Built-in Fog","0","639249969624190811","_FinalColorxAlpha","0","0","Meta Pass","1","0","Override Baked GI","0","0","Extra Pre Pass","0","0","Tessellation","0","0","  Phong","0","0","  Strength","0.5,False,","0","  Type","0","0","  Tess","16,False,","0","  Min","10,False,","0","  Max","25,False,","0","  Edge Length","16,False,","0","  Max Displacement","25,False,","0","Write Depth","0","0","  Conservative","0","0","Vertex Position","1","0","Debug Display","1","0","Clear Coat","0","0","0","12","False","True","True","True","True","True","True","True","True","True","True","False","False","","True","0"]}
 {"wire":[98,10,84,0]}
 {"wire":[98,8,50,0]}
 {"wire":[98,9,50,1]}
@@ -3922,4 +4367,4 @@ Version=19912
 {"wire":[1,6,55,6]}
 {"wire":[1,30,98,15]}
 ASEEND*/
-//CHKSM=9B0CA7E24970AD7F95711147D089E43C6DA8D79B
+//CHKSM=97B52D229034B2E6C81A324375D68B675B84C564
