@@ -6,6 +6,7 @@ using Unity.Entities;
 using Unity.Mathematics;
 using Unity.Rendering;
 using Mesh = UnityEngine.Mesh;
+using System.Diagnostics.CodeAnalysis;
 
 namespace FireAlt.Mosaic
 {
@@ -28,60 +29,61 @@ namespace FireAlt.Mosaic
 			var singleton = SystemAPI.GetSingleton<PresentationDataSingleton>();
 			if (singleton.Value.Value != null) singleton.Dispose();
 		}
- 
-		protected override void OnUpdate()
-		{
-			_intGridMeshesToUpdate.Clear();
-			_terrainMeshesToUpdate.Clear();
 
-			ref var presentationData = ref SystemAPI.GetSingletonRW<PresentationDataSingleton>().ValueRW;
-			presentationData.EnsureCreated(4);
+        [SuppressMessage("FireAlt.Analyzers", "FA1002", Justification = "Fast non-blocking main thread Burst IJE")]
+        protected override void OnUpdate()
+        {
+            _intGridMeshesToUpdate.Clear();
+            _terrainMeshesToUpdate.Clear();
 
-			EntityManager.CompleteDependencyBeforeRW<IntGridMeshDataSystem.Singleton>();
-			EntityManager.CompleteDependencyBeforeRW<TerrainMeshDataSystem.Singleton>();
-			var singleton = presentationData.Value.Value;
-			ref var intGridSingleton = ref SystemAPI.GetSingletonRW<IntGridMeshDataSystem.Singleton>().ValueRW;
-			ref var terrainSingleton = ref SystemAPI.GetSingletonRW<TerrainMeshDataSystem.Singleton>().ValueRW;
-			
-			foreach (var intGridHash in intGridSingleton.HashesToUpdate)
-			{
-				_intGridMeshesToUpdate.Add(singleton.MeshMap[intGridHash]);
-			}
-			
-			foreach (var terrainHash in terrainSingleton.HashesToUpdate)
-			{
-				var terrainRenderingData = singleton.TerrainMap[terrainHash];
-				var terrainData = terrainSingleton.Terrains[terrainHash];
-				var tilemapTerrainData = EntityManager.GetComponentData<TerrainData>(terrainData.TerrainEntity);
-				
-				terrainRenderingData.SetTileSize(tilemapTerrainData.TileSize);
-				terrainRenderingData.SetTileBuffer(terrainData.TileBuffer);
-				terrainRenderingData.SetIndexBuffer(terrainData.IndexBuffer);
-				
-				_terrainMeshesToUpdate.Add(singleton.MeshMap[terrainHash]);
-			}
-			
-			UpdateMeshes(ref intGridSingleton.MeshDataArray, _intGridMeshesToUpdate, intGridSingleton.RenderingEntities.Length);
-			UpdateMeshes(ref terrainSingleton.MeshDataArray, _terrainMeshesToUpdate, terrainSingleton.RenderingEntities.Length);
-			
-			if (_intGridMeshesToUpdate.Count != 0 || _terrainMeshesToUpdate.Count != 0)
-			{
-				new UpdateBoundsJob
-				{
-					IntGridUpdatedMeshBoundsMap = intGridSingleton.UpdatedMeshBoundsMap,
-					TerrainUpdatedMeshBoundsMap = terrainSingleton.UpdatedMeshBoundsMap
-				}.Run();
-				
-				intGridSingleton.HashesToUpdate.Clear();
-				intGridSingleton.UpdatedMeshBoundsMap.Clear();
-				terrainSingleton.HashesToUpdate.Clear();
-				terrainSingleton.UpdatedMeshBoundsMap.Clear();
-				_intGridMeshesToUpdate.Clear();
-				_terrainMeshesToUpdate.Clear();
-			}
-		}
+            ref var presentationData = ref SystemAPI.GetSingletonRW<PresentationDataSingleton>().ValueRW;
+            presentationData.EnsureCreated(4);
 
-		private void UpdateMeshes(ref MeshDataArrayWrapper meshDataArray, List<Mesh> meshes, int neededMeshesCount)
+            EntityManager.CompleteDependencyBeforeRW<IntGridMeshDataSystem.Singleton>();
+            EntityManager.CompleteDependencyBeforeRW<TerrainMeshDataSystem.Singleton>();
+            var singleton = presentationData.Value.Value;
+            ref var intGridSingleton = ref SystemAPI.GetSingletonRW<IntGridMeshDataSystem.Singleton>().ValueRW;
+            ref var terrainSingleton = ref SystemAPI.GetSingletonRW<TerrainMeshDataSystem.Singleton>().ValueRW;
+
+            foreach (var intGridHash in intGridSingleton.HashesToUpdate)
+            {
+                _intGridMeshesToUpdate.Add(singleton.MeshMap[intGridHash]);
+            }
+
+            foreach (var terrainHash in terrainSingleton.HashesToUpdate)
+            {
+                var terrainRenderingData = singleton.TerrainMap[terrainHash];
+                var terrainData = terrainSingleton.Terrains[terrainHash];
+                var tilemapTerrainData = EntityManager.GetComponentData<TerrainData>(terrainData.TerrainEntity);
+
+                terrainRenderingData.SetTileSize(tilemapTerrainData.TileSize);
+                terrainRenderingData.SetTileBuffer(terrainData.TileBuffer);
+                terrainRenderingData.SetIndexBuffer(terrainData.IndexBuffer);
+
+                _terrainMeshesToUpdate.Add(singleton.MeshMap[terrainHash]);
+            }
+
+            UpdateMeshes(ref intGridSingleton.MeshDataArray, _intGridMeshesToUpdate, intGridSingleton.RenderingEntities.Length);
+            UpdateMeshes(ref terrainSingleton.MeshDataArray, _terrainMeshesToUpdate, terrainSingleton.RenderingEntities.Length);
+
+            if (_intGridMeshesToUpdate.Count != 0 || _terrainMeshesToUpdate.Count != 0)
+            {
+                new UpdateBoundsJob
+                {
+                    IntGridUpdatedMeshBoundsMap = intGridSingleton.UpdatedMeshBoundsMap,
+                    TerrainUpdatedMeshBoundsMap = terrainSingleton.UpdatedMeshBoundsMap
+                }.Run();
+
+                intGridSingleton.HashesToUpdate.Clear();
+                intGridSingleton.UpdatedMeshBoundsMap.Clear();
+                terrainSingleton.HashesToUpdate.Clear();
+                terrainSingleton.UpdatedMeshBoundsMap.Clear();
+                _intGridMeshesToUpdate.Clear();
+                _terrainMeshesToUpdate.Clear();
+            }
+        }
+
+        private void UpdateMeshes(ref MeshDataArrayWrapper meshDataArray, List<Mesh> meshes, int neededMeshesCount)
 		{
 			if (meshes.Count != 0)
 			{
