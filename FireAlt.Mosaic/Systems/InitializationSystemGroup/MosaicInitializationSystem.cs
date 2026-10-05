@@ -97,11 +97,11 @@ namespace FireAlt.Mosaic
 
         private void CleanupRenderers()
         {
-            var cleanupQuery = new EntityQueryBuilder(Allocator.Temp)
+            var cleanupQuery = SystemAPI.QueryBuilder()
                 .WithAll<MosaicRendererCleanup>()
                 .WithNone<TilemapRendererData>()
                 .WithOptions(EntityQueryOptions.IncludeDisabledEntities)
-                .Build(EntityManager);
+                .Build();
             if (cleanupQuery.IsEmpty) return;
 
             EntityManager.CompleteDependencyBeforeRW<IntGridMeshDataSystem.Singleton>();
