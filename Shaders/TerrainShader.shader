@@ -1,4 +1,4 @@
-// Made with Amplify Shader Editor v1.9.9.12
+// Made with Amplify Shader Editor v1.9.9.13
 // Available at the Unity Asset Store - http://u3d.as/y3X 
 Shader "TerrainShader"
 {
@@ -30,7 +30,7 @@ Shader "TerrainShader"
 		[ToggleOff(_SPECULARHIGHLIGHTS_OFF)] _SpecularHighlights("Specular Highlights", Float) = 1.0
 		[ToggleOff] _EnvironmentReflections("Environment Reflections", Float) = 1.0
 		[ToggleOff] _ScreenSpaceReflections("Screen Space Reflections", Float) = 1.0
-		[ToggleOff] _ScreenSpaceReflectionsContributeTransparent("Screen Space Reflections Contribute Transparent", Float) = 1.0
+		[ToggleUI] _ScreenSpaceReflectionsContributeTransparent("Screen Space Reflections Contribute Transparent", Float) = 1.0
 		[HideInInspector][ToggleUI] _ReceiveShadows("Receive Shadows", Float) = 1.0
 
 		[HideInInspector] _QueueOffset("_QueueOffset", Float) = 0
@@ -63,6 +63,7 @@ Shader "TerrainShader"
 
 		Cull Back
 		ZWrite On
+		ZClip True
 		ZTest LEqual
 		Offset 0 , 0
 		AlphaToMask Off
@@ -81,6 +82,12 @@ Shader "TerrainShader"
 		#define GLOBAL_HEADER_INCLUDED
 
 			#define ASE_ADJUST_CLIP_POSITION( x ) x
+
+			#if ( UNITY_VERSION >= 60070000 )
+				#define ASE_LIGHT_ACCUM4 URP_LIGHT_ACCUM4
+			#else
+				#define ASE_LIGHT_ACCUM4 half4
+			#endif
 
 			#ifndef ASE_TESS_FUNCS
 			#define ASE_TESS_FUNCS
@@ -191,7 +198,7 @@ Shader "TerrainShader"
 		Pass
 		{
 			
-			Name "Forward"
+			Name "ForwardLit"
 			Tags { "LightMode"="UniversalForward" }
 
 			Blend One Zero, One Zero
@@ -209,11 +216,12 @@ Shader "TerrainShader"
 			#pragma shader_feature_local_fragment _RECEIVE_SHADOWS_OFF
 			#pragma shader_feature_local_fragment _SPECULARHIGHLIGHTS_OFF
 			#pragma shader_feature_local_fragment _ENVIRONMENTREFLECTIONS_OFF
-			#define ASE_SSR
+			#define ASE_SCREEN_SPACE_REFLECTIONS
+			#pragma shader_feature_local_fragment _SCREENSPACEREFLECTIONS_OFF
 			#pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
-			#define ASE_VERSION 19912
+			#define ASE_VERSION 19913
 			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -228,12 +236,9 @@ Shader "TerrainShader"
 			#if ( UNITY_VERSION >= 60070000 )
 			#pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX
 			#pragma multi_compile_fragment _ _ADDITIONAL_LIGHTS
+			#pragma multi_compile _ _LIGHT_FALLOFF_QUADRATIC
 			#else
 			#pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
-			#endif
-
-			#if ( UNITY_VERSION >= 60070000 )
-			#pragma multi_compile _ _LIGHT_FALLOFF_LINEAR
 			#endif
 
             #pragma multi_compile _ EVALUATE_SH_MIXED EVALUATE_SH_VERTEX
@@ -255,9 +260,8 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ _SCREEN_SPACE_IRRADIANCE
 			#endif
 
-			#if ( UNITY_VERSION >= 60060000 ) && defined( ASE_SSR )
+			#if ( UNITY_VERSION >= 60060000 ) && defined( ASE_SCREEN_SPACE_REFLECTIONS )
 			#pragma multi_compile_fragment _ _SCREEN_SPACE_REFLECTION
-			#pragma shader_feature_local_fragment _SCREENSPACEREFLECTIONS_OFF
 			#endif
 
 			#pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
@@ -266,16 +270,15 @@ Shader "TerrainShader"
 
 			#if ( UNITY_VERSION >= 60070000 )
 			#pragma multi_compile_fragment _ _VOLUMETRIC_FOG
-			#endif
-
-			#if ( UNITY_VERSION >= 60070000 )
 			#pragma multi_compile_fragment _ _CLUSTER_LIGHT_LOOP
-			#else
-			#if ( UNITY_VERSION >= 60010000 )
+			#elif ( UNITY_VERSION >= 60010000 )
 			#pragma multi_compile _ _CLUSTER_LIGHT_LOOP
 			#else
 			#pragma multi_compile _ _FORWARD_PLUS
 			#endif
+
+			#if ( UNITY_VERSION >= 60070000 ) && defined( _SURFACE_TYPE_TRANSPARENT ) && defined( _TRANSPARENT_RECEIVE_FOG )
+			#pragma multi_compile_fragment _FOG_ANALYTIC _FOG_VOLUMETRIC
 			#endif
 
             #if defined(UNITY_PLATFORM_META_QUEST) && ( UNITY_VERSION >= 60050000 )
@@ -296,8 +299,13 @@ Shader "TerrainShader"
 			#if ( UNITY_VERSION >= 60030000 )
 			#pragma multi_compile_fragment _ REFLECTION_PROBE_ROTATION
 			#endif
-			
+
 			#pragma multi_compile _ USE_LEGACY_LIGHTMAPS
+
+			#if ( UNITY_VERSION < 60070000 ) && defined( DOTS_INSTANCING_ON ) && !defined( USE_LEGACY_LIGHTMAPS )
+				// @diogo: URP passes its Texture2D dynamic lightmap to Texture2DArray lightmap params
+				#undef DYNAMICLIGHTMAP_ON
+			#endif
 
 			#pragma vertex vert
 			#pragma fragment frag
@@ -424,6 +432,7 @@ Shader "TerrainShader"
 				float _TessEdgeLength;
 				float _TessMaxDisp;
 			#endif
+			UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 			CBUFFER_END
 
 			#ifdef SCENEPICKINGPASS
@@ -738,9 +747,6 @@ Shader "TerrainShader"
 				inputData.positionCS = input.positionCS;
 				inputData.normalizedScreenSpaceUV = ScreenPosNorm.xy;
 				inputData.viewDirectionWS = ViewDirWS;
-				#if ( UNITY_VERSION >= 60070000 )
-					inputData.preExposureMultiplier = GetPreExposureMultiplier();
-				#endif
 				inputData.shadowCoord = ShadowCoord;
 
 				#ifdef _NORMALMAP
@@ -774,26 +780,23 @@ Shader "TerrainShader"
 
 				#if ( UNITY_VERSION >= 60070000 )
 					GIParams giParams = (GIParams)0;
-					#if USE_LIGHTMAP_UV_INTERPOLATOR
-					giParams.staticLightmapUV = input.lightmapUVOrVertexSH.xy;
+					#if defined(LIGHTMAP_ON)
+						giParams.staticLightmapUV = input.lightmapUVOrVertexSH.xy;
+					#else
+						giParams.vertexSH = SH;
 					#endif
-					#if USE_VERTEX_SH_INTERPOLATOR
-					giParams.vertexSH = SH;
+					#if defined(DYNAMICLIGHTMAP_ON)
+						giParams.dynamicLightmapUV = input.dynamicLightmapUV.xy;
 					#endif
-					#if USE_DYNAMICLIGHTMAP_UV_INTERPOLATOR
-					giParams.dynamicLightmapUV = input.dynamicLightmapUV.xy;
-					#endif
-					#ifdef USE_APV_PROBE_OCCLUSION
-					giParams.vertexProbeOcclusion = input.probeOcclusion;
+					#if defined(USE_APV_PROBE_OCCLUSION)
+						giParams.vertexProbeOcclusion = input.probeOcclusion;
 					#endif
 					giParams.positionWS = inputData.positionWS;
 					giParams.normalWS = inputData.normalWS;
 					giParams.viewDirWS = inputData.viewDirectionWS;
 					giParams.positionSS = input.positionCS.xy;
-					#if defined(_SURFACE_TYPE_TRANSPARENT)
-					giParams.isSurfaceTypeTransparent = true;
-					#endif
-					InitializeBakedGI(giParams, inputData.bakedGI, inputData.shadowMask);
+					giParams.isSurfaceTypeTransparent = isTransparent;
+					InitializeBakedGI( giParams, inputData.bakedGI, inputData.shadowMask );
 				#elif defined(_SCREEN_SPACE_IRRADIANCE) && ( UNITY_VERSION >= 60030000 )
 					#if ( UNITY_VERSION >= 60060000 )
 						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS);
@@ -831,6 +834,7 @@ Shader "TerrainShader"
 					#if defined(USE_APV_PROBE_OCCLUSION)
 						inputData.probeOcclusion = input.probeOcclusion;
 					#endif
+					SETUP_DEBUG_TEXTURE_DATA_NO_UV( inputData );
 				#endif
 
 				SurfaceData surfaceData;
@@ -855,9 +859,9 @@ Shader "TerrainShader"
 				#endif
 
 				#ifdef ASE_LIGHTING_SIMPLE
-					half4 color = UniversalFragmentBlinnPhong( inputData, surfaceData);
+					ASE_LIGHT_ACCUM4 color = UniversalFragmentBlinnPhong( inputData, surfaceData);
 				#else
-					half4 color = UniversalFragmentPBR( inputData, surfaceData);
+					ASE_LIGHT_ACCUM4 color = UniversalFragmentPBR( inputData, surfaceData);
 				#endif
 
 				#ifdef ASE_TRANSMISSION
@@ -956,6 +960,10 @@ Shader "TerrainShader"
 					float3 refractionOffset = ( RefractionIndex - 1.0 ) * mul( UNITY_MATRIX_V, float4( NormalWS,0 ) ).xyz * ( 1.0 - dot( NormalWS, ViewDirWS ) );
 					projScreenPos.xy += refractionOffset.xy;
 					float3 refraction = SHADERGRAPH_SAMPLE_SCENE_COLOR( projScreenPos.xy ) * RefractionColor;
+					#if ( UNITY_VERSION >= 60070000 )
+						// @diogo: the opaque texture is already pre-exposed, and color is exposed again below
+						refraction *= GetInvPreExposureMultiplier();
+					#endif
 					color.rgb = lerp( refraction, color.rgb, color.a );
 					color.a = 1;
 				#endif
@@ -973,6 +981,9 @@ Shader "TerrainShader"
 				#endif
 				#if ( UNITY_VERSION >= 60070000 )
 					color.rgb = ClampExposed(inputData.preExposureMultiplier * color.rgb);
+				#endif
+				#if ( UNITY_VERSION >= 60070000 ) && defined( _SURFACE_TYPE_TRANSPARENT ) && defined( _TRANSPARENT_RECEIVE_FOG )
+					color.rgb = MixVolumetricFog( color.rgb, color.a, ASE_BLEND_MODE, false, input.positionCS );
 				#endif
 
 				#if defined( ASE_WRITE_DEPTH )
@@ -1013,9 +1024,10 @@ Shader "TerrainShader"
 
 			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
+			#define ASE_SCREEN_SPACE_REFLECTIONS
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
-			#define ASE_VERSION 19912
+			#define ASE_VERSION 19913
 			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -1112,6 +1124,7 @@ Shader "TerrainShader"
 				float _TessEdgeLength;
 				float _TessMaxDisp;
 			#endif
+			UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 			CBUFFER_END
 
 			#ifdef SCENEPICKINGPASS
@@ -1368,9 +1381,10 @@ Shader "TerrainShader"
 
 			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
+			#define ASE_SCREEN_SPACE_REFLECTIONS
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
-			#define ASE_VERSION 19912
+			#define ASE_VERSION 19913
 			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -1465,6 +1479,7 @@ Shader "TerrainShader"
 				float _TessEdgeLength;
 				float _TessMaxDisp;
 			#endif
+			UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 			CBUFFER_END
 
 			#ifdef SCENEPICKINGPASS
@@ -1699,9 +1714,10 @@ Shader "TerrainShader"
 			HLSLPROGRAM
 			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
+			#define ASE_SCREEN_SPACE_REFLECTIONS
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
-			#define ASE_VERSION 19912
+			#define ASE_VERSION 19913
 			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -1791,6 +1807,7 @@ Shader "TerrainShader"
 				float _TessEdgeLength;
 				float _TessMaxDisp;
 			#endif
+			UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 			CBUFFER_END
 
 			#ifdef SCENEPICKINGPASS
@@ -2033,9 +2050,10 @@ Shader "TerrainShader"
 
 			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
+			#define ASE_SCREEN_SPACE_REFLECTIONS
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
-			#define ASE_VERSION 19912
+			#define ASE_VERSION 19913
 			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -2117,6 +2135,7 @@ Shader "TerrainShader"
 				float _TessEdgeLength;
 				float _TessMaxDisp;
 			#endif
+			UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 			CBUFFER_END
 
 			#ifdef SCENEPICKINGPASS
@@ -2339,9 +2358,11 @@ Shader "TerrainShader"
 
 			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
+			#define ASE_SCREEN_SPACE_REFLECTIONS
+			#pragma shader_feature_local_fragment _SCREENSPACEREFLECTIONS_OFF
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
-			#define ASE_VERSION 19912
+			#define ASE_VERSION 19913
 			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -2360,15 +2381,7 @@ Shader "TerrainShader"
 
 			#if ( UNITY_VERSION >= 60060000 )
 				#pragma multi_compile _ _WRITE_SMOOTHNESS
-			#endif
-
-			#if ( UNITY_VERSION >= 60060000 )
 				#pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
-			#endif
-
-			#if ( UNITY_VERSION >= 60060000 ) && defined( ASE_SSR )
-			#pragma multi_compile_fragment _ _SCREEN_SPACE_REFLECTION
-			#pragma shader_feature_local_fragment _SCREENSPACEREFLECTIONS_OFF
 			#endif
 
 			#define SHADERPASS SHADERPASS_DEPTHNORMALSONLY
@@ -2461,6 +2474,7 @@ Shader "TerrainShader"
 				float _TessEdgeLength;
 				float _TessMaxDisp;
 			#endif
+			UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 			CBUFFER_END
 
 			#ifdef SCENEPICKINGPASS
@@ -2705,42 +2719,38 @@ Shader "TerrainShader"
 					LODFadeCrossFade( input.positionCS );
 				#endif
 
-			    #if ( UNITY_VERSION >= 60060000 )
-				   #if _SCREENSPACEREFLECTIONSCONTRIBUTETRANSPARENT_OFF_KEYWORD_DECLARED
-					   if (_SCREENSPACEREFLECTIONSCONTRIBUTETRANSPARENT_OFF)
-					   discard;
-				   #endif
-			    #endif
-
 				#if defined( ASE_WRITE_DEPTH )
 					outputDepth = input.positionCS.z;
 				#endif
 
-				#if defined(_GBUFFER_NORMALS_OCT)
-					float2 octNormalWS = PackNormalOctQuadEncode(NormalWS);
+				#if defined(_NORMALMAP)
+					#if _NORMAL_DROPOFF_TS
+						float3 normalWS = TransformTangentToWorld(Normal, half3x3(TangentWS, BitangentWS, NormalWS));
+					#elif _NORMAL_DROPOFF_OS
+						float3 normalWS = TransformObjectToWorldNormal(Normal);
+					#elif _NORMAL_DROPOFF_WS
+						float3 normalWS = Normal;
+					#endif
+				#else
+					float3 normalWS = NormalWS;
+				#endif
+
+				#if ( UNITY_VERSION >= 60070000 )
+					outNormalWS = half4( PackNormalWSToTexture( NormalizeNormalPerPixel( normalWS ) ), 0.0 );
+				#elif defined(_GBUFFER_NORMALS_OCT)
+					float2 octNormalWS = PackNormalOctQuadEncode(NormalizeNormalPerPixel(normalWS));
 					float2 remappedOctNormalWS = saturate(octNormalWS * 0.5 + 0.5);
 					half3 packedNormalWS = PackFloat2To888(remappedOctNormalWS);
 					outNormalWS = half4(packedNormalWS, 0.0);
 				#else
-					#if defined(_NORMALMAP)
-						#if _NORMAL_DROPOFF_TS
-							float3 normalWS = TransformTangentToWorld(Normal, half3x3(TangentWS, BitangentWS, NormalWS));
-						#elif _NORMAL_DROPOFF_OS
-							float3 normalWS = TransformObjectToWorldNormal(Normal);
-						#elif _NORMAL_DROPOFF_WS
-							float3 normalWS = Normal;
-						#endif
-					#else
-						float3 normalWS = NormalWS;
-					#endif
 					outNormalWS = half4(NormalizeNormalPerPixel(normalWS), 0.0);
 				#endif
 
-			    #if ( UNITY_VERSION >= 60060000 )
-				   #if defined(_WRITE_SMOOTHNESS) && !defined(_SCREENSPACEREFLECTIONS_OFF)
-					   outNormalWS.a = saturate( Smoothness );
-				   #endif
-			    #endif
+				#if ( UNITY_VERSION >= 60060000 )
+					#if defined(_WRITE_SMOOTHNESS) && !defined(_SCREENSPACEREFLECTIONS_OFF)
+						outNormalWS.a = saturate( Smoothness );
+					#endif
+				#endif
 
 				#ifdef _WRITE_RENDERING_LAYERS
 					#if ( UNITY_VERSION >= 60020000 )
@@ -2775,9 +2785,11 @@ Shader "TerrainShader"
 			#pragma shader_feature_local_fragment _RECEIVE_SHADOWS_OFF
 			#pragma shader_feature_local_fragment _SPECULARHIGHLIGHTS_OFF
 			#pragma shader_feature_local_fragment _ENVIRONMENTREFLECTIONS_OFF
+			#define ASE_SCREEN_SPACE_REFLECTIONS
+			#pragma shader_feature_local_fragment _SCREENSPACEREFLECTIONS_OFF
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
-			#define ASE_VERSION 19912
+			#define ASE_VERSION 19913
 			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -2805,9 +2817,8 @@ Shader "TerrainShader"
 			#pragma multi_compile_fragment _ _SCREEN_SPACE_IRRADIANCE
 			#endif
 
-			#if ( UNITY_VERSION >= 60060000 ) && defined( ASE_SSR )
+			#if ( UNITY_VERSION >= 60060000 ) && defined( ASE_SCREEN_SPACE_REFLECTIONS )
 			#pragma multi_compile_fragment _ _SCREEN_SPACE_REFLECTION
-			#pragma shader_feature_local_fragment _SCREENSPACEREFLECTIONS_OFF
 			#endif
 
 			#pragma multi_compile_fragment _ _DBUFFER_MRT1 _DBUFFER_MRT2 _DBUFFER_MRT3
@@ -2816,10 +2827,8 @@ Shader "TerrainShader"
 
 			#if ( UNITY_VERSION >= 60070000 )
 			#pragma multi_compile_fragment _ _CLUSTER_LIGHT_LOOP
-			#else
-			#if ( UNITY_VERSION >= 60010000 )
+			#elif ( UNITY_VERSION >= 60010000 )
 			#pragma multi_compile _ _CLUSTER_LIGHT_LOOP
-			#endif
 			#endif
 
 			#pragma multi_compile _ LIGHTMAP_SHADOW_MIXING
@@ -2842,6 +2851,11 @@ Shader "TerrainShader"
 			#endif
 
 			#pragma multi_compile _ DYNAMICLIGHTMAP_ON
+
+			#if ( UNITY_VERSION < 60070000 ) && defined( DOTS_INSTANCING_ON ) && !defined( USE_LEGACY_LIGHTMAPS )
+				// @diogo: URP passes its Texture2D dynamic lightmap to Texture2DArray lightmap params
+				#undef DYNAMICLIGHTMAP_ON
+			#endif
 
 			#pragma vertex vert
 			#pragma fragment frag
@@ -2962,6 +2976,7 @@ Shader "TerrainShader"
 				float _TessEdgeLength;
 				float _TessMaxDisp;
 			#endif
+			UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 			CBUFFER_END
 
 			#ifdef SCENEPICKINGPASS
@@ -3302,26 +3317,22 @@ Shader "TerrainShader"
 
 				#if ( UNITY_VERSION >= 60070000 )
 					GIParams giParams = (GIParams)0;
-					#if USE_LIGHTMAP_UV_INTERPOLATOR
-					giParams.staticLightmapUV = input.lightmapUVOrVertexSH.xy;
+					#if defined(LIGHTMAP_ON)
+						giParams.staticLightmapUV = input.lightmapUVOrVertexSH.xy;
+					#else
+						giParams.vertexSH = SH;
 					#endif
-					#if USE_VERTEX_SH_INTERPOLATOR
-					giParams.vertexSH = SH;
+					#if defined(DYNAMICLIGHTMAP_ON)
+						giParams.dynamicLightmapUV = input.dynamicLightmapUV.xy;
 					#endif
-					#if USE_DYNAMICLIGHTMAP_UV_INTERPOLATOR
-					giParams.dynamicLightmapUV = input.dynamicLightmapUV.xy;
-					#endif
-					#ifdef USE_APV_PROBE_OCCLUSION
-					giParams.vertexProbeOcclusion = input.probeOcclusion;
+					#if defined(USE_APV_PROBE_OCCLUSION)
+						giParams.vertexProbeOcclusion = input.probeOcclusion;
 					#endif
 					giParams.positionWS = inputData.positionWS;
 					giParams.normalWS = inputData.normalWS;
 					giParams.viewDirWS = inputData.viewDirectionWS;
 					giParams.positionSS = input.positionCS.xy;
-					#if defined(_SURFACE_TYPE_TRANSPARENT)
-					giParams.isSurfaceTypeTransparent = true;
-					#endif
-					InitializeBakedGI(giParams, inputData.bakedGI, inputData.shadowMask);
+					InitializeBakedGI( giParams, inputData.bakedGI, inputData.shadowMask );
 				#elif defined(_SCREEN_SPACE_IRRADIANCE) && ( UNITY_VERSION >= 60030000 )
 					#if ( UNITY_VERSION >= 60060000 )
 						inputData.bakedGI = SAMPLE_GI(_ScreenSpaceIrradiance, input.positionCS.xy, inputData.normalWS);
@@ -3359,6 +3370,7 @@ Shader "TerrainShader"
 					#if defined(USE_APV_PROBE_OCCLUSION)
 						inputData.probeOcclusion = input.probeOcclusion;
 					#endif
+					SETUP_DEBUG_TEXTURE_DATA_NO_UV( inputData );
 				#endif
 
 				#ifdef _DBUFFER
@@ -3375,7 +3387,7 @@ Shader "TerrainShader"
 				InitializeBRDFData(BaseColor, Metallic, Specular, Smoothness, Alpha, brdfData);
 
 				Light mainLight = GetMainLight(inputData.shadowCoord, inputData.positionWS, inputData.shadowMask);
-				half4 color;
+				ASE_LIGHT_ACCUM4 color;
 				MixRealtimeAndBakedGI(mainLight, inputData.normalWS, inputData.bakedGI, inputData.shadowMask);
 
 			#if ( UNITY_VERSION >= 60010000 )
@@ -3422,9 +3434,10 @@ Shader "TerrainShader"
 
 			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
+			#define ASE_SCREEN_SPACE_REFLECTIONS
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
-			#define ASE_VERSION 19912
+			#define ASE_VERSION 19913
 			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -3517,6 +3530,7 @@ Shader "TerrainShader"
 				float _TessEdgeLength;
 				float _TessMaxDisp;
 			#endif
+			UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 			CBUFFER_END
 
 			#ifdef SCENEPICKINGPASS
@@ -3733,9 +3747,10 @@ Shader "TerrainShader"
 
 			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
+			#define ASE_SCREEN_SPACE_REFLECTIONS
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
-			#define ASE_VERSION 19912
+			#define ASE_VERSION 19913
 			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -3828,6 +3843,7 @@ Shader "TerrainShader"
 				float _TessEdgeLength;
 				float _TessMaxDisp;
 			#endif
+			UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 			CBUFFER_END
 
 			#ifdef SCENEPICKINGPASS
@@ -4043,10 +4059,11 @@ Shader "TerrainShader"
 
 			#define ASE_GEOMETRY
 			#define _NORMAL_DROPOFF_TS 1
+			#define ASE_SCREEN_SPACE_REFLECTIONS
 			#define ASE_TIME_BASED_MOTION_VECTORS
 			#pragma multi_compile_fragment _ DEBUG_DISPLAY
 			#define _NORMALMAP 1
-			#define ASE_VERSION 19912
+			#define ASE_VERSION 19913
 			#define ASE_SRP_VERSION 170700
 			#define VERTEXID_SEMANTIC SV_VertexID
 			#define ASE_USING_SAMPLING_MACROS 1
@@ -4152,6 +4169,7 @@ Shader "TerrainShader"
 				float _TessEdgeLength;
 				float _TessMaxDisp;
 			#endif
+			UNITY_TEXTURE_STREAMING_DEBUG_VARS;
 			CBUFFER_END
 
 			#ifdef SCENEPICKINGPASS
@@ -4174,8 +4192,8 @@ Shader "TerrainShader"
 			// evaluate the current frame and re-evaluate the previous frame (procedural / time-based animation).
 			Attributes ASEApplyVertexModification( Attributes input, float3 timeParameters, inout PackedVaryings output, out float3 customMotionVector  )
 			{
-				float3 currentTimeParameters = _TimeParameters.xyz;
-				//_TimeParameters.xyz = timeParameters;
+				// @diogo: local copy shadows the global; DXC rejects writes to globals
+				float4 _TimeParameters = float4( timeParameters, 0 );
 
 				output.ase_texcoord3.x = input.ase_vertexId;
 				output.ase_texcoord3.yz = input.ase_texcoord.xy;
@@ -4200,7 +4218,6 @@ Shader "TerrainShader"
 
 				customMotionVector = float3(0, 0, 0);
 
-				//_TimeParameters.xyz = currentTimeParameters;
 				return input;
 			}
 
@@ -4226,19 +4243,28 @@ Shader "TerrainShader"
 				#endif
 
 				// Custom output and automatic time-based motion are mutually exclusive.
-				#if defined(ASE_CUSTOM_MOTION_VECTOR)
-					float3 prevPositionOS = ( unity_MotionVectorsParams.x == 1 ) ? input.positionOld : input.positionOS.xyz;
-					prevPositionOS -= currentMotionVector;
+				// @diogo: like SG, only re-run the vertex graph when skinned or time-based, else reuse the deformed position
+				float3 prevPositionOS = input.positionOS.xyz;
+				#ifdef ASE_TIME_BASED_MOTION_VECTORS
+					const bool applyDeformation = true;
 				#else
-					float3 prevPositionOS = ( unity_MotionVectorsParams.x == 1 ) ? input.positionOld : defaultInput.positionOS.xyz;
+					const bool applyDeformation = ( unity_MotionVectorsParams.x == 1 );
+				#endif
+				if ( applyDeformation )
+				{
+					Attributes prevInput = defaultInput;
+					prevInput.positionOS.xyz = ( unity_MotionVectorsParams.x == 1 ) ? input.positionOld : defaultInput.positionOS.xyz;
+					PackedVaryings prevOutput = (PackedVaryings)0;
+					float3 prevMotionVector;
 					#ifdef ASE_TIME_BASED_MOTION_VECTORS
-						Attributes prevInput = defaultInput;
-						prevInput.positionOS.xyz = prevPositionOS;
-						PackedVaryings prevOutput = (PackedVaryings)0;
-						float3 prevMotionVector;
 						prevInput = ASEApplyVertexModification( prevInput, _LastTimeParameters.xyz, prevOutput, prevMotionVector );
-						prevPositionOS = prevInput.positionOS.xyz;
+					#else
+						prevInput = ASEApplyVertexModification( prevInput, _TimeParameters.xyz, prevOutput, prevMotionVector );
 					#endif
+					prevPositionOS = prevInput.positionOS.xyz;
+				}
+				#if defined(ASE_CUSTOM_MOTION_VECTOR)
+					prevPositionOS -= currentMotionVector;
 				#endif
 				#if _ADD_PRECOMPUTED_VELOCITY
 					prevPositionOS -= input.alembicMotionVector;
@@ -4338,24 +4364,24 @@ Shader "TerrainShader"
 	Fallback Off
 }
 /*ASEBEGIN
-Version=19912
+Version=19913
 {"type":"AmplifyShaderEditor.TexturePropertyNode, AmplifyShaderEditor","id":50,"pos":[-304,64],"params":["Inherit","True","Property","_MainTex","MainTex","0","0","Create","True","0","0","0","False","0","False","","None","None","False","white","Auto","Texture2D","False","-1","0","2","SAMPLER2D","0","SAMPLERSTATE","1"]}
 {"type":"AmplifyShaderEditor.TexturePropertyNode, AmplifyShaderEditor","id":90,"pos":[-304,264],"params":["Inherit","True","Property","_NormalMap","NormalMap","1","0","Create","True","0","0","0","False","0","False","","None","None","False","white","Auto","Texture2D","False","-1","0","2","SAMPLER2D","0","SAMPLERSTATE","1"]}
-{"type":"AmplifyShaderEditor.ColorNode, AmplifyShaderEditor","id":84,"pos":[-304,-152],"params":["Inherit","False","Property","_DefaultBlendColor","DefaultBlendColor","4","0","Create","True","0","0","0","False","0","False","Object","-1","","0,0,0,1","0.7686275,0.435294,0.3058823,1","True","True","0","6","COLOR","0","FLOAT","1","FLOAT","2","FLOAT","3","FLOAT","4","FLOAT3","5"]}
+{"type":"AmplifyShaderEditor.ColorNode, AmplifyShaderEditor","id":84,"pos":[-296,-160],"params":["Inherit","False","Property","_DefaultBlendColor","DefaultBlendColor","4","0","Create","True","0","0","0","False","0","False","Object","-1","","0,0,0,1","0.7686275,0.435294,0.3058823,1","True","True","0","6","COLOR","0","FLOAT","1","FLOAT","2","FLOAT","3","FLOAT","4","FLOAT3","5"]}
 {"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":98,"pos":[-48,-16],"params":["Inherit","False","MosaicBlendLayers","2","","38","34be181aab269424fa7648145160b7fa","0","5","10","FLOAT4","0,0,0,0","False","8","SAMPLER2D","0","False","9","SAMPLERSTATE","0","False","11","SAMPLER2D","0","False","13","SAMPLERSTATE","0","False","3","FLOAT3","12","FLOAT4","7","FLOAT4","15"]}
 {"type":"AmplifyShaderEditor.FunctionNode, AmplifyShaderEditor","id":55,"pos":[304,8],"params":["Inherit","False","Alpha Split","-1","","39","07dab7960105b86429ac8eebd729ed6d","0","1","2","FLOAT4","0,0,0,0","False","2","FLOAT3","0","FLOAT","6"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":0,"pos":[32,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ExtraPrePass","0","0","ExtraPrePass","6","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","0","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","0","False","False","0","","0","0","Standard","0","False","0"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":2,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ShadowCaster","0","2","ShadowCaster","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","True","False","False","False","False","0","False","","False","False","False","False","False","False","False","False","False","True","1","False","","True","3","False","","False","False","True","1","LightMode=ShadowCaster","False","False","0","","0","0","Standard","0","False","0"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":3,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","DepthOnly","0","3","DepthOnly","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","True","True","False","False","False","0","False","","False","False","False","False","False","False","False","False","False","True","1","False","","False","False","False","True","1","LightMode=DepthOnly","False","False","0","","0","0","Standard","0","False","0"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":4,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","Meta","0","4","Meta","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","2","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=Meta","False","False","0","","0","0","Standard","0","False","0"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":5,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","Universal2D","0","5","Universal2D","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","False","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=Universal2D","False","False","0","","0","0","Standard","0","False","0"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":6,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","DepthNormals","0","6","DepthNormals","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","0","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","False","","True","3","False","","False","False","True","1","LightMode=DepthNormals","False","False","0","","0","0","Standard","0","False","0"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":7,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","GBuffer","0","7","GBuffer","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=UniversalGBuffer","False","True","12","d3d11","gles","metal","vulkan","xboxone","xboxseries","playstation","ps4","ps5","switch","switch2","webgpu","0","","0","0","Standard","0","False","0"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":8,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","SceneSelectionPass","0","8","SceneSelectionPass","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","2","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=SceneSelectionPass","False","False","0","","0","0","Standard","0","False","0"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":9,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ScenePickingPass","0","9","ScenePickingPass","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=Picking","False","False","0","","0","0","Standard","0","False","0"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":10,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","MotionVectors","0","10","MotionVectors","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","False","False","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=MotionVectors","False","False","0","","0","0","Standard","0","False","0"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":11,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","XRMotionVectors","0","11","XRMotionVectors","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","True","1","False","","255","False","","1","False","","7","False","","3","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","False","False","False","False","True","1","LightMode=XRMotionVectors","False","False","0","","0","0","Standard","0","False","0"]}
-{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":1,"pos":[520,-128],"params":["Float","False","True","-1","3","UnityEditor.ShaderGraphLitGUI","0","18","TerrainShader","94348b07e5e8bab40bd6c8a1e3df54cd","True","Forward","0","1","Forward","22","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=UniversalForward","False","False","0","","0","0","Standard","52","Category","0","0","  Instanced Terrain Normals","1","0","Lighting Model","0","0","Workflow","1","0","Surface","0","0","  Keep Alpha","0","0","  Refraction Model","0","0","  Blend","0","0","Two Sided","1","0","Alpha Clipping","0","638918163137198311","  Use Shadow Threshold","0","638913139129558050","Fragment Normal Space","0","0","Forward Only","0","0","Transmission","0","0","  Transmission Shadow","0.5,False,","0","Translucency","0","0","  Translucency Strength","1,False,","0","  Normal Distortion","0.5,False,","0","  Scattering","2,False,","0","  Direct","0.9,False,","0","  Ambient","0.1,False,","0","  Shadow","0.5,False,","0","Cast Shadows","1","0","Receive Shadows","2","0","Specular Highlights","2","0","Environment Reflections","2","0","Screen Space Reflections","2","0","Receive SSAO","1","0","  Additional Motion Vectors","1","0","  Alembic Motion Vectors","0","0","  XR Motion Vectors","0","0","GPU Instancing","0","638913139400457197","LOD CrossFade","0","638913139434204775","Built-in Fog","0","639249969624190811","_FinalColorxAlpha","0","0","Meta Pass","1","0","Override Baked GI","0","0","Extra Pre Pass","0","0","Tessellation","0","0","  Phong","0","0","  Strength","0.5,False,","0","  Type","0","0","  Tess","16,False,","0","  Min","10,False,","0","  Max","25,False,","0","  Edge Length","16,False,","0","  Max Displacement","25,False,","0","Write Depth","0","0","  Conservative","0","0","Vertex Position","1","0","Debug Display","1","0","Clear Coat","0","0","0","12","False","True","True","True","True","True","True","True","True","True","True","False","False","","True","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":0,"pos":[32,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ExtraPrePass","0","0","ExtraPrePass","6","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","True","1","False","","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","0","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","0","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":2,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ShadowCaster","0","2","ShadowCaster","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","True","1","False","","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","True","False","False","False","False","0","False","","False","False","False","False","False","False","False","False","False","True","1","False","","True","3","False","","False","False","True","1","LightMode=ShadowCaster","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":3,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","DepthOnly","0","3","DepthOnly","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","True","1","False","","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","True","True","False","False","False","0","False","","False","False","False","False","False","False","False","False","False","True","1","False","","False","False","False","True","1","LightMode=DepthOnly","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":4,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","Meta","0","4","Meta","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","True","1","False","","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","2","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=Meta","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":5,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","Universal2D","0","5","Universal2D","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","True","1","False","","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","False","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=Universal2D","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":6,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","DepthNormals","0","6","DepthNormals","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","True","1","False","","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","0","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","False","","True","3","False","","False","False","True","1","LightMode=DepthNormals","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":7,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","GBuffer","0","7","GBuffer","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","True","1","False","","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=UniversalGBuffer","False","True","12","d3d11","gles","metal","vulkan","xboxone","xboxseries","playstation","ps4","ps5","switch","switch2","webgpu","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":8,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","SceneSelectionPass","0","8","SceneSelectionPass","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","True","1","False","","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","2","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=SceneSelectionPass","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":9,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ScenePickingPass","0","9","ScenePickingPass","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","True","1","False","","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=Picking","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":10,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","MotionVectors","0","10","MotionVectors","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","True","1","False","","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","False","False","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","True","1","LightMode=MotionVectors","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":11,"pos":[0,0],"params":["Float","False","False","-1","3","UnityEditor.ShaderGraphLitGUI","0","12","New Amplify Shader","94348b07e5e8bab40bd6c8a1e3df54cd","True","XRMotionVectors","0","11","XRMotionVectors","0","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","True","1","False","","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","True","1","False","","255","False","","1","False","","7","False","","3","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","False","False","False","False","True","1","LightMode=XRMotionVectors","False","False","0","","0","0","Standard","0","False","0"]}
+{"type":"AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor","id":1,"pos":[520,-128],"params":["Float","False","True","-1","3","UnityEditor.ShaderGraphLitGUI","0","18","TerrainShader","94348b07e5e8bab40bd6c8a1e3df54cd","True","ForwardLit","0","1","ForwardLit","22","False","False","False","False","False","False","False","False","False","False","False","False","True","0","False","","False","True","0","False","","False","False","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","True","1","False","","True","4","RenderPipeline=UniversalPipeline","RenderType=Opaque=RenderType","Queue=Geometry=Queue=0","UniversalMaterialType=Lit","True","5","True","14","all","0","False","True","1","1","False","","0","False","","1","1","False","","0","False","","False","False","False","False","False","False","False","False","False","False","False","False","False","False","True","True","True","True","True","0","False","","False","False","False","False","False","False","False","True","False","0","False","","255","False","","255","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","0","False","","False","True","1","False","","True","3","False","","True","True","0","False","","0","False","","False","True","1","LightMode=UniversalForward","False","False","0","","0","0","Standard","55","Category","0","0","  Instanced Terrain Normals","1","0","Lighting Model","0","0","Workflow","1","0","Surface","0","0","  Keep Alpha","0","0","  Refraction Model","0","0","  Blend","0","0","  Receive Fog","1","0","Two Sided","1","0","Alpha Clipping","0","638918163137198311","  Use Shadow Threshold","0","638913139129558050","Fragment Normal Space","0","0","Forward Only","0","0","  Keep GBuffer","0","0","Transmission","0","0","  Transmission Shadow","0.5,False,","0","Translucency","0","0","  Translucency Strength","1,False,","0","  Normal Distortion","0.5,False,","0","  Scattering","2,False,","0","  Direct","0.9,False,","0","  Ambient","0.1,False,","0","  Shadow","0.5,False,","0","Cast Shadows","1","0","Receive Shadows","2","0","Specular Highlights","2","0","Environment Reflections","2","0","Screen Space Reflections","2","0","Receive SSAO","1","0","Motion Vectors","1","0","  Additional Motion Vectors","1","0","  Alembic Motion Vectors","0","0","  XR Motion Vectors","0","0","GPU Instancing","0","638913139400457197","LOD CrossFade","0","638913139434204775","Built-in Fog","0","639249969624190811","_FinalColorxAlpha","0","0","Meta Pass","1","0","Override Baked GI","0","0","Extra Pre Pass","0","0","Tessellation","0","0","  Phong","0","0","  Strength","0.5,False,","0","  Type","0","0","  Tess","16,False,","0","  Min","10,False,","0","  Max","25,False,","0","  Edge Length","16,False,","0","  Max Displacement","25,False,","0","Write Depth","0","0","  Conservative","0","0","Vertex Position","1","0","Debug Display","1","0","Clear Coat","0","0","0","12","False","True","True","True","True","True","True","True","True","True","True","False","False","","True","0"]}
 {"wire":[98,10,84,0]}
 {"wire":[98,8,50,0]}
 {"wire":[98,9,50,1]}
@@ -4367,4 +4393,4 @@ Version=19912
 {"wire":[1,6,55,6]}
 {"wire":[1,30,98,15]}
 ASEEND*/
-//CHKSM=97B52D229034B2E6C81A324375D68B675B84C564
+//CHKSM=1CA7AAD0217BA4E66CD4FC95DB41B72C9A32A0DE
