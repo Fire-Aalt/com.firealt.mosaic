@@ -1,54 +1,29 @@
 using Unity.Scripting.LifecycleManagement;
 using FireAlt.Core.Editor;
-using UnityEditor;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace FireAlt.Mosaic.Editor
 {
-    
     [NoAutoStaticsCleanup]
-    public static partial class EditorResources
+    public static class EditorResources
     {
-        public static Texture MosaicPaintingToolIcon;
-        
-        public static Texture NotTexture;
-        public static Texture AnyTexture;
-        public static Texture MatrixCenterTexture;
-        
-        public static Texture HorizontalSprite;
-        public static Texture VerticalSprite;
-        public static Texture RotatedSprite;
-        public static Texture UniquePrefabSprite;
-        
-        public static StyleSheet StyleSheet;
-        public static StyleSheet PaintingStyleSheet;
-        public static VisualTreeAsset WeightedListElementAsset;
-        public static VisualTreeAsset RuleGroupElementAsset;
-        
-        [OnCodeInitializing]
-        private static void Initialize()
-        {
-            MosaicPaintingToolIcon = Load<Texture>("MosaicPaintingIcon.png");
-            
-            NotTexture = Load<Texture>("not.png");
-            AnyTexture = Load<Texture>("any.png");
-            MatrixCenterTexture = Load<Texture>("matrixCenter.png");
+        private static readonly PackageEditorResources PackageResources = new("com.firealt.mosaic");
 
-            HorizontalSprite = Load<Texture>("Horizontal.png");
-            VerticalSprite = Load<Texture>("Vertical.png");
-            RotatedSprite = Load<Texture>("Rotated.png");
-            UniquePrefabSprite = Load<Texture>("UniquePrefab.png");
-            
-            StyleSheet = Load<StyleSheet>("IntGridMatrix.uss");
-            PaintingStyleSheet = Load<StyleSheet>("MosaicPainting.uss");
-            WeightedListElementAsset = Load<VisualTreeAsset>("WeightedListViewItem.uxml");
-            RuleGroupElementAsset = Load<VisualTreeAsset>("RuleGroupElement.uxml");
-        }
+        public static Texture MosaicPaintingToolIcon => PackageResources.Load<Texture>("MosaicPaintingIcon.png");
 
-        private static T Load<T>(string path) where T : Object
-        {
-            return AssetDatabaseUtils.LoadEditorResource<T>(path, "com.firealt.mosaic");
-        }
+        public static Texture NotTexture => PackageResources.Load<Texture>("not.png");
+        public static Texture AnyTexture => PackageResources.Load<Texture>("any.png");
+        public static Texture MatrixCenterTexture => PackageResources.Load<Texture>("matrixCenter.png");
+
+        public static Texture HorizontalSprite => PackageResources.Load<Texture>("Horizontal.png");
+        public static Texture VerticalSprite => PackageResources.Load<Texture>("Vertical.png");
+        public static Texture RotatedSprite => PackageResources.Load<Texture>("Rotated.png");
+        public static Texture UniquePrefabSprite => PackageResources.Load<Texture>("UniquePrefab.png");
+
+        public static StyleSheet StyleSheet => PackageResources.Load<StyleSheet>("IntGridMatrix.uss");
+        public static StyleSheet PaintingStyleSheet => PackageResources.Load<StyleSheet>("MosaicPainting.uss");
+        public static VisualTreeAsset WeightedListElementAsset => PackageResources.Load<VisualTreeAsset>("WeightedListViewItem.uxml");
+        public static VisualTreeAsset RuleGroupElementAsset => PackageResources.Load<VisualTreeAsset>("RuleGroupElement.uxml");
     }
 }

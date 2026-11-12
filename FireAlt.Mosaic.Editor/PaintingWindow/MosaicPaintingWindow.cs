@@ -1,3 +1,4 @@
+using FireAlt.Core.Editor;
 using Unity.Scripting.LifecycleManagement;
 using System;
 using System.Collections.Generic;
@@ -97,7 +98,7 @@ namespace FireAlt.Mosaic.Editor
             root.RegisterCallback<KeyDownEvent>(ExitPainting, TrickleDown.TrickleDown);
             root.EnableInClassList("mosaic-paint-theme--dark", EditorGUIUtility.isProSkin);
             root.EnableInClassList("mosaic-paint-theme--light", !EditorGUIUtility.isProSkin);
-            root.styleSheets.Add(EditorResources.PaintingStyleSheet);
+            root.TryAddStyleSheet(EditorResources.PaintingStyleSheet);
 
             var toolbar = new Toolbar();
             _intGridColorsToggle = new ToolbarToggle

@@ -1,3 +1,4 @@
+using FireAlt.Core.Editor;
 using FireAlt.Mosaic.Authoring;
 using UnityEditor;
 using UnityEditor.UIElements;
@@ -17,7 +18,7 @@ namespace FireAlt.Mosaic.Editor
             const string defaultTheme = "Packages/com.unity.dt.app-ui/PackageResources/Styles/Themes/App UI - Editor Dark - Small.tss";
             var root = new VisualElement();
 
-            root.styleSheets.Add(EditorResources.StyleSheet);
+            root.TryAddStyleSheet(EditorResources.StyleSheet);
             root.AddToClassList("unity-editor");
 
             {

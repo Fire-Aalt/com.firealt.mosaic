@@ -1,3 +1,4 @@
+using FireAlt.Core.Editor;
 using System;
 using FireAlt.Mosaic.Authoring;
 using FireAlt.Mosaic.Data;
@@ -27,7 +28,7 @@ namespace FireAlt.Mosaic.Editor
             _padding = padding;
             
             name = "IntGridMatrix_Root";
-            styleSheets.Add(EditorResources.StyleSheet);
+            this.TryAddStyleSheet(EditorResources.StyleSheet);
 
             _matrixContainer = new VisualElement { name = "IntGridMatrix_Container" };
             

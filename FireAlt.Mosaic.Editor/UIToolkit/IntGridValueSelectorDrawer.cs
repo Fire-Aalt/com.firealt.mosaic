@@ -15,7 +15,7 @@ namespace FireAlt.Mosaic.Editor
         public static VisualElement Create(FieldInfo fieldInf, SerializedProperty property)
         {
             var root = new VisualElement { name = "IntGridValueSelector_Root" };
-            root.styleSheets.Add(EditorResources.StyleSheet);
+            root.TryAddStyleSheet(EditorResources.StyleSheet);
 
             var selectorContainer = new VisualElement { name = "IntGridValueSelector_Container" };
             

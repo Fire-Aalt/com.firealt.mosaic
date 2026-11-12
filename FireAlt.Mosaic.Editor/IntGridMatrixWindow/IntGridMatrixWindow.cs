@@ -1,3 +1,4 @@
+using FireAlt.Core.Editor;
 using System.Reflection;
 using FireAlt.Mosaic.Authoring;
 using FireAlt.Mosaic.Data;
@@ -63,7 +64,7 @@ namespace FireAlt.Mosaic.Editor
             var root = rootVisualElement;
             root.Clear();
             
-            root.styleSheets.Add(EditorResources.StyleSheet);
+            root.TryAddStyleSheet(EditorResources.StyleSheet);
 
             // 4 columns: 0.2 | 0.4 | 0.2 | 0.2
             var row = new VisualElement
